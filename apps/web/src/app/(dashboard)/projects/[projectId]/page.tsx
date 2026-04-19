@@ -38,7 +38,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
   // Fetch pipeline runs for this project
   const { data: pipelineRuns } = await supabase
     .from("pipeline_runs")
-    .select("id, status, trigger_type, git_branch, git_sha, duration_ms, created_at, created_by")
+    .select("id, status, trigger_type, git_branch, git_sha, duration_ms, created_at, created_by, pipeline_definition_id")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false })
     .limit(20);

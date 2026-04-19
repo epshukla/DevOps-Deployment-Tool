@@ -51,6 +51,7 @@ interface PipelineRunData {
   readonly git_sha: string | null;
   readonly duration_ms: number | null;
   readonly created_at: string;
+  readonly pipeline_definition_id: string;
 }
 
 interface PipelineDefinitionData {
@@ -283,6 +284,7 @@ export function ProjectDetailClient({
         {activeTab === "pipelines" && (
           <PipelinesTab
             projectId={project.id}
+            pipelineDefinitions={pipelineDefinitions}
             runs={pipelineRuns}
             metrics={metrics}
             predictedDuration={predictedDuration ?? null}
@@ -391,28 +393,83 @@ function SlaTab({ slaData }: { readonly slaData: SlaData }) {
   );
 }
 
-function PipelinesTab({ projectId, runs, metrics, predictedDuration, failureRisk }: {
+function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predictedDuration, failureRisk }: {
   readonly projectId: string;
+  readonly pipelineDefinitions: readonly PipelineDefinitionData[];
   readonly runs: readonly PipelineRunData[];
   readonly metrics: ProjectMetrics;
   readonly predictedDuration: number | null;
   readonly failureRisk?: FailureRiskResult;
 }) {
+  const showPipelineColumn = pipelineDefinitions.length > 1;
+  const nameMap = new Map(pipelineDefinitions.map((d) => [d.id, d.name]));
+
+  const definitionsSection = (
+    <div className="bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10 overflow-hidden mb-6">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
+        <div>
+          <h3 className="text-sm font-bold text-on-surface">Pipeline Definitions</h3>
+          <p className="text-xs text-on-surface-variant mt-0.5">
+            {pipelineDefinitions.length} definition{pipelineDefinitions.length !== 1 ? "s" : ""}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/projects/${projectId}/pipelines`}
+            className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-on-surface-variant hover:text-on-surface transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm">settings</span>
+            Manage
+          </Link>
+          <Link
+            href={`/projects/${projectId}/pipelines/new`}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded hover:bg-primary/90 transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm">add</span>
+            New Pipeline
+          </Link>
+        </div>
+      </div>
+      {pipelineDefinitions.length === 0 ? (
+        <div className="px-6 py-8 text-center">
+          <p className="text-sm text-on-surface-variant">No pipelines defined</p>
+          <p className="text-xs text-on-surface-variant/60 mt-1">
+            Create a pipeline definition to start automating builds
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y divide-outline-variant/5">
+          {pipelineDefinitions.map((d) => (
+            <div key={d.id} className="flex items-center justify-between px-6 py-3 hover:bg-surface-container transition-colors">
+              <div className="flex items-center gap-3">
+                <span className="material-symbols-outlined text-sm text-on-surface-variant">
+                  account_tree
+                </span>
+                <span className="text-sm font-bold text-on-surface">{d.name}</span>
+                <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm ${
+                  d.current_version_id
+                    ? "bg-tertiary/10 text-tertiary"
+                    : "bg-on-surface-variant/10 text-on-surface-variant"
+                }`}>
+                  {d.current_version_id ? "Active" : "Draft"}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   if (runs.length === 0) {
     return (
       <>
+        {definitionsSection}
         <div className="bg-surface-container-low rounded-xl overflow-hidden ring-1 ring-outline-variant/10">
           <div className="px-6 py-12 text-center">
             <span className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">rocket_launch</span>
             <p className="text-sm text-on-surface-variant">No pipeline runs yet</p>
             <p className="text-xs text-on-surface-variant/60 mt-1">Trigger a pipeline or push to your repository to start</p>
-            <Link
-              href={`/projects/${projectId}/pipelines`}
-              className="inline-flex items-center gap-1 text-xs text-primary font-bold mt-3 hover:underline"
-            >
-              Manage Definitions
-              <span className="material-symbols-outlined text-sm">east</span>
-            </Link>
           </div>
         </div>
         <BentoStats metrics={metrics} />
@@ -422,11 +479,13 @@ function PipelinesTab({ projectId, runs, metrics, predictedDuration, failureRisk
 
   return (
     <>
+      {definitionsSection}
       <div className="bg-surface-container-low rounded-xl overflow-hidden ring-1 ring-outline-variant/10">
         <table className="w-full">
           <thead>
             <tr className="text-xs font-bold text-on-surface-variant uppercase tracking-widest border-b border-outline-variant/10">
               <th className="text-left px-6 py-3">Status</th>
+              {showPipelineColumn && <th className="text-left px-6 py-3">Pipeline</th>}
               <th className="text-left px-6 py-3">Branch</th>
               <th className="text-left px-6 py-3">Commit</th>
               <th className="text-left px-6 py-3">Trigger</th>
@@ -446,6 +505,11 @@ function PipelinesTab({ projectId, runs, metrics, predictedDuration, failureRisk
                       </span>
                     </Link>
                   </td>
+                  {showPipelineColumn && (
+                    <td className="px-6 py-3 text-xs font-semibold text-on-surface-variant">
+                      {nameMap.get(run.pipeline_definition_id) ?? "—"}
+                    </td>
+                  )}
                   <td className="px-6 py-3 text-sm font-mono">{run.git_branch ?? "—"}</td>
                   <td className="px-6 py-3 text-sm font-mono text-on-surface-variant">{run.git_sha?.slice(0, 7) ?? "—"}</td>
                   <td className="px-6 py-3 text-xs text-on-surface-variant">{run.trigger_type}</td>
