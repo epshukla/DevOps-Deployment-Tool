@@ -13,7 +13,7 @@ import {
 } from "./container-manager";
 import { allocatePort } from "./port-allocator";
 import { generateNginxConfig, writeNginxConfig, reloadNginx } from "./nginx-config";
-import { waitForHealthy } from "./health-checker";
+import { waitForHealthyViaDocker } from "./health-checker";
 import type { AggregateHealth } from "./sliding-window";
 
 // ── Types ───────────────────────────────────────────────────────
@@ -221,9 +221,10 @@ async function attemptRollback(
     });
 
     // Wait for the rollback container to become healthy
-    const healthUrl = `http://${rollbackContainerName}:${ref.appPort}${ref.healthPath}`;
-    const healthResult = await waitForHealthy({
-      url: healthUrl,
+    const healthResult = await waitForHealthyViaDocker({
+      containerName: rollbackContainerName,
+      port: ref.appPort,
+      path: ref.healthPath,
       timeoutMs: 5000,
       retries: 3,
       intervalMs: 5000,

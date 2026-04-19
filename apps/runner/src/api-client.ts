@@ -14,6 +14,7 @@ export interface JobPayload {
   readonly git_repo_url: string;
   readonly git_branch: string;
   readonly git_sha: string | null;
+  readonly git_clone_token: string | null;
   readonly dockerfile_path: string;
   readonly build_context: string;
   readonly deploy_target: string;
@@ -74,6 +75,15 @@ export class RunnerApiClient {
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
+
+    const contentType = response.headers.get("content-type") ?? "";
+
+    if (!contentType.includes("application/json")) {
+      const text = await response.text();
+      throw new Error(
+        `API error ${response.status}: expected JSON but got ${contentType || "unknown content-type"} (${text.slice(0, 200)})`,
+      );
+    }
 
     const data = await response.json() as T & { error?: string };
 

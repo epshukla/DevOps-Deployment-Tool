@@ -50,6 +50,7 @@ export interface Project {
   readonly dockerfile_path: string;
   readonly build_context: string;
   readonly deploy_target: DeployTarget;
+  readonly github_token_id: string | null;
   readonly created_by: string;
   readonly created_at: string;
   readonly updated_at: string;
@@ -341,4 +342,13 @@ export interface AuditEvent {
   readonly details: Record<string, unknown> | null;
   readonly ip_address: string | null;
   readonly created_at: string;
+}
+
+export interface GitHubToken {
+  readonly id: string;
+  readonly user_id: string;
+  readonly encrypted_token: string;
+  readonly scopes: string;
+  readonly created_at: string;
+  readonly updated_at: string;
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TopBar } from "@/components/layout/top-bar";
 import { requireUserWithOrg } from "@/lib/auth/session";
+import { formatDateShort } from "@/lib/format-date";
 
 interface PageProps {
   readonly params: Promise<{ projectId: string }>;
@@ -76,7 +77,7 @@ export default async function PipelinesPage({ params }: PageProps) {
                   <div>
                     <h3 className="text-sm font-bold text-on-surface">{p.name}</h3>
                     <p className="text-xs text-on-surface-variant mt-1">
-                      Created {new Date(p.created_at).toLocaleDateString()}
+                      Created {formatDateShort(p.created_at)}
                       {p.current_version_id ? " — has active version" : " — no version"}
                     </p>
                   </div>

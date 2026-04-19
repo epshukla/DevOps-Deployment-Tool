@@ -13,8 +13,8 @@ vi.mock("../container-manager", () => ({
 }));
 
 vi.mock("../health-checker", () => ({
-  waitForHealthy: vi.fn(),
-  checkHealth: vi.fn(),
+  waitForHealthyViaDocker: vi.fn(),
+  checkHealthViaDocker: vi.fn(),
 }));
 
 vi.mock("../port-allocator", () => ({
@@ -35,7 +35,7 @@ vi.spyOn(globalThis, "setTimeout").mockImplementation((fn: () => void) => {
 
 const { isContainerRunning, runContainer, stopContainer, removeContainerIfExists } =
   await import("../container-manager");
-const { waitForHealthy, checkHealth } = await import("../health-checker");
+const { waitForHealthyViaDocker, checkHealthViaDocker } = await import("../health-checker");
 const { generateWeightedNginxConfig } = await import("../nginx-config");
 
 function createMockClient() {
@@ -86,7 +86,7 @@ describe("DockerLocalRollingDeployer", () => {
   describe("deploy — first deploy", () => {
     it("starts N instances when no existing instances found", async () => {
       vi.mocked(isContainerRunning).mockResolvedValue(false);
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
 
       const result = await deployer.deploy(createCtx());
 
@@ -101,7 +101,7 @@ describe("DockerLocalRollingDeployer", () => {
 
     it("configures nginx with all instances", async () => {
       vi.mocked(isContainerRunning).mockResolvedValue(false);
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
 
       await deployer.deploy(createCtx());
 
@@ -117,7 +117,7 @@ describe("DockerLocalRollingDeployer", () => {
 
     it("cleans up on health check failure during first deploy", async () => {
       vi.mocked(isContainerRunning).mockResolvedValue(false);
-      vi.mocked(waitForHealthy)
+      vi.mocked(waitForHealthyViaDocker)
         .mockResolvedValueOnce(healthyResult())
         .mockResolvedValueOnce(unhealthyResult());
 
@@ -129,7 +129,7 @@ describe("DockerLocalRollingDeployer", () => {
 
     it("sets correct labels including strategy and ordinal", async () => {
       vi.mocked(isContainerRunning).mockResolvedValue(false);
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
 
       await deployer.deploy(createCtx());
 
@@ -156,7 +156,7 @@ describe("DockerLocalRollingDeployer", () => {
     });
 
     it("replaces instances one at a time", async () => {
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
 
       const ctx = createCtx();
       const result = await deployer.deploy(ctx);
@@ -175,7 +175,7 @@ describe("DockerLocalRollingDeployer", () => {
     });
 
     it("records rolling_instance_updated events", async () => {
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
 
       const ctx = createCtx();
       await deployer.deploy(ctx);
@@ -192,7 +192,7 @@ describe("DockerLocalRollingDeployer", () => {
 
     it("rolls back updated instances on health check failure", async () => {
       // First instance healthy, second unhealthy
-      vi.mocked(waitForHealthy)
+      vi.mocked(waitForHealthyViaDocker)
         .mockResolvedValueOnce(healthyResult())
         .mockResolvedValueOnce(unhealthyResult());
 
@@ -204,7 +204,7 @@ describe("DockerLocalRollingDeployer", () => {
     });
 
     it("records rolling_rollback event on failure", async () => {
-      vi.mocked(waitForHealthy)
+      vi.mocked(waitForHealthyViaDocker)
         .mockResolvedValueOnce(healthyResult())
         .mockResolvedValueOnce(unhealthyResult());
 
@@ -220,7 +220,7 @@ describe("DockerLocalRollingDeployer", () => {
     });
 
     it("updates nginx after each batch", async () => {
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
 
       await deployer.deploy(createCtx());
 
@@ -232,7 +232,7 @@ describe("DockerLocalRollingDeployer", () => {
       vi.mocked(isContainerRunning).mockImplementation(async (name: string) => {
         return name.includes("inst-");
       });
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
 
       const ctx = createCtx({
         config: {
@@ -256,7 +256,7 @@ describe("DockerLocalRollingDeployer", () => {
   describe("rollback", () => {
     it("deploys target image to all instances", async () => {
       vi.mocked(isContainerRunning).mockResolvedValue(false);
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
 
       const result = await deployer.rollback(createCtx(), "myapp:v1");
 
@@ -301,7 +301,7 @@ describe("DockerLocalRollingDeployer", () => {
       vi.mocked(isContainerRunning).mockImplementation(async (name: string) => {
         return name === "deployx-myapp-inst-0" || name === "deployx-myapp-inst-1";
       });
-      vi.mocked(checkHealth).mockResolvedValue(healthyResult());
+      vi.mocked(checkHealthViaDocker).mockResolvedValue(healthyResult());
 
       const health = await deployer.getHealth("myapp", "/health", 3000);
       expect(health).toBe("healthy");

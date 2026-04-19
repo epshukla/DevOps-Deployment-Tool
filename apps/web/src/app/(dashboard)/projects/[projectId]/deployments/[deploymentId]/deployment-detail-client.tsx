@@ -7,6 +7,7 @@ import { HealthCheckChart } from "@/components/deployment/health-check-chart";
 import { CanaryProgressCard } from "@/components/deployment/canary-progress-card";
 import { RollingProgressCard } from "@/components/deployment/rolling-progress-card";
 import { stopDeployment, submitApprovalVote } from "../actions";
+import { formatDate, formatTime } from "@/lib/format-date";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -224,7 +225,7 @@ export function DeploymentDetailClient({
               </span>
               <span className="text-outline-variant">|</span>
               <span className="text-xs font-mono">
-                {new Date(deployment.created_at).toLocaleString()}
+                {formatDate(deployment.created_at)}
               </span>
             </div>
           </div>
@@ -355,7 +356,7 @@ export function DeploymentDetailClient({
                         {check.status_code ?? "—"}
                       </td>
                       <td className="px-6 py-2.5 text-xs text-on-surface-variant">
-                        {new Date(check.checked_at).toLocaleTimeString()}
+                        {formatTime(check.checked_at)}
                       </td>
                     </tr>
                   ))}
@@ -417,7 +418,7 @@ export function DeploymentDetailClient({
                       </p>
 
                       <p className="text-[10px] text-on-surface-variant/60">
-                        {new Date(rev.created_at).toLocaleString()}
+                        {formatDate(rev.created_at)}
                       </p>
 
                       {rev.rollback_reason && (
@@ -477,7 +478,7 @@ export function DeploymentDetailClient({
                         {event.attempt_number != null && ` #${event.attempt_number}`}
                       </p>
                       <p className="text-[10px] text-on-surface-variant/60">
-                        {new Date(event.created_at).toLocaleString()}
+                        {formatDate(event.created_at)}
                       </p>
                     </div>
                   </div>
@@ -557,7 +558,7 @@ function ApprovalCard({
                 <span className="text-on-surface-variant">— {vote.comment}</span>
               )}
               <span className="text-on-surface-variant/50 ml-auto">
-                {new Date(vote.created_at).toLocaleString()}
+                {formatDate(vote.created_at)}
               </span>
             </div>
           ))}

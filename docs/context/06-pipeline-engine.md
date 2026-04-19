@@ -59,7 +59,7 @@ Node.js CLI agent:
 1. Admin clicks "Register Runner" in dashboard → server action generates random token
 2. Token is SHA-256 hashed → stored in `runner_registrations.token_hash`
 3. Plaintext token shown to admin once (copy to clipboard)
-4. Runner CLI: `npx @deployx/runner register --token TOKEN --url URL --name NAME`
+4. Runner CLI: `pnpm runner register --token TOKEN --url URL --name NAME` (from repo root)
 5. Runner sends token in `Authorization: Bearer <token>` header
 6. API hashes incoming token → looks up runner by `token_hash`
 7. All subsequent requests use the same Bearer token

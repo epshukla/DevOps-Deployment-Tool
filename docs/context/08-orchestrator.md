@@ -18,7 +18,7 @@ Pipeline Executor
                            ├─ ensureNetwork("deployx-net")
                            ├─ getCurrentColor() → "blue" | "green" | null
                            ├─ runContainer(newColor)
-                           ├─ waitForHealthy(healthCheck)
+                           ├─ waitForHealthyViaDocker(docker exec wget)
                            ├─ ensureProxyContainer(nginx)
                            ├─ writeNginxConfig → reloadNginx
                            ├─ drain + stop oldColor

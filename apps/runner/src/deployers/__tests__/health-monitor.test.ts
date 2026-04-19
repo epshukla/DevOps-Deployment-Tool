@@ -14,8 +14,8 @@ vi.mock("../container-manager", () => ({
 
 // Mock health-checker
 vi.mock("../health-checker", () => ({
-  checkHealth: vi.fn(),
-  waitForHealthy: vi.fn(),
+  checkHealthViaDocker: vi.fn(),
+  waitForHealthyViaDocker: vi.fn(),
 }));
 
 // Mock remediation-engine
@@ -130,7 +130,7 @@ describe("HealthMonitor", () => {
     });
 
     vi.mocked(containerManager.isContainerRunning).mockResolvedValue(true);
-    vi.mocked(healthChecker.checkHealth).mockResolvedValue({
+    vi.mocked(healthChecker.checkHealthViaDocker).mockResolvedValue({
       passed: true,
       statusCode: 200,
       responseTimeMs: 50,
@@ -181,7 +181,7 @@ describe("HealthMonitor", () => {
     await vi.advanceTimersByTimeAsync(1000);
 
     // Should not perform health checks since container was skipped
-    expect(healthChecker.checkHealth).not.toHaveBeenCalled();
+    expect(healthChecker.checkHealthViaDocker).not.toHaveBeenCalled();
 
     monitor.stop();
   });
@@ -235,7 +235,7 @@ describe("HealthMonitor", () => {
     });
 
     vi.mocked(containerManager.isContainerRunning).mockResolvedValue(true);
-    vi.mocked(healthChecker.checkHealth).mockResolvedValue({
+    vi.mocked(healthChecker.checkHealthViaDocker).mockResolvedValue({
       passed: true,
       statusCode: 200,
       responseTimeMs: 25,
@@ -250,8 +250,10 @@ describe("HealthMonitor", () => {
     expect(containerManager.isContainerRunning).toHaveBeenCalledWith(
       "deployx-myapp-blue",
     );
-    expect(healthChecker.checkHealth).toHaveBeenCalledWith(
-      "http://deployx-myapp-blue:8080/healthz",
+    expect(healthChecker.checkHealthViaDocker).toHaveBeenCalledWith(
+      "deployx-myapp-blue",
+      8080,
+      "/healthz",
       5000,
     );
 
@@ -285,7 +287,7 @@ describe("HealthMonitor", () => {
     });
 
     vi.mocked(containerManager.isContainerRunning).mockResolvedValue(true);
-    vi.mocked(healthChecker.checkHealth).mockResolvedValue({
+    vi.mocked(healthChecker.checkHealthViaDocker).mockResolvedValue({
       passed: true,
       statusCode: 200,
       responseTimeMs: 42,
@@ -340,7 +342,7 @@ describe("HealthMonitor", () => {
     });
 
     vi.mocked(containerManager.isContainerRunning).mockResolvedValue(true);
-    vi.mocked(healthChecker.checkHealth).mockResolvedValue({
+    vi.mocked(healthChecker.checkHealthViaDocker).mockResolvedValue({
       passed: true,
       statusCode: 200,
       responseTimeMs: 50,
@@ -392,7 +394,7 @@ describe("HealthMonitor", () => {
     await vi.advanceTimersByTimeAsync(1000);
 
     // HTTP check should be skipped when container is not running
-    expect(healthChecker.checkHealth).not.toHaveBeenCalled();
+    expect(healthChecker.checkHealthViaDocker).not.toHaveBeenCalled();
 
     monitor.stop();
   });
@@ -428,7 +430,7 @@ describe("HealthMonitor", () => {
       inspectionData,
     );
     vi.mocked(containerManager.isContainerRunning).mockResolvedValue(true);
-    vi.mocked(healthChecker.checkHealth).mockResolvedValue({
+    vi.mocked(healthChecker.checkHealthViaDocker).mockResolvedValue({
       passed: true,
       statusCode: 200,
       responseTimeMs: 50,
@@ -480,7 +482,7 @@ describe("HealthMonitor", () => {
       inspectionData,
     );
     vi.mocked(containerManager.isContainerRunning).mockResolvedValue(true);
-    vi.mocked(healthChecker.checkHealth).mockResolvedValue({
+    vi.mocked(healthChecker.checkHealthViaDocker).mockResolvedValue({
       passed: true,
       statusCode: 200,
       responseTimeMs: 50,
@@ -533,7 +535,7 @@ describe("HealthMonitor", () => {
     });
 
     vi.mocked(containerManager.isContainerRunning).mockResolvedValue(true);
-    vi.mocked(healthChecker.checkHealth).mockResolvedValue({
+    vi.mocked(healthChecker.checkHealthViaDocker).mockResolvedValue({
       passed: true,
       statusCode: 200,
       responseTimeMs: 30,
@@ -546,8 +548,10 @@ describe("HealthMonitor", () => {
     await vi.advanceTimersByTimeAsync(1000);
 
     // Should perform health check on canary container
-    expect(healthChecker.checkHealth).toHaveBeenCalledWith(
-      "http://deployx-myapp-stable:3000/health",
+    expect(healthChecker.checkHealthViaDocker).toHaveBeenCalledWith(
+      "deployx-myapp-stable",
+      3000,
+      "/health",
       5000,
     );
     expect(remediationEngine.remediate).toHaveBeenCalled();
@@ -583,7 +587,7 @@ describe("HealthMonitor", () => {
     });
 
     vi.mocked(containerManager.isContainerRunning).mockResolvedValue(true);
-    vi.mocked(healthChecker.checkHealth).mockResolvedValue({
+    vi.mocked(healthChecker.checkHealthViaDocker).mockResolvedValue({
       passed: true,
       statusCode: 200,
       responseTimeMs: 25,
@@ -595,7 +599,7 @@ describe("HealthMonitor", () => {
 
     await vi.advanceTimersByTimeAsync(1000);
 
-    expect(healthChecker.checkHealth).toHaveBeenCalled();
+    expect(healthChecker.checkHealthViaDocker).toHaveBeenCalled();
     expect(remediationEngine.remediate).toHaveBeenCalled();
 
     monitor.stop();
@@ -635,7 +639,7 @@ describe("HealthMonitor", () => {
     await vi.advanceTimersByTimeAsync(1000);
 
     // Should skip this container since blue_green requires color
-    expect(healthChecker.checkHealth).not.toHaveBeenCalled();
+    expect(healthChecker.checkHealthViaDocker).not.toHaveBeenCalled();
     expect(consoleSpy).toHaveBeenCalledWith(
       expect.stringContaining("blue_green requires color label"),
     );
@@ -672,7 +676,7 @@ describe("HealthMonitor", () => {
     });
 
     vi.mocked(containerManager.isContainerRunning).mockResolvedValue(true);
-    vi.mocked(healthChecker.checkHealth).mockResolvedValue({
+    vi.mocked(healthChecker.checkHealthViaDocker).mockResolvedValue({
       passed: true,
       statusCode: 200,
       responseTimeMs: 30,
@@ -685,7 +689,7 @@ describe("HealthMonitor", () => {
     await vi.advanceTimersByTimeAsync(1000);
 
     // Should still work — blue_green with color=blue
-    expect(healthChecker.checkHealth).toHaveBeenCalled();
+    expect(healthChecker.checkHealthViaDocker).toHaveBeenCalled();
 
     monitor.stop();
   });

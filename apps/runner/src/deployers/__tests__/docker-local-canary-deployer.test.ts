@@ -15,8 +15,8 @@ vi.mock("../container-manager", () => ({
 }));
 
 vi.mock("../health-checker", () => ({
-  waitForHealthy: vi.fn(),
-  checkHealth: vi.fn(),
+  waitForHealthyViaDocker: vi.fn(),
+  checkHealthViaDocker: vi.fn(),
 }));
 
 vi.mock("../port-allocator", () => ({
@@ -37,7 +37,7 @@ vi.spyOn(globalThis, "setTimeout").mockImplementation((fn: () => void) => {
 });
 
 const { isContainerRunning } = await import("../container-manager");
-const { waitForHealthy, checkHealth } = await import("../health-checker");
+const { waitForHealthyViaDocker, checkHealthViaDocker } = await import("../health-checker");
 const { generateWeightedNginxConfig, calculateCanaryWeights } = await import("../nginx-config");
 const { runContainer, stopContainer, removeContainerIfExists } = await import("../container-manager");
 
@@ -88,7 +88,7 @@ describe("DockerLocalCanaryDeployer", () => {
   describe("deploy — first deploy (no stable exists)", () => {
     it("creates single stable container when no stable is running", async () => {
       vi.mocked(isContainerRunning).mockResolvedValue(false);
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
 
       const result = await deployer.deploy(createCtx());
 
@@ -104,7 +104,7 @@ describe("DockerLocalCanaryDeployer", () => {
 
     it("returns failure when first deploy health check fails", async () => {
       vi.mocked(isContainerRunning).mockResolvedValue(false);
-      vi.mocked(waitForHealthy).mockResolvedValue(unhealthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(unhealthyResult());
 
       const result = await deployer.deploy(createCtx());
 
@@ -114,7 +114,7 @@ describe("DockerLocalCanaryDeployer", () => {
 
     it("sets correct labels including strategy and canaryRole", async () => {
       vi.mocked(isContainerRunning).mockResolvedValue(false);
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
 
       await deployer.deploy(createCtx());
 
@@ -140,8 +140,8 @@ describe("DockerLocalCanaryDeployer", () => {
     });
 
     it("starts canary container with correct labels", async () => {
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
-      vi.mocked(checkHealth).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+      vi.mocked(checkHealthViaDocker).mockResolvedValue(healthyResult());
 
       await deployer.deploy(createCtx());
 
@@ -155,7 +155,7 @@ describe("DockerLocalCanaryDeployer", () => {
     });
 
     it("stops canary and returns failure when initial health check fails", async () => {
-      vi.mocked(waitForHealthy).mockResolvedValue(unhealthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(unhealthyResult());
 
       const result = await deployer.deploy(createCtx());
 
@@ -168,8 +168,8 @@ describe("DockerLocalCanaryDeployer", () => {
     });
 
     it("progresses through all default stages", async () => {
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
-      vi.mocked(checkHealth).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+      vi.mocked(checkHealthViaDocker).mockResolvedValue(healthyResult());
 
       const ctx = createCtx();
       await deployer.deploy(ctx);
@@ -187,8 +187,8 @@ describe("DockerLocalCanaryDeployer", () => {
     });
 
     it("updates nginx weights at each stage", async () => {
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
-      vi.mocked(checkHealth).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+      vi.mocked(checkHealthViaDocker).mockResolvedValue(healthyResult());
 
       await deployer.deploy(createCtx());
 
@@ -197,9 +197,9 @@ describe("DockerLocalCanaryDeployer", () => {
     });
 
     it("auto-rollbacks when canary is unhealthy during observation", async () => {
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
       // First observation check passes, second fails
-      vi.mocked(checkHealth)
+      vi.mocked(checkHealthViaDocker)
         .mockResolvedValueOnce(healthyResult())
         .mockResolvedValueOnce(unhealthyResult());
 
@@ -218,8 +218,8 @@ describe("DockerLocalCanaryDeployer", () => {
     });
 
     it("records canary_rollback healing event with failure details", async () => {
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
-      vi.mocked(checkHealth).mockResolvedValue(unhealthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+      vi.mocked(checkHealthViaDocker).mockResolvedValue(unhealthyResult());
 
       const ctx = createCtx();
       await deployer.deploy(ctx);
@@ -233,8 +233,8 @@ describe("DockerLocalCanaryDeployer", () => {
     });
 
     it("at 100% stops old stable and creates new stable with canary image", async () => {
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
-      vi.mocked(checkHealth).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+      vi.mocked(checkHealthViaDocker).mockResolvedValue(healthyResult());
 
       await deployer.deploy(createCtx());
 
@@ -255,8 +255,8 @@ describe("DockerLocalCanaryDeployer", () => {
     });
 
     it("uses custom stages from config", async () => {
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
-      vi.mocked(checkHealth).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+      vi.mocked(checkHealthViaDocker).mockResolvedValue(healthyResult());
 
       const ctx = createCtx({
         config: {
@@ -279,8 +279,8 @@ describe("DockerLocalCanaryDeployer", () => {
     });
 
     it("restores 100% stable nginx on rollback", async () => {
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
-      vi.mocked(checkHealth).mockResolvedValue(unhealthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+      vi.mocked(checkHealthViaDocker).mockResolvedValue(unhealthyResult());
 
       await deployer.deploy(createCtx());
 
@@ -294,7 +294,7 @@ describe("DockerLocalCanaryDeployer", () => {
   describe("rollback", () => {
     it("deploys target image as new stable", async () => {
       vi.mocked(isContainerRunning).mockResolvedValue(false);
-      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
 
       const ctx = createCtx();
       const result = await deployer.rollback(ctx, "myapp:v1");
@@ -333,7 +333,7 @@ describe("DockerLocalCanaryDeployer", () => {
   describe("getHealth", () => {
     it("returns healthy when stable passes health check", async () => {
       vi.mocked(isContainerRunning).mockResolvedValue(true);
-      vi.mocked(checkHealth).mockResolvedValue(healthyResult());
+      vi.mocked(checkHealthViaDocker).mockResolvedValue(healthyResult());
 
       const health = await deployer.getHealth("myapp", "/health", 3000);
       expect(health).toBe("healthy");

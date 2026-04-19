@@ -53,7 +53,7 @@ export async function proxy(request: NextRequest) {
 
   // Already authenticated: redirect away from login page
   if (user && pathname.startsWith("/login")) {
-    return NextResponse.redirect(new URL("/projects", request.url));
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   return response;

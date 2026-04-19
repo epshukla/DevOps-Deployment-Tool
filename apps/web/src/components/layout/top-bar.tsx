@@ -1,6 +1,7 @@
 "use client";
 
 import { NotificationDropdown } from "./notification-dropdown";
+import { useUser } from "./user-context";
 
 interface NotificationData {
   readonly id: string;
@@ -28,6 +29,8 @@ export function TopBar({
   initialNotifications,
   initialUnreadCount,
 }: TopBarProps) {
+  const { avatarUrl, displayName } = useUser();
+
   return (
     <header className="flex items-center justify-between h-14 pl-8 pr-8 w-full sticky top-0 z-40 bg-surface/80 backdrop-blur-xl">
       {/* Breadcrumbs */}
@@ -81,9 +84,17 @@ export function TopBar({
             </button>
           )}
           <div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border border-outline-variant/30">
-            <span className="material-symbols-outlined text-on-surface-variant">
-              person
-            </span>
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={displayName}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="material-symbols-outlined text-on-surface-variant">
+                person
+              </span>
+            )}
           </div>
         </div>
       </div>

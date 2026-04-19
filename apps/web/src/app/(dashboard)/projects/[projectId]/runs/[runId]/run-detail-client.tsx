@@ -5,6 +5,7 @@ import { TopBar } from "@/components/layout/top-bar";
 import { PipelineDAG } from "@/components/pipeline/pipeline-dag";
 import { useRealtimeRun } from "@/hooks/use-realtime-run";
 import { cancelPipelineRun } from "../../runs/actions";
+import { formatTime } from "@/lib/format-date";
 
 interface RunData {
   readonly id: string;
@@ -362,7 +363,7 @@ export function RunDetailClient({
                 {filteredLogs.map((log) => (
                   <div key={log.id} className="flex gap-3">
                     <span className="text-on-surface-variant/30 select-none shrink-0">
-                      {new Date(log.timestamp).toLocaleTimeString()}
+                      {formatTime(log.timestamp)}
                     </span>
                     <span className={LOG_LEVEL_CLASS[log.level] ?? LOG_LEVEL_CLASS.info}>
                       {log.message}

@@ -20,7 +20,7 @@ import {
   writeNginxConfig,
   reloadNginx,
 } from "./nginx-config";
-import { waitForHealthy, checkHealth } from "./health-checker";
+import { waitForHealthyViaDocker, checkHealthViaDocker } from "./health-checker";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -123,10 +123,11 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
             restart: "unless-stopped",
           });
 
-          // Health check new instance
-          const healthUrl = `http://${containerName}:${appPort}${healthPath}`;
-          const healthResult = await waitForHealthy({
-            url: healthUrl,
+          // Health check new instance (via docker exec — host can't resolve container names)
+          const healthResult = await waitForHealthyViaDocker({
+            containerName,
+            port: appPort,
+            path: healthPath,
             timeoutMs: healthTimeoutS * 1000,
             retries: healthRetries,
             intervalMs: healthIntervalS * 1000,
@@ -272,10 +273,7 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
       if (!(await isContainerRunning(name))) continue;
       total++;
 
-      const result = await checkHealth(
-        `http://${name}:${port}${healthPath}`,
-        5000,
-      );
+      const result = await checkHealthViaDocker(name, port, healthPath, 5000);
       if (result.passed) healthy++;
     }
 
@@ -333,9 +331,10 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
         restart: "unless-stopped",
       });
 
-      const healthUrl = `http://${containerName}:${appPort}${healthPath}`;
-      const healthResult = await waitForHealthy({
-        url: healthUrl,
+      const healthResult = await waitForHealthyViaDocker({
+        containerName,
+        port: appPort,
+        path: healthPath,
         timeoutMs: healthConfig.timeoutS * 1000,
         retries: healthConfig.retries,
         intervalMs: healthConfig.intervalS * 1000,

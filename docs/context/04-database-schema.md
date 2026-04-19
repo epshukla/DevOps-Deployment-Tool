@@ -12,6 +12,8 @@
 | `20250406000007_functions_triggers.sql` | is_org_member(), has_org_role(), set_updated_at(), compute_duration_ms(), handle_new_user(), generate_slug() |
 | `20250406000008_rls_policies.sql` | RLS on all 17 tables, scoped to org membership |
 | `20250406000009_realtime.sql` | Realtime publications for 9 live-update tables |
+| `20250406000022_github_tokens.sql` | GitHub OAuth token storage (encrypted, per-user) |
+| `20250406000023_project_github_token.sql` | Links projects to GitHub tokens for private repo cloning |
 
 ## Table Count: 17
 organizations, org_memberships, user_profiles, projects,

@@ -30,6 +30,7 @@ describe("createWorkspace", () => {
       gitRepoUrl: "https://github.com/user/repo.git",
       gitBranch: "main",
       gitSha: null,
+      gitCloneToken: null,
     });
 
     expect(workspace.path).toBeTruthy();
@@ -59,6 +60,7 @@ describe("createWorkspace", () => {
       gitRepoUrl: "https://github.com/user/repo.git",
       gitBranch: "main",
       gitSha: "bbbbbbb1111111111111111111111111111111111",
+      gitCloneToken: null,
     });
 
     // Should have called git fetch and git checkout
@@ -86,6 +88,7 @@ describe("createWorkspace", () => {
       gitRepoUrl: "https://github.com/user/repo.git",
       gitBranch: "main",
       gitSha: "abc1234567890def",
+      gitCloneToken: null,
     });
 
     // Only clone and rev-parse, no fetch/checkout
@@ -107,6 +110,7 @@ describe("createWorkspace", () => {
         gitRepoUrl: "https://github.com/user/nonexistent.git",
         gitBranch: "main",
         gitSha: null,
+        gitCloneToken: null,
       }),
     ).rejects.toThrow("Failed to create workspace");
   });

@@ -15,7 +15,9 @@
 
 ## Step 1: Sign In
 
-1. Navigate to the DeployX dashboard (default: `http://localhost:3000`)
+1. Navigate to the DeployX dashboard:
+   - **Hosted**: [`https://deployx-chi.vercel.app`](https://deployx-chi.vercel.app)
+   - **Local dev**: `http://localhost:3000` (after running `pnpm dev`)
 2. Click **Sign in with GitHub**
 3. Authorize the GitHub OAuth app
 4. DeployX automatically creates a personal organization for you on first login
@@ -24,7 +26,22 @@
 
 ## Step 2: Create a Project
 
-Navigate to **Projects → New Project** and fill in:
+Navigate to **Projects → New Project**. You'll see two tabs:
+
+### Option A: Import from GitHub (recommended)
+
+1. If prompted, click **Connect GitHub** to grant `repo` scope access
+2. Browse or search your repositories in the picker
+3. Click a repository to select it — branches are loaded automatically
+4. Choose a branch, adjust the project name if needed
+5. Select a deploy target and configure Dockerfile path / build context
+6. Click **Create Project**
+
+> Private repos are fully supported. DeployX stores an encrypted GitHub token and uses it for cloning.
+
+### Option B: Enter URL manually
+
+Switch to the **Enter URL** tab and fill in:
 
 | Field | Description | Example |
 |-------|-------------|---------|
@@ -34,6 +51,8 @@ Navigate to **Projects → New Project** and fill in:
 | **Default Branch** | Branch to clone when triggering pipelines. | `main` |
 | **Dockerfile Path** | Relative path to Dockerfile in repo. | `./Dockerfile` |
 | **Build Context** | Docker build context directory. | `.` |
+
+> Note: Manual URL entry only supports public repos unless a GitHub token is stored via the Import tab.
 
 ### Repository Requirements
 
@@ -78,7 +97,7 @@ tasks:
     deploy:
       driver: docker_local
       strategy: blue_green
-      port: 3000
+      port: 3000              # Port YOUR app listens on inside the container
       image: my-app:${{ git.short_sha }}
       health_check:
         path: /health
@@ -148,7 +167,7 @@ Auto-trigger pipelines on Git push:
 
 1. Open project → **Settings** tab → **Webhooks** section
 2. Click **Configure Webhook**
-3. Copy the webhook URL: `https://your-domain/api/webhooks/github/<project-id>`
+3. Copy the webhook URL: `https://deployx-chi.vercel.app/api/webhooks/github/<project-id>` (or `http://localhost:3000/...` for local dev)
 4. In GitHub: **Settings → Webhooks → Add webhook**
    - Payload URL: the copied URL
    - Content type: `application/json`

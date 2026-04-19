@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
+import { formatDate } from "@/lib/format-date";
 
 interface AuditEventData {
   readonly id: string;
@@ -126,7 +127,7 @@ export function AuditLogClient({
                         className="border-b border-outline-variant/5 hover:bg-surface-container-high/50 transition-colors"
                       >
                         <td className="px-4 py-3 text-on-surface-variant/60 text-xs whitespace-nowrap">
-                          {new Date(event.created_at).toLocaleString()}
+                          {formatDate(event.created_at)}
                         </td>
                         <td className="px-4 py-3 text-on-surface">
                           {event.user_name}

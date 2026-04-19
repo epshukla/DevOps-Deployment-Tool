@@ -11,7 +11,7 @@ import {
   inspectContainer,
   isContainerRunning,
 } from "./container-manager";
-import { checkHealth } from "./health-checker";
+import { checkHealthViaDocker } from "./health-checker";
 import {
   createWindow,
   pushEntry,
@@ -243,8 +243,7 @@ export class HealthMonitor {
     let probeResult = null;
 
     if (containerRunning) {
-      const healthUrl = `http://${ref.containerName}:${ref.appPort}${ref.healthPath}`;
-      probeResult = await checkHealth(healthUrl, HEALTH_MONITOR_PROBE_TIMEOUT_MS);
+      probeResult = await checkHealthViaDocker(ref.containerName, ref.appPort, ref.healthPath, HEALTH_MONITOR_PROBE_TIMEOUT_MS);
       httpPassed = probeResult.passed;
 
       // Report health check to API (fire-and-forget)

@@ -4,6 +4,7 @@ import { StatCard } from "@/components/dashboard/stat-card";
 import { PipelineRunsTable } from "@/components/dashboard/pipeline-runs-table";
 import { DeploymentHealthCards } from "@/components/dashboard/deployment-health-cards";
 import { requireUserWithOrg } from "@/lib/auth/session";
+import { formatDate } from "@/lib/format-date";
 
 export default async function DashboardOverview() {
   const { supabase, user, org } = await requireUserWithOrg();
@@ -160,7 +161,7 @@ export default async function DashboardOverview() {
                 branch: run.git_branch ?? "main",
                 status: run.status as "success" | "failed" | "running" | "queued" | "created" | "cancelled" | "timed_out",
                 duration: run.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : null,
-                triggered_at: new Date(run.created_at).toLocaleString(),
+                triggered_at: formatDate(run.created_at),
               }))}
             />
           </div>

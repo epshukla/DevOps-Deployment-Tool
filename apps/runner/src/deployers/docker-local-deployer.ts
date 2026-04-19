@@ -9,13 +9,12 @@ import {
   runContainer,
   stopContainer,
   removeContainerIfExists,
-  inspectContainer,
   isContainerRunning,
   getContainerLogs,
 } from "./container-manager";
 import { allocatePort } from "./port-allocator";
 import { generateNginxConfig, writeNginxConfig, reloadNginx } from "./nginx-config";
-import { waitForHealthy } from "./health-checker";
+import { waitForHealthyViaDocker } from "./health-checker";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -91,16 +90,17 @@ export class DockerLocalDeployer implements DeployerDriver {
         restart: "unless-stopped",
       });
 
-      // 5. Health check
-      const healthUrl = `http://${newContainerName}:${appPort}${healthPath}`;
+      // 5. Health check (via docker exec — runner is on host, can't resolve container names)
       logStreamer.push({
         level: "info",
-        message: `[deploy] Waiting for health check: ${healthUrl}`,
+        message: `[deploy] Waiting for health check: ${newContainerName}:${appPort}${healthPath}`,
         task_run_id: ctx.taskRunId,
       });
 
-      const healthResult = await waitForHealthy({
-        url: healthUrl,
+      const healthResult = await waitForHealthyViaDocker({
+        containerName: newContainerName,
+        port: appPort,
+        path: healthPath,
         timeoutMs: healthTimeoutS * 1000,
         retries: healthRetries,
         intervalMs: healthIntervalS * 1000,
@@ -259,10 +259,9 @@ export class DockerLocalDeployer implements DeployerDriver {
     if (!currentColor) return "unknown";
 
     const containerName = this.getAppContainerName(projectSlug, currentColor);
-    const url = `http://${containerName}:${port}${healthPath}`;
 
-    const { checkHealth } = await import("./health-checker");
-    const result = await checkHealth(url, 5000);
+    const { checkHealthViaDocker } = await import("./health-checker");
+    const result = await checkHealthViaDocker(containerName, port, healthPath, 5000);
 
     if (result.passed) return "healthy";
     return "unhealthy";

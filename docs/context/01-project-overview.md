@@ -37,7 +37,9 @@ Execution Targets (Pluggable)
 ## Supabase Project
 - URL: https://hrnjmwnbidotpqqtmtxw.supabase.co
 - GitHub OAuth: Enabled
-- Redirect URL: http://localhost:3000/auth/callback
+- Redirect URLs:
+  - Local: `http://localhost:3000/auth/callback`
+  - Production: `https://deployx-chi.vercel.app/auth/callback`
 
 ## Monorepo Structure
 ```

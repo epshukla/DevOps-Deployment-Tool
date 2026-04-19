@@ -110,7 +110,7 @@ tasks:
     deploy:
       driver: docker_local
       strategy: blue_green
-      port: 3000
+      port: 3000              # Port the demo app listens on inside the container
       image: demo-app:${{ git.short_sha }}
       health_check:
         path: /health
@@ -119,6 +119,8 @@ tasks:
         retries: 3
         start_period_seconds: 15
 ```
+
+> **Note:** `port: 3000` in the pipeline YAML is the port your application listens on inside its Docker container — not the DeployX dashboard port.
 
 5. Click **Create Pipeline**
 
@@ -157,7 +159,7 @@ tasks:
     deploy:                    # optional — deployment config
       driver: docker_local     # docker_local | railway | fly_io
       strategy: blue_green     # blue_green | canary | rolling
-      port: 3000
+      port: 3000              # Your app's container port (1-65535)
       image: <image:tag>       # supports ${{ git.short_sha }} variable
       health_check:
         path: /health

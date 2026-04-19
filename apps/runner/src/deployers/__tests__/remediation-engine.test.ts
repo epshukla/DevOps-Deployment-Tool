@@ -18,7 +18,7 @@ vi.mock("../container-manager", () => ({
 
 // Mock health-checker
 vi.mock("../health-checker", () => ({
-  waitForHealthy: vi.fn(),
+  waitForHealthyViaDocker: vi.fn(),
 }));
 
 // Mock port-allocator
@@ -300,7 +300,7 @@ describe("remediate", () => {
       undefined,
     );
     vi.mocked(containerManager.runContainer).mockResolvedValue("");
-    vi.mocked(healthChecker.waitForHealthy).mockResolvedValue({
+    vi.mocked(healthChecker.waitForHealthyViaDocker).mockResolvedValue({
       passed: true,
       statusCode: 200,
       responseTimeMs: 50,

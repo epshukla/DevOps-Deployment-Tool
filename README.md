@@ -60,7 +60,7 @@ npx supabase db push
 pnpm dev
 ```
 
-The dashboard runs at `http://localhost:3000`.
+The dashboard runs at `http://localhost:3000` during local development. The hosted version is live at [`https://deployx-chi.vercel.app`](https://deployx-chi.vercel.app).
 
 ### Environment Variables
 
@@ -69,7 +69,31 @@ The dashboard runs at `http://localhost:3000`.
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only) |
-| `ENCRYPTION_KEY` | 32-byte hex key for secret encryption |
+| `DEPLOYX_SECRET_KEY` | Secret key for AES-256-GCM encryption (secrets, GitHub tokens, webhooks) |
+
+## Deployment
+
+The control plane (Next.js web app) is deployed to **Vercel** at [`https://deployx-chi.vercel.app`](https://deployx-chi.vercel.app).
+
+### Vercel Environment Variables
+
+Set these in the Vercel Dashboard under Project Settings > Environment Variables:
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
+| `DEPLOYX_SECRET_KEY` | Encryption key for secrets, GitHub tokens, and webhook signatures |
+
+### Supabase Auth Configuration
+
+For production, add the following to your Supabase project's Auth settings (Authentication > URL Configuration):
+
+- **Site URL**: `https://deployx-chi.vercel.app`
+- **Redirect URLs**: `https://deployx-chi.vercel.app/auth/callback`
+
+> The runner agent connects to whatever URL is provided during registration. The Register Runner dialog uses `window.location.origin`, so it automatically generates the correct `--url` flag for both local and production environments.
 
 ## Demo
 

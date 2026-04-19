@@ -1,16 +1,19 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { encryptSecret } from "@deployx/shared";
+import { createServiceClient } from "@/lib/supabase/service";
 
 /**
  * OAuth callback handler (PKCE flow).
  * Supabase redirects here after GitHub OAuth with a `code` query param.
- * We exchange it for a session, then redirect to the dashboard.
+ * We exchange it for a session, capture the GitHub provider_token,
+ * encrypt it, and store it for later API calls (repo listing, cloning).
  */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/projects";
+  const next = searchParams.get("next") ?? "/";
 
   if (code) {
     const cookieStore = await cookies();
@@ -32,9 +35,33 @@ export async function GET(request: Request) {
       },
     );
 
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
+      // Capture and store the GitHub access token for repo listing / private cloning
+      const providerToken = data.session?.provider_token;
+      if (providerToken && data.session?.user?.id) {
+        try {
+          const secretKey = process.env.DEPLOYX_SECRET_KEY;
+          if (secretKey) {
+            const encryptedToken = encryptSecret(providerToken, secretKey);
+            const serviceClient = createServiceClient();
+            await serviceClient.from("github_tokens").upsert(
+              {
+                user_id: data.session.user.id,
+                encrypted_token: encryptedToken,
+                scopes: "repo",
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "user_id" },
+            );
+          }
+        } catch (err) {
+          // Token storage failure should not block login
+          console.error("[auth/callback] Failed to store GitHub token:", err);
+        }
+      }
+
       return NextResponse.redirect(new URL(next, origin));
     }
   }

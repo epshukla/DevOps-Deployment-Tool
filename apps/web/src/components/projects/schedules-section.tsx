@@ -9,6 +9,7 @@ import {
   deleteSchedule,
   toggleSchedule,
 } from "@/app/(dashboard)/projects/[projectId]/schedules/actions";
+import { formatDate } from "@/lib/format-date";
 
 interface ScheduleData {
   readonly id: string;
@@ -180,10 +181,10 @@ export function SchedulesSection({
                 </div>
                 <div className="flex items-center gap-4 text-[10px] text-on-surface-variant/60 mt-2">
                   {schedule.next_run_at && schedule.is_active && (
-                    <span>Next: {new Date(schedule.next_run_at).toLocaleString()}</span>
+                    <span>Next: {formatDate(schedule.next_run_at)}</span>
                   )}
                   {schedule.last_run_at && (
-                    <span>Last: {new Date(schedule.last_run_at).toLocaleString()}</span>
+                    <span>Last: {formatDate(schedule.last_run_at)}</span>
                   )}
                 </div>
               </div>

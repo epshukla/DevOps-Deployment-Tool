@@ -77,6 +77,7 @@ export async function executePipeline(ctx: PipelineContext): Promise<void> {
       gitRepoUrl: job.git_repo_url,
       gitBranch: job.git_branch,
       gitSha: job.git_sha,
+      gitCloneToken: job.git_clone_token,
     });
     workspacePath = workspace.path;
     cleanupFn = workspace.cleanup;
@@ -659,11 +660,6 @@ async function executeDeployment(
     // Update deployment status based on result
     const finalStatus = result.success ? "active" : "failed";
     const healthStatus = result.success ? "healthy" : "unhealthy";
-
-    await reportSafe(client, job.run_id, {
-      scope: "pipeline",
-      status: result.success ? "running" : "running", // Pipeline is still running
-    }).catch(() => {});
 
     try {
       await client.updateDeployment(job.run_id, deployment_id, {

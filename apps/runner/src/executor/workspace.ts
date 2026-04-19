@@ -8,6 +8,7 @@ export interface WorkspaceOptions {
   readonly gitRepoUrl: string;
   readonly gitBranch: string;
   readonly gitSha: string | null;
+  readonly gitCloneToken: string | null;
 }
 
 export interface Workspace {
@@ -27,8 +28,16 @@ export async function createWorkspace(
   const workspacePath = await mkdtemp(prefix);
 
   try {
+    // For private repos, embed the token in the clone URL
+    const cloneUrl = options.gitCloneToken
+      ? options.gitRepoUrl.replace(
+          "https://github.com/",
+          `https://x-access-token:${options.gitCloneToken}@github.com/`,
+        )
+      : options.gitRepoUrl;
+
     // Shallow clone into the workspace
-    const cloneCmd = `git clone --depth 1 --branch ${options.gitBranch} -- ${options.gitRepoUrl} .`;
+    const cloneCmd = `git clone --depth 1 --branch ${options.gitBranch} -- ${cloneUrl} .`;
     await execaCommand(cloneCmd, {
       cwd: workspacePath,
       timeout: 120_000, // 2 min timeout for clone

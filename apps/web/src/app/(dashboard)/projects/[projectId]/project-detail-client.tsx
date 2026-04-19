@@ -20,6 +20,7 @@ import {
   updateWebhookConfig,
 } from "./webhooks/actions";
 import { SchedulesSection } from "@/components/projects/schedules-section";
+import { formatDate, formatDateShort } from "@/lib/format-date";
 
 type Tab = "pipelines" | "deployments" | "sla" | "settings";
 
@@ -372,7 +373,7 @@ function SlaTab({ slaData }: { readonly slaData: SlaData }) {
                   }`}
                 />
                 <span className="text-on-surface-variant/60">
-                  {new Date(check.checked_at).toLocaleString()}
+                  {formatDate(check.checked_at)}
                 </span>
                 <span
                   className={
@@ -449,7 +450,7 @@ function PipelinesTab({ projectId, runs, metrics, predictedDuration, failureRisk
                   <td className="px-6 py-3 text-sm font-mono text-on-surface-variant">{run.git_sha?.slice(0, 7) ?? "—"}</td>
                   <td className="px-6 py-3 text-xs text-on-surface-variant">{run.trigger_type}</td>
                   <td className="px-6 py-3 text-xs font-mono">{run.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : "—"}</td>
-                  <td className="px-6 py-3 text-xs text-on-surface-variant">{new Date(run.created_at).toLocaleString()}</td>
+                  <td className="px-6 py-3 text-xs text-on-surface-variant">{formatDate(run.created_at)}</td>
                 </tr>
               );
             })}
@@ -546,7 +547,7 @@ function DeploymentsTab({ projectId, deployments }: { readonly projectId: string
               <span className="text-sm font-semibold text-on-surface capitalize">{d.status}</span>
               <span className="text-xs text-on-surface-variant capitalize">{d.strategy.replace("_", " ")}</span>
             </div>
-            <span className="text-xs text-on-surface-variant">{new Date(d.created_at).toLocaleString()}</span>
+            <span className="text-xs text-on-surface-variant">{formatDate(d.created_at)}</span>
           </div>
         </Link>
       ))}
@@ -635,7 +636,7 @@ function SettingsTab({
                 </div>
                 <div className="flex items-center gap-4">
                   <span className="text-xs text-on-surface-variant">
-                    {new Date(secret.updated_at).toLocaleDateString()}
+                    {formatDateShort(secret.updated_at)}
                   </span>
                   {deletingId === secret.id ? (
                     <div className="flex items-center gap-2">
@@ -894,7 +895,7 @@ function WebhooksSection({
               </span>
               {config.last_triggered_at && (
                 <span className="text-xs text-on-surface-variant">
-                  Last triggered {new Date(config.last_triggered_at).toLocaleString()}
+                  Last triggered {formatDate(config.last_triggered_at)}
                 </span>
               )}
             </div>
@@ -1043,7 +1044,7 @@ function WebhooksSection({
                     <div className="flex items-center gap-3">
                       <span className="text-on-surface-variant">{d.status_message}</span>
                       <span className="text-on-surface-variant/60">
-                        {new Date(d.created_at).toLocaleString()}
+                        {formatDate(d.created_at)}
                       </span>
                     </div>
                   </div>

@@ -4,6 +4,7 @@ import { useState, useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/top-bar";
 import { updateProfile } from "./actions";
+import { formatDate, formatDateShort } from "@/lib/format-date";
 
 interface UserData {
   readonly id: string;
@@ -158,7 +159,7 @@ export function ProfileClient({
                   <span className="material-symbols-outlined text-sm">
                     calendar_today
                   </span>
-                  Joined {new Date(user.created_at).toLocaleDateString()}
+                  Joined {formatDateShort(user.created_at)}
                 </span>
               </div>
             </div>
@@ -193,7 +194,7 @@ export function ProfileClient({
                   {activity.resource_id.slice(0, 8)}
                 </span>
                 <span className="ml-auto text-xs text-on-surface-variant/40">
-                  {new Date(activity.created_at).toLocaleString()}
+                  {formatDate(activity.created_at)}
                 </span>
               </div>
             ))}

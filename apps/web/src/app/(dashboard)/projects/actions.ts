@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { CreateProjectSchema } from "@deployx/shared";
 import { requireUserWithOrg } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit";
+import { createServiceClient } from "@/lib/supabase/service";
 
 export type ActionState = {
   readonly error?: string;
@@ -44,6 +45,21 @@ export async function createProject(
     .replace(/[^a-z0-9\s-]/g, "")
     .replace(/\s+/g, "-");
 
+  // Look up the user's GitHub token if project was created via the picker
+  let github_token_id: string | null = null;
+  const source = formData.get("source");
+  if (source === "github") {
+    const serviceClient = createServiceClient();
+    const { data: tokenRow } = await serviceClient
+      .from("github_tokens")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+    if (tokenRow) {
+      github_token_id = tokenRow.id;
+    }
+  }
+
   const { data: inserted, error } = await supabase.from("projects").insert({
     org_id: org.id,
     name,
@@ -53,6 +69,7 @@ export async function createProject(
     dockerfile_path,
     build_context,
     deploy_target,
+    github_token_id,
     created_by: user.id,
   }).select("id").single();
 
@@ -69,7 +86,7 @@ export async function createProject(
     action: "create",
     resource_type: "project",
     resource_id: inserted?.id ?? "",
-    details: { name, deploy_target },
+    details: { name, deploy_target, source: source ?? "manual" },
   });
 
   revalidatePath("/projects");

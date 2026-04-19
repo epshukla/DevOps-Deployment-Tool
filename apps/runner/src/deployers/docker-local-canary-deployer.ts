@@ -23,7 +23,7 @@ import {
   writeNginxConfig,
   reloadNginx,
 } from "./nginx-config";
-import { waitForHealthy, checkHealth } from "./health-checker";
+import { waitForHealthyViaDocker, checkHealthViaDocker } from "./health-checker";
 
 // ── DockerLocalCanaryDeployer ───────────────────────────────────
 
@@ -88,10 +88,11 @@ export class DockerLocalCanaryDeployer implements DeployerDriver {
         restart: "unless-stopped",
       });
 
-      // 6. Initial health check on canary
-      const canaryHealthUrl = `http://${canaryContainerName}:${appPort}${healthPath}`;
-      const initialHealth = await waitForHealthy({
-        url: canaryHealthUrl,
+      // 6. Initial health check on canary (via docker exec — host can't resolve container names)
+      const initialHealth = await waitForHealthyViaDocker({
+        containerName: canaryContainerName,
+        port: appPort,
+        path: healthPath,
         timeoutMs: healthTimeoutS * 1000,
         retries: healthRetries,
         intervalMs: healthIntervalS * 1000,
@@ -166,7 +167,7 @@ export class DockerLocalCanaryDeployer implements DeployerDriver {
         await sleep(observationSeconds * 1000);
 
         // Health check canary during observation
-        const observationHealth = await checkHealth(canaryHealthUrl, healthTimeoutS * 1000);
+        const observationHealth = await checkHealthViaDocker(canaryContainerName, appPort, healthPath, healthTimeoutS * 1000);
 
         if (!observationHealth.passed) {
           // Auto-rollback: restore 100% stable
@@ -233,9 +234,10 @@ export class DockerLocalCanaryDeployer implements DeployerDriver {
       });
 
       // Wait for new stable to be healthy
-      const stableHealthUrl = `http://${stableContainerName}:${appPort}${healthPath}`;
-      await waitForHealthy({
-        url: stableHealthUrl,
+      await waitForHealthyViaDocker({
+        containerName: stableContainerName,
+        port: appPort,
+        path: healthPath,
         timeoutMs: healthTimeoutS * 1000,
         retries: healthRetries,
         intervalMs: healthIntervalS * 1000,
@@ -303,10 +305,7 @@ export class DockerLocalCanaryDeployer implements DeployerDriver {
     const stableContainerName = this.getStableContainerName(projectSlug);
     if (!(await isContainerRunning(stableContainerName))) return "unknown";
 
-    const result = await checkHealth(
-      `http://${stableContainerName}:${port}${healthPath}`,
-      5000,
-    );
+    const result = await checkHealthViaDocker(stableContainerName, port, healthPath, 5000);
     return result.passed ? "healthy" : "unhealthy";
   }
 
@@ -354,9 +353,10 @@ export class DockerLocalCanaryDeployer implements DeployerDriver {
       restart: "unless-stopped",
     });
 
-    const healthUrl = `http://${stableContainerName}:${appPort}${healthPath}`;
-    const healthResult = await waitForHealthy({
-      url: healthUrl,
+    const healthResult = await waitForHealthyViaDocker({
+      containerName: stableContainerName,
+      port: appPort,
+      path: healthPath,
       timeoutMs: healthConfig.timeoutS * 1000,
       retries: healthConfig.retries,
       intervalMs: healthConfig.intervalS * 1000,

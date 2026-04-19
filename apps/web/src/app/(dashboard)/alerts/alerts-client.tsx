@@ -9,6 +9,7 @@ import {
   deleteAlertRule,
 } from "./actions";
 import { hasMinRole } from "@deployx/shared";
+import { formatDate } from "@/lib/format-date";
 
 interface AlertRuleData {
   readonly id: string;
@@ -253,7 +254,7 @@ export function AlertsClient({
                     {rule.last_triggered_at && (
                       <span className="ml-2 text-on-surface-variant/40">
                         Last triggered:{" "}
-                        {new Date(rule.last_triggered_at).toLocaleString()}
+                        {formatDate(rule.last_triggered_at)}
                       </span>
                     )}
                   </p>

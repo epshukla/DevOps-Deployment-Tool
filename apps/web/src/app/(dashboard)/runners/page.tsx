@@ -1,5 +1,6 @@
 import { TopBar } from "@/components/layout/top-bar";
 import { requireUserWithOrg } from "@/lib/auth/session";
+import { formatDate, formatDateShort } from "@/lib/format-date";
 import { RegisterRunnerDialog } from "./register-runner-dialog";
 
 const STATUS_BADGE: Record<string, { label: string; dotClass: string; badgeClass: string }> = {
@@ -62,12 +63,23 @@ export default async function RunnersPage() {
                   To register a new runner, click &quot;Register Runner&quot; above to generate a token.
                 </span>
               </div>
-              <div className="flex items-center gap-4 bg-surface-container-lowest border border-outline-variant/20 rounded p-4 font-mono text-sm">
-                <span className="text-tertiary select-none">$</span>
-                <span className="text-on-surface">
-                  npx @deployx/runner register --token {"<TOKEN>"} --url {"<URL>"}
-                </span>
+              <div className="space-y-2">
+                <div className="flex items-center gap-4 bg-surface-container-lowest border border-outline-variant/20 rounded p-4 font-mono text-sm">
+                  <span className="text-tertiary select-none">$</span>
+                  <span className="text-on-surface">
+                    pnpm runner register --token {"<TOKEN>"} --url {"<URL>"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 bg-surface-container-lowest border border-outline-variant/20 rounded p-4 font-mono text-sm">
+                  <span className="text-tertiary select-none">$</span>
+                  <span className="text-on-surface">
+                    pnpm runner start
+                  </span>
+                </div>
               </div>
+              <p className="text-[10px] text-on-surface-variant/50 mt-2 ml-1">
+                Run from the <code className="font-mono text-primary">deployx/</code> repo root directory.
+              </p>
             </div>
           </div>
         </section>
@@ -143,7 +155,7 @@ export default async function RunnersPage() {
                         </td>
                         <td className="px-6 py-4 text-xs text-on-surface-variant font-mono">
                           {runner.last_heartbeat_at
-                            ? new Date(runner.last_heartbeat_at).toLocaleString()
+                            ? formatDate(runner.last_heartbeat_at)
                             : "—"}
                         </td>
                         <td className="px-6 py-4 text-xs text-on-surface-variant">
@@ -152,7 +164,7 @@ export default async function RunnersPage() {
                             : "—"}
                         </td>
                         <td className="px-6 py-4 text-xs text-on-surface-variant">
-                          {new Date(runner.created_at).toLocaleDateString()}
+                          {formatDateShort(runner.created_at)}
                         </td>
                       </tr>
                     );
