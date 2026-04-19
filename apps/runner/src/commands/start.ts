@@ -1,4 +1,4 @@
-import { loadConfig } from "../config";
+import { loadConfig, listProfiles, resolveProfile } from "../config";
 import { RunnerApiClient } from "../api-client";
 import { executePipeline } from "../executor/pipeline-executor";
 import { HealthMonitor } from "../deployers/health-monitor";
@@ -7,10 +7,29 @@ import {
   HEARTBEAT_INTERVAL_MS,
 } from "@deployx/shared";
 
-export async function startCommand(): Promise<void> {
-  const config = loadConfig();
+interface StartOptions {
+  readonly profile?: string;
+}
+
+export async function startCommand(options: StartOptions): Promise<void> {
+  const resolved = resolveProfile(options.profile);
+  if (!resolved) {
+    const profiles = listProfiles();
+    if (profiles.length === 0) {
+      console.error("No runners registered. Run 'deployx-runner register' first.");
+    } else {
+      console.error("Multiple runners registered. Specify which one to start:");
+      for (const p of profiles) {
+        console.error(`  deployx-runner start --profile ${p}`);
+      }
+    }
+    process.exit(1);
+    return;
+  }
+
+  const config = loadConfig(resolved);
   if (!config) {
-    console.error("Runner not registered. Run 'deployx-runner register' first.");
+    console.error(`Runner profile "${resolved}" not found. Run 'deployx-runner register' first.`);
     process.exit(1);
     return; // TypeScript: narrow config to non-null
   }
@@ -19,7 +38,7 @@ export async function startCommand(): Promise<void> {
   let isShuttingDown = false;
   let isExecutingJob = false;
 
-  console.log(`DeployX Runner "${config.name}" starting...`);
+  console.log(`DeployX Runner "${config.name}" starting... (profile: ${resolved})`);
   console.log(`  Control plane: ${config.control_plane_url}`);
   console.log(`  Poll interval: ${RUNNER_POLL_INTERVAL_MS}ms`);
   console.log(`  Heartbeat interval: ${HEARTBEAT_INTERVAL_MS}ms`);

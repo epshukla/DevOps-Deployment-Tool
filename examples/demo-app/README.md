@@ -45,7 +45,16 @@ When creating a repository for DeployX, your project needs the following:
 | File | Purpose |
 |------|---------|
 | `deployx.yaml` | Pipeline definition (tasks, steps, deploy config). Copy into the DeployX pipeline YAML editor |
+| `test.js` | Contract tests that verify DeployX requirements (health endpoint, version, graceful shutdown) |
 | `.env.example` | Document required environment variables without actual values |
+
+### Testing Best Practices
+
+Tests in `test.js` validate that your app satisfies DeployX deployment contracts. When writing tests:
+
+- **Test the shape, not specific values** — e.g., assert that `version` exists and matches semver format (`/^\d+\.\d+\.\d+$/`), not that it equals `"1.0.0"`. This prevents test failures when you naturally bump your version.
+- **Test contracts, not implementation** — verify `GET /health` returns 200 with `{ status: "healthy" }`, verify `PORT` is read from env, verify `SIGTERM` triggers graceful shutdown.
+- **Keep tests self-contained** — the demo uses zero external dependencies for testing (just Node.js `http` module).
 
 ### Dockerfile Best Practices
 

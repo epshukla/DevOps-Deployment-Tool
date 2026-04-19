@@ -202,6 +202,48 @@ Store sensitive values (API keys, tokens) as encrypted project secrets:
 
 ---
 
+## Multi-Runner Profiles
+
+By default, each machine can run one runner. With multi-runner profiles, you can register and run multiple runners on the same machine — for example, one for your org and one for a friend's.
+
+### Register Multiple Runners
+
+```bash
+# Your own org
+deployx-runner register --token TOKEN_A --url https://deployx-chi.vercel.app --name my-runner
+
+# A friend's org
+deployx-runner register --token TOKEN_B --url https://deployx-chi.vercel.app --name friend-runner
+```
+
+### List All Runners
+
+```bash
+deployx-runner list
+```
+
+### Start a Specific Runner
+
+```bash
+# Terminal 1
+deployx-runner start --profile my-runner
+
+# Terminal 2
+deployx-runner start --profile friend-runner
+```
+
+### Auto-Selection
+
+When only one runner is registered, `--profile` is optional — it's auto-selected. When multiple exist, the CLI lists them and asks you to specify.
+
+### Legacy Migration
+
+If you registered a runner before multi-profile support, it's automatically migrated from `~/.deployx/runner.json` to `~/.deployx/runners/{name}.json` on the next command. No manual action needed.
+
+> See [`22-multi-runner-profiles.md`](./22-multi-runner-profiles.md) for full details.
+
+---
+
 ## Troubleshooting
 
 | Problem | Solution |
@@ -210,4 +252,7 @@ Store sensitive values (API keys, tokens) as encrypted project secrets:
 | Pipeline stuck in "queued" | Check that the runner is running and polling `/api/runner/jobs` |
 | Health check failing | Verify your app has `GET /health` returning 200, and reads `PORT` from env |
 | Webhook not triggering | Check GitHub webhook delivery logs; verify HMAC secret matches |
+| Webhook "An exception occurred" | Likely a `DEPLOYX_SECRET_KEY` rotation. Regenerate webhook secret in DeployX UI, then update the secret in GitHub webhook settings |
+| Test fails after version bump | Tests should assert shape (e.g., version is a semver string), not a hardcoded value like `"1.0.0"`. See `examples/demo-app/test.js` for the pattern |
 | "No org found" error | Clear cookies and re-login — `bootstrap_user_org()` runs on first auth |
+| Dashboard not updating in real-time | Supabase Realtime/WebSocket may not connect. Refresh the page to see current state. Verify Supabase Site URL matches your deployment URL |

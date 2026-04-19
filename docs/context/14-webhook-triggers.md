@@ -59,6 +59,25 @@ Project Settings → Webhooks Section
 - `apps/web/src/app/(dashboard)/projects/[projectId]/page.tsx` — Added webhook_configs + webhook_deliveries queries
 - `packages/shared/src/validators/__tests__/crypto.test.ts` — Added 8 verifyWebhookSignature tests
 
+## Structured Logging
+
+The webhook handler logs every decision point to `console.log` / `console.error` with a `[webhook:<projectId>]` prefix. This ensures visibility in Vercel function logs, complementing the `webhook_deliveries` DB audit trail.
+
+Logged events:
+- Entry: event type, signature presence
+- Config lookup: not found errors
+- Signature verification: rejection or success
+- Secret decryption: failure (no sensitive data logged)
+- Ping events
+- Active/disabled status
+- Event type filtering
+- Branch filter matching
+- Pipeline lookup: found or missing
+- Run creation: success with run ID, or failure
+- Top-level catch: unhandled errors always logged and returned as 500
+
+Format: `[webhook:<projectId>] <message>`
+
 ## Error Handling
 
 | Scenario | Response |

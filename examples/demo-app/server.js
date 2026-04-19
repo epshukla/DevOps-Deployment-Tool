@@ -10,20 +10,18 @@ app.use(express.json());
 app.get("/", (_req, res) => {
   res.json({
     name: "deployx-demo-app",
-    version: "1.0.0",
+    version: "2.0.0",
     uptime_seconds: Math.floor((Date.now() - startTime) / 1000),
     environment: process.env.NODE_ENV || "development",
   });
 });
 
-// Health check — required by DeployX
-// The runner's health checker polls this endpoint.
-// Must return 200 when healthy.
+
 app.get("/health", (_req, res) => {
   res.json({ status: "healthy" });
 });
 
-// Sample CRUD endpoint — mock data
+
 const items = [
   { id: "1", name: "Widget A", price: 9.99 },
   { id: "2", name: "Widget B", price: 19.99 },
@@ -42,14 +40,14 @@ app.get("/api/items/:id", (req, res) => {
   res.json({ data: item });
 });
 
-// Start server
+// Start 
 const server = app.listen(PORT, () => {
   console.log(`Demo app listening on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
 });
 
 // Graceful shutdown — required for blue-green/rolling deploys.
-// DeployX sends SIGTERM before stopping old containers.
+
 process.on("SIGTERM", () => {
   console.log("SIGTERM received, shutting down gracefully...");
   server.close(() => {

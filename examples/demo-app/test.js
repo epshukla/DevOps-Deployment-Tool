@@ -53,7 +53,7 @@ async function runTests() {
   const root = await fetch("/");
   assert("GET / returns 200", root.status === 200);
   assert("GET / has app name", root.body.name === "deployx-demo-app");
-  assert("GET / has version", root.body.version === "1.0.0");
+  assert("GET / has version", typeof root.body.version === "string" && /^\d+\.\d+\.\d+$/.test(root.body.version));
   assert("GET / has uptime", typeof root.body.uptime_seconds === "number");
 
   // Test 3: API endpoint works
