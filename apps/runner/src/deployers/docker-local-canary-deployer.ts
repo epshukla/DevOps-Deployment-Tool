@@ -17,13 +17,31 @@ import {
   inspectContainer,
 } from "./container-manager";
 import { allocatePort, releasePort } from "./port-allocator";
+import { resolvePreviousImage, withPreviousImageLabel } from "./previous-image";
 import {
   generateWeightedNginxConfig,
   calculateCanaryWeights,
   writeNginxConfig,
   reloadNginx,
 } from "./nginx-config";
-import { waitForHealthyViaDocker, checkHealthViaDocker } from "./health-checker";
+import {
+  waitForHealthyViaDocker,
+  checkHealthViaDocker,
+  type DockerHealthCheckOptions,
+} from "./health-checker";
+
+// ── Types ───────────────────────────────────────────────────────
+
+interface CutoverPlan {
+  readonly stableContainerName: string;
+  readonly canaryContainerName: string;
+  readonly proxyContainerName: string;
+  readonly appPort: number;
+  readonly healthPath: string;
+  readonly deployEnv: Record<string, string>;
+  readonly previousImage: string | null;
+  readonly health: DockerHealthCheckOptions;
+}
 
 // ── DockerLocalCanaryDeployer ───────────────────────────────────
 
@@ -66,6 +84,12 @@ export class DockerLocalCanaryDeployer implements DeployerDriver {
       // 4. Clean up any stale canary container
       await removeContainerIfExists(canaryContainerName);
 
+      // Record the stable image being replaced so self-healing can roll back to it
+      const previousImage = resolvePreviousImage(
+        await inspectContainer(stableContainerName),
+        ctx.imageTag,
+      );
+
       // 5. Start canary container with new image
       logStreamer.push({
         level: "info",
@@ -83,7 +107,10 @@ export class DockerLocalCanaryDeployer implements DeployerDriver {
         image: ctx.imageTag,
         network: DEPLOYER_NETWORK_NAME,
         env: deployEnv,
-        labels: this.buildLabels(ctx, "canary", appPort, healthPath),
+        labels: withPreviousImageLabel(
+          this.buildLabels(ctx, "canary", appPort, healthPath),
+          previousImage,
+        ),
         detach: true,
         restart: "unless-stopped",
       });
@@ -207,51 +234,25 @@ export class DockerLocalCanaryDeployer implements DeployerDriver {
       }
 
       // 9. Promotion complete — canary becomes new stable
-      logStreamer.push({
-        level: "info",
-        message: `[deploy:canary] Promotion complete. Replacing stable with canary image.`,
-        task_run_id: ctx.taskRunId,
+      const cutoverError = await this.promoteCanaryToStable(ctx, {
+        stableContainerName,
+        canaryContainerName,
+        proxyContainerName,
+        appPort,
+        healthPath,
+        deployEnv,
+        previousImage,
+        health: {
+          containerName: stableContainerName,
+          port: appPort,
+          path: healthPath,
+          timeoutMs: healthTimeoutS * 1000,
+          retries: healthRetries,
+          intervalMs: healthIntervalS * 1000,
+          startPeriodMs: startPeriodS * 1000,
+        },
       });
-
-      // Stop old stable
-      await sleep(CANARY_DRAIN_SECONDS * 1000);
-      await stopContainer(stableContainerName, 10);
-      await removeContainerIfExists(stableContainerName);
-
-      // Stop canary
-      await stopContainer(canaryContainerName, 5);
-      await removeContainerIfExists(canaryContainerName);
-
-      // Start new stable with the canary's image
-      await runContainer({
-        name: stableContainerName,
-        image: ctx.imageTag,
-        network: DEPLOYER_NETWORK_NAME,
-        env: deployEnv,
-        labels: this.buildLabels(ctx, "stable", appPort, healthPath),
-        detach: true,
-        restart: "unless-stopped",
-      });
-
-      // Wait for new stable to be healthy
-      await waitForHealthyViaDocker({
-        containerName: stableContainerName,
-        port: appPort,
-        path: healthPath,
-        timeoutMs: healthTimeoutS * 1000,
-        retries: healthRetries,
-        intervalMs: healthIntervalS * 1000,
-        startPeriodMs: startPeriodS * 1000,
-      });
-
-      // Point nginx to new stable
-      const finalConfig = generateWeightedNginxConfig({
-        listenPort: 80,
-        upstreams: [{ name: stableContainerName, port: appPort }],
-        healthCheckPath: healthPath,
-      });
-      await writeNginxConfig(proxyContainerName, finalConfig);
-      await reloadNginx(proxyContainerName);
+      if (cutoverError) return { success: false, error: cutoverError };
 
       const publicUrl = `http://localhost:${portAllocation.proxyPort}`;
       logStreamer.push({
@@ -318,6 +319,83 @@ export class DockerLocalCanaryDeployer implements DeployerDriver {
   }
 
   // ── Private Helpers ─────────────────────────────────────────
+
+  /**
+   * Replaces the stable container with the canary's image without ever
+   * leaving nginx without a healthy upstream. Container names are fixed, so
+   * the old stable must go before the new one can start — the canary
+   * carries all traffic in between:
+   *   1. route 100% to the canary, drain, remove the old stable
+   *   2. start the new stable, wait until healthy
+   *   3. route to the new stable, then remove the canary
+   * If the new stable never gets healthy, traffic stays on the canary.
+   * Returns an error message, or null on success.
+   */
+  private async promoteCanaryToStable(
+    ctx: DeployContext,
+    plan: CutoverPlan,
+  ): Promise<string | null> {
+    const { logStreamer } = ctx;
+    logStreamer.push({
+      level: "info",
+      message: `[deploy:canary] Promotion complete. Replacing stable with canary image.`,
+      task_run_id: ctx.taskRunId,
+    });
+
+    await this.routeTo(plan.proxyContainerName, plan.canaryContainerName, plan);
+    await sleep(CANARY_DRAIN_SECONDS * 1000);
+    await stopContainer(plan.stableContainerName, 10);
+    await removeContainerIfExists(plan.stableContainerName);
+
+    await runContainer({
+      name: plan.stableContainerName,
+      image: ctx.imageTag,
+      network: DEPLOYER_NETWORK_NAME,
+      env: plan.deployEnv,
+      labels: withPreviousImageLabel(
+        this.buildLabels(ctx, "stable", plan.appPort, plan.healthPath),
+        plan.previousImage,
+      ),
+      detach: true,
+      restart: "unless-stopped",
+    });
+
+    const health = await waitForHealthyViaDocker(plan.health);
+    await this.reportHealthCheck(ctx, health.passed, {
+      statusCode: health.statusCode,
+      responseTimeMs: health.responseTimeMs,
+      error: health.error,
+    });
+
+    if (!health.passed) {
+      logStreamer.push({
+        level: "error",
+        message: `[deploy:canary] New stable unhealthy (${health.error}) — traffic stays on ${plan.canaryContainerName}`,
+        task_run_id: ctx.taskRunId,
+      });
+      await removeContainerIfExists(plan.stableContainerName);
+      return `New stable failed health check: ${health.error}`;
+    }
+
+    await this.routeTo(plan.proxyContainerName, plan.stableContainerName, plan);
+    await stopContainer(plan.canaryContainerName, 5);
+    await removeContainerIfExists(plan.canaryContainerName);
+    return null;
+  }
+
+  private async routeTo(
+    proxyContainerName: string,
+    upstreamName: string,
+    plan: Pick<CutoverPlan, "appPort" | "healthPath">,
+  ): Promise<void> {
+    const config = generateWeightedNginxConfig({
+      listenPort: 80,
+      upstreams: [{ name: upstreamName, port: plan.appPort }],
+      healthCheckPath: plan.healthPath,
+    });
+    await writeNginxConfig(proxyContainerName, config);
+    await reloadNginx(proxyContainerName);
+  }
 
   private async firstDeploy(
     ctx: DeployContext,
