@@ -10,7 +10,10 @@ import type { NotificationType } from "@deployx/shared";
 
 export interface NewNotification {
   readonly org_id: string;
-  /** null = broadcast to every member of the org */
+  /**
+   * Recipient. null = every member of the org; broadcasts are fanned out to
+   * one row per member so each person has their own read state.
+   */
   readonly user_id: string | null;
   readonly type: NotificationType;
   readonly title: string;
@@ -19,18 +22,43 @@ export interface NewNotification {
   readonly metadata?: Record<string, unknown>;
 }
 
+async function resolveRecipients(
+  supabase: SupabaseClient,
+  notification: NewNotification,
+): Promise<readonly string[]> {
+  if (notification.user_id) return [notification.user_id];
+
+  const { data, error } = await supabase
+    .from("org_memberships")
+    .select("user_id")
+    .eq("org_id", notification.org_id);
+
+  if (error) {
+    console.error(
+      `[notifications] Failed to load members of org ${notification.org_id}: ${error.message}`,
+    );
+    return [];
+  }
+  return (data ?? []).map((m) => m.user_id as string);
+}
+
 export async function createNotification(
   supabase: SupabaseClient,
   notification: NewNotification,
 ): Promise<void> {
-  const { error } = await supabase.from("notifications").insert({
-    org_id: notification.org_id,
-    user_id: notification.user_id,
-    type: notification.type,
-    title: notification.title,
-    body: notification.body,
-    metadata: notification.metadata ?? null,
-  });
+  const recipients = await resolveRecipients(supabase, notification);
+  if (recipients.length === 0) return;
+
+  const { error } = await supabase.from("notifications").insert(
+    recipients.map((userId) => ({
+      org_id: notification.org_id,
+      user_id: userId,
+      type: notification.type,
+      title: notification.title,
+      body: notification.body,
+      metadata: notification.metadata ?? null,
+    })),
+  );
 
   if (error) {
     console.error(

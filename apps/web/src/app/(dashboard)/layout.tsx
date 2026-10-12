@@ -25,24 +25,30 @@ export default async function DashboardLayout({
     user.email ??
     "User";
 
-  const notificationFilter = `user_id.eq.${user.id},user_id.is.null`;
-
   const userEmail = user.email?.toLowerCase();
+  const orgs = await listUserOrgs(supabase, user.id);
+  const activeOrg = await resolveActiveOrg(orgs);
 
-  const [orgs, notificationsResult, unreadResult, invitesResult] =
-    await Promise.all([
-    listUserOrgs(supabase, user.id),
-    supabase
-      .from("notifications")
-      .select("id, type, title, body, metadata, is_read, created_at")
-      .or(notificationFilter)
+  // Personal notifications plus org-wide broadcasts, for the active org only
+  const notificationFilter = `user_id.eq.${user.id},user_id.is.null`;
+  const scopeToOrg = <T extends { eq: (column: string, value: string) => T }>(query: T) =>
+    activeOrg ? query.eq("org_id", activeOrg.id) : query;
+
+  const [notificationsResult, unreadResult, invitesResult] = await Promise.all([
+    scopeToOrg(
+      supabase
+        .from("notifications")
+        .select("id, type, title, body, metadata, is_read, created_at")
+        .or(notificationFilter),
+    )
       .order("created_at", { ascending: false })
       .limit(NOTIFICATION_PAGE_SIZE),
-    supabase
-      .from("notifications")
-      .select("id", { count: "exact", head: true })
-      .or(notificationFilter)
-      .eq("is_read", false),
+    scopeToOrg(
+      supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .or(notificationFilter),
+    ).eq("is_read", false),
     userEmail
       ? supabase
           .from("org_invites")
@@ -52,8 +58,6 @@ export default async function DashboardLayout({
           .gt("expires_at", new Date().toISOString())
       : Promise.resolve({ count: 0 }),
   ]);
-
-  const activeOrg = await resolveActiveOrg(orgs);
 
   return (
     <UserProvider

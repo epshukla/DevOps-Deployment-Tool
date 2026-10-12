@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useActionState } from "react";
+import { useState, useTransition, useActionState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { CRON_PRESETS, describeCron } from "@deployx/shared";
 import type { CronPresetKey } from "@deployx/shared";
@@ -172,6 +172,7 @@ export function SchedulesSection({
                     {schedule.cron_expression}
                   </span>
                   <span>{describeCron(schedule.cron_expression)}</span>
+                  <span className="text-on-surface-variant/60">{schedule.timezone}</span>
                   {schedule.git_branch && (
                     <span className="flex items-center gap-1">
                       <span className="material-symbols-outlined text-xs">account_tree</span>
@@ -196,6 +197,15 @@ export function SchedulesSection({
   );
 }
 
+/** All IANA zones the runtime knows, always including UTC and the selection. */
+function listTimeZones(selected: string): readonly string[] {
+  const supported =
+    typeof Intl.supportedValuesOf === "function"
+      ? Intl.supportedValuesOf("timeZone")
+      : [];
+  return [...new Set(["UTC", selected, ...supported])];
+}
+
 function AddScheduleForm({
   projectId,
   pipelineDefinitions,
@@ -206,6 +216,13 @@ function AddScheduleForm({
   readonly onSuccess: () => void;
 }) {
   const [cronValue, setCronValue] = useState<string>(CRON_PRESETS.daily);
+  // Start with UTC (matches the server render), then adopt the browser's zone
+  const [timeZone, setTimeZone] = useState("UTC");
+  useEffect(() => {
+    const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (browserZone) setTimeZone(browserZone);
+  }, []);
+  const timeZoneOptions = useMemo(() => listTimeZones(timeZone), [timeZone]);
   const [state, formAction, isPending] = useActionState(
     createSchedule.bind(null, projectId),
     {},
@@ -279,7 +296,30 @@ function AddScheduleForm({
           />
         </div>
 
-        <input type="hidden" name="timezone" value="UTC" />
+        <div>
+          <label
+            htmlFor="schedule-timezone"
+            className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1"
+          >
+            Time Zone
+          </label>
+          <select
+            id="schedule-timezone"
+            name="timezone"
+            value={timeZone}
+            onChange={(e) => setTimeZone(e.target.value)}
+            className="w-full px-3 py-2 bg-surface-container-highest rounded text-sm text-on-surface focus:ring-1 focus:ring-primary focus:outline-none"
+          >
+            {timeZoneOptions.map((tz) => (
+              <option key={tz} value={tz}>
+                {tz}
+              </option>
+            ))}
+          </select>
+          <p className="text-[10px] text-on-surface-variant/60 mt-1">
+            The cron expression is evaluated in this zone, including daylight saving.
+          </p>
+        </div>
       </div>
 
       <div className="flex justify-end mt-4">
