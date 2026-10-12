@@ -72,7 +72,6 @@ function createMockFlyClient() {
     stopMachine: vi.fn().mockResolvedValue(undefined),
     destroyMachine: vi.fn().mockResolvedValue(undefined),
     waitForMachineState: vi.fn().mockResolvedValue({ id: "mach-1", state: "started" }),
-    getMachineLogs: vi.fn().mockResolvedValue([]),
   };
 }
 
@@ -108,10 +107,24 @@ describe("FlyDeployer", () => {
       expect(mockFly.createMachine).toHaveBeenCalledWith(
         "myapp",
         expect.objectContaining({ image: "ghcr.io/org/myapp:v2" }),
+        undefined,
       );
       expect(mockFly.waitForMachineState).toHaveBeenCalledWith(
         "myapp", "mach-1", "started", expect.any(Number),
       );
+    });
+
+    it("passes fly.region to createMachine instead of injecting FLY_REGION env", async () => {
+      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      const ctx = createCtx({
+        config: { driver: "fly_io", strategy: "blue_green", port: 3000, fly: { region: "ams" } } as any,
+      });
+
+      await deployer.deploy(ctx);
+
+      const [, config, region] = mockFly.createMachine.mock.calls[0];
+      expect(region).toBe("ams");
+      expect(config.env).not.toHaveProperty("FLY_REGION");
     });
 
     it("updates existing machine instead of creating", async () => {
@@ -233,6 +246,7 @@ describe("FlyDeployer", () => {
       expect(mockFly.createMachine).toHaveBeenCalledWith(
         "myapp",
         expect.objectContaining({ image: "ghcr.io/org/myapp:v1" }),
+        undefined,
       );
     });
   });
@@ -252,8 +266,8 @@ describe("FlyDeployer", () => {
 
       expect(mockFly.stopMachine).toHaveBeenCalledTimes(2);
       expect(mockFly.destroyMachine).toHaveBeenCalledTimes(2);
-      expect(mockFly.destroyMachine).toHaveBeenCalledWith("myapp", "mach-1");
-      expect(mockFly.destroyMachine).toHaveBeenCalledWith("myapp", "mach-2");
+      expect(mockFly.destroyMachine).toHaveBeenCalledWith("myapp", "mach-1", true);
+      expect(mockFly.destroyMachine).toHaveBeenCalledWith("myapp", "mach-2", true);
     });
   });
 
@@ -262,6 +276,18 @@ describe("FlyDeployer", () => {
       const logs = await deployer.getLogs("deployx-myapp", 100);
 
       expect(logs).toEqual([]);
+    });
+
+    it("returns empty array with a warning after deploy (Machines API has no logs endpoint)", async () => {
+      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      await deployer.deploy(createCtx());
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const logs = await deployer.getLogs("deployx-myapp", 100);
+
+      expect(logs).toEqual([]);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("unavailable via the Machines API"));
+      warn.mockRestore();
     });
   });
 });
