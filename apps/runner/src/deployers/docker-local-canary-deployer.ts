@@ -16,7 +16,7 @@ import {
   listContainersByLabel,
   inspectContainer,
 } from "./container-manager";
-import { allocatePort } from "./port-allocator";
+import { allocatePort, releasePort } from "./port-allocator";
 import {
   generateWeightedNginxConfig,
   calculateCanaryWeights,
@@ -290,6 +290,7 @@ export class DockerLocalCanaryDeployer implements DeployerDriver {
     await removeContainerIfExists(this.getStableContainerName(projectSlug));
     await removeContainerIfExists(this.getCanaryContainerName(projectSlug));
     await removeContainerIfExists(this.getProxyContainerName(projectSlug));
+    releasePort(projectSlug);
   }
 
   async getStatus(projectSlug: string): Promise<DeploymentStatus> {

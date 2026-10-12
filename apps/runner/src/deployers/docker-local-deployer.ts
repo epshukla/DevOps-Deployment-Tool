@@ -12,7 +12,7 @@ import {
   isContainerRunning,
   getContainerLogs,
 } from "./container-manager";
-import { allocatePort } from "./port-allocator";
+import { allocatePort, releasePort } from "./port-allocator";
 import { generateNginxConfig, writeNginxConfig, reloadNginx } from "./nginx-config";
 import { waitForHealthyViaDocker } from "./health-checker";
 
@@ -233,9 +233,10 @@ export class DockerLocalDeployer implements DeployerDriver {
       await removeContainerIfExists(name);
     }
 
-    // Stop proxy
+    // Stop proxy, then free its host port for other projects
     const proxyName = this.getProxyContainerName(projectSlug);
     await removeContainerIfExists(proxyName);
+    releasePort(projectSlug);
   }
 
   async getStatus(projectSlug: string): Promise<DeploymentStatus> {

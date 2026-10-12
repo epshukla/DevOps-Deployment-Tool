@@ -14,7 +14,7 @@ import {
   isContainerRunning,
   getContainerLogs,
 } from "./container-manager";
-import { allocatePort } from "./port-allocator";
+import { allocatePort, releasePort } from "./port-allocator";
 import {
   generateWeightedNginxConfig,
   writeNginxConfig,
@@ -248,6 +248,7 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
       await removeContainerIfExists(this.getInstanceContainerName(projectSlug, i));
     }
     await removeContainerIfExists(this.getProxyContainerName(projectSlug));
+    releasePort(projectSlug);
   }
 
   async getStatus(projectSlug: string): Promise<DeploymentStatus> {
