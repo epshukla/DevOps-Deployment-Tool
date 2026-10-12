@@ -1,7 +1,14 @@
 import { execa } from "execa";
 import { randomUUID } from "node:crypto";
-import type { LogStreamer } from "../logging/log-streamer";
 import type { Readable } from "node:stream";
+import { STEP_CANCEL_GRACE_MS } from "@deployx/shared";
+import type { LogStreamer } from "../logging/log-streamer";
+import {
+  USE_PROCESS_GROUPS,
+  trackProcessGroup,
+  createStepTerminator,
+  onAbort,
+} from "./step-termination";
 
 export interface StepExecutorOptions {
   /** Shell command to execute */
@@ -19,11 +26,15 @@ export interface StepExecutorOptions {
   /** IDs for log association */
   readonly taskRunId?: string;
   readonly stepRunId?: string;
+  /** Aborting kills the step (process group + step container) */
+  readonly signal?: AbortSignal;
 }
 
 export interface StepResult {
   readonly exitCode: number;
   readonly timedOut: boolean;
+  /** True if the step was killed (or never started) because `signal` aborted */
+  readonly cancelled: boolean;
 }
 
 /**
@@ -33,6 +44,8 @@ export interface StepResult {
  * - If `image` is set, wraps in `docker run --rm -v cwd:/workspace -w /workspace`
  * - Streams stdout (info) and stderr (warn) line-by-line to LogStreamer
  * - Respects timeout; returns exitCode + timedOut flag
+ * - Aborting `signal` kills the step's process tree (and step container)
+ *   and the result is flagged `cancelled`
  * - Never throws — callers check the returned exitCode
  */
 export async function executeStep(
@@ -47,6 +60,7 @@ export async function executeStep(
     logStreamer,
     taskRunId,
     stepRunId,
+    signal,
   } = options;
 
   if (image !== undefined && !isValidImageRef(image)) {
@@ -56,44 +70,98 @@ export async function executeStep(
       task_run_id: taskRunId,
       step_run_id: stepRunId,
     });
-    return { exitCode: 1, timedOut: false };
+    return { exitCode: 1, timedOut: false, cancelled: false };
   }
 
-  const resolvedCommand = image
-    ? buildDockerCommand({
-        image,
-        cwd,
-        command,
-        containerName: `deployx-step-${randomUUID().slice(0, 12)}`,
-        user: getHostUser(),
-      })
+  if (signal?.aborted) {
+    return { exitCode: 1, timedOut: false, cancelled: true };
+  }
+
+  const containerName = image ? `deployx-step-${randomUUID().slice(0, 12)}` : null;
+  const resolvedCommand = image && containerName
+    ? buildDockerCommand({ image, cwd, command, containerName, user: getHostUser() })
     : command;
+
+  return runShellCommand(resolvedCommand, containerName, options);
+}
+
+/**
+ * Spawns `sh -c command`, streams its output, and wires cancellation.
+ */
+async function runShellCommand(
+  command: string,
+  containerName: string | null,
+  options: StepExecutorOptions,
+): Promise<StepResult> {
+  const { cwd, env, timeoutSeconds, logStreamer, taskRunId, stepRunId, signal } = options;
 
   // Use the workspace cwd only for non-Docker commands.
   // Docker commands mount the workspace via -v, so cwd is less important
   // but we still set it for consistency.
-  const timeoutMs = timeoutSeconds ? timeoutSeconds * 1000 : undefined;
-
-  const subprocess = execa("sh", ["-c", resolvedCommand], {
+  const subprocess = execa("sh", ["-c", command], {
     cwd,
     env: { ...process.env, ...env },
-    timeout: timeoutMs,
+    timeout: timeoutSeconds ? timeoutSeconds * 1000 : undefined,
     reject: false,
+    cancelSignal: signal,
+    forceKillAfterDelay: STEP_CANCEL_GRACE_MS,
+    // Own process group so a cancel can kill the whole tree
+    detached: USE_PROCESS_GROUPS,
     // Keep stdout and stderr as streams for real-time processing
     stdout: "pipe",
     stderr: "pipe",
   });
 
-  // Stream stdout and stderr concurrently
-  const stdoutDone = streamLines(subprocess.stdout, "info", logStreamer, taskRunId, stepRunId);
-  const stderrDone = streamLines(subprocess.stderr, "warn", logStreamer, taskRunId, stepRunId);
+  const untrack = trackProcessGroup(subprocess.pid);
+  const terminator = createStepTerminator({ pid: subprocess.pid, containerName });
+  const detachAbort = onAbort(signal, () => void terminator.terminate());
 
-  // Wait for both stream processing and the process itself
-  const [result] = await Promise.all([subprocess, stdoutDone, stderrDone]);
+  // execa's own timeout only signals `sh`; also kill the process group and
+  // the step container so a timed-out step can't keep running
+  const timeout = armTimeout(timeoutSeconds, () => void terminator.terminate());
+
+  try {
+    // Stream stdout and stderr concurrently
+    const stdoutDone = streamLines(subprocess.stdout, "info", logStreamer, taskRunId, stepRunId);
+    const stderrDone = streamLines(subprocess.stderr, "warn", logStreamer, taskRunId, stepRunId);
+
+    // Wait for both stream processing and the process itself
+    const [result] = await Promise.all([subprocess, stdoutDone, stderrDone]);
+    const exitCode = result.exitCode ?? 1;
+
+    return {
+      exitCode,
+      timedOut: result.timedOut || timeout.fired(),
+      cancelled: result.isCanceled === true || (signal?.aborted === true && exitCode !== 0),
+    };
+  } finally {
+    timeout.clear();
+    detachAbort();
+    terminator.dispose();
+    untrack();
+  }
+}
+
+/**
+ * Calls `onTimeout` after `seconds` (no-op when unset/0).
+ */
+function armTimeout(
+  seconds: number | undefined,
+  onTimeout: () => void,
+): { readonly fired: () => boolean; readonly clear: () => void } {
+  let fired = false;
+  const timer = seconds
+    ? setTimeout(() => {
+        fired = true;
+        onTimeout();
+      }, seconds * 1000)
+    : null;
 
   return {
-    exitCode: result.exitCode ?? 1,
-    timedOut: result.timedOut,
+    fired: () => fired,
+    clear: () => {
+      if (timer) clearTimeout(timer);
+    },
   };
 }
 
