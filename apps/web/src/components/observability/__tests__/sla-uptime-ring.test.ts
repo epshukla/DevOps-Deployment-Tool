@@ -9,7 +9,7 @@ import { describe, it, expect } from "vitest";
 // Re-create the lookup tables used by the component to verify correctness.
 const STATUS_COLOR: Record<string, string> = {
   met: "var(--color-tertiary)",
-  at_risk: "#ffd54f",
+  at_risk: "var(--color-warning)",
   breached: "var(--color-error)",
 };
 
