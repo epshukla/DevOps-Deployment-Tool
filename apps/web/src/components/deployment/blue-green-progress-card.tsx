@@ -28,7 +28,7 @@ interface BlueGreenProgressCardProps {
 }
 
 const COLOR_STYLE: Record<DeploymentColor, { dot: string; text: string; label: string }> = {
-  blue: { dot: "bg-primary", text: "text-primary", label: "Blue" },
+  blue: { dot: "bg-info", text: "text-info", label: "Blue" },
   green: { dot: "bg-tertiary", text: "text-tertiary", label: "Green" },
 };
 
@@ -53,7 +53,7 @@ export function BlueGreenProgressCard({ revisions, healingEvents }: BlueGreenPro
     <div className="bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10 overflow-hidden">
       <div className="px-6 py-4 border-b border-outline-variant/10">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-sm text-primary">swap_horiz</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-sm text-primary">swap_horiz</span>
           <h3 className="text-sm font-bold text-on-surface">Blue-Green Cutover</h3>
         </div>
       </div>
@@ -95,7 +95,7 @@ export function BlueGreenProgressCard({ revisions, healingEvents }: BlueGreenPro
             </p>
             {transitionEvents.map((e) => (
               <div key={e.id} className="flex items-center gap-2 text-xs text-on-surface-variant">
-                <span className="material-symbols-outlined text-sm text-primary">arrow_forward</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-sm text-primary">arrow_forward</span>
                 <span className="capitalize">{e.event_type.replace(/_/g, " ")}</span>
                 <span className="text-on-surface-variant/50 ml-auto font-mono">
                   {formatDate(e.created_at)}

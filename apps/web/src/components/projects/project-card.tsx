@@ -61,7 +61,7 @@ export function ProjectCard({
             {name}
           </h3>
           <div className="flex items-center gap-2 text-on-surface-variant text-xs mt-1">
-            <span className="material-symbols-outlined text-xs">
+            <span aria-hidden="true" className="material-symbols-outlined text-xs">
               account_tree
             </span>
             <span className="font-mono truncate max-w-[200px]">
@@ -103,17 +103,17 @@ export function ProjectCard({
         <div className="pt-4 border-t border-outline-variant/10 flex items-center justify-between text-xs text-on-surface-variant">
           {last_build_duration ? (
             <span className="flex items-center gap-1">
-              <span className="material-symbols-outlined text-xs">timer</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-xs">timer</span>
               {last_build_duration}
             </span>
           ) : status === "running" ? (
             <span className="flex items-center gap-1">
-              <span className="material-symbols-outlined text-xs">sync</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-xs">sync</span>
               Deploying...
             </span>
           ) : status === "failed" ? (
             <span className="flex items-center gap-1 text-error">
-              <span className="material-symbols-outlined text-xs">
+              <span aria-hidden="true" className="material-symbols-outlined text-xs">
                 error_outline
               </span>
               Build error

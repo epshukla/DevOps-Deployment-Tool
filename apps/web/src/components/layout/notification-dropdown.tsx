@@ -99,9 +99,11 @@ export function NotificationDropdown({
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setOpen(!open)}
+        aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : "Notifications"}
+        aria-expanded={open}
         className="hover:text-on-surface transition-all duration-200 relative"
       >
-        <span className="material-symbols-outlined">notifications</span>
+        <span aria-hidden="true" className="material-symbols-outlined">notifications</span>
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-primary rounded-full flex items-center justify-center text-[10px] font-bold text-on-primary px-1">
             {unreadCount > 99 ? "99+" : unreadCount}
@@ -128,7 +130,7 @@ export function NotificationDropdown({
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             {notifications.length === 0 ? (
               <div className="px-4 py-8 text-center text-on-surface-variant/50 text-sm">
-                <span className="material-symbols-outlined text-3xl mb-2 block">
+                <span aria-hidden="true" className="material-symbols-outlined text-3xl mb-2 block">
                   notifications_none
                 </span>
                 No notifications yet
@@ -142,7 +144,7 @@ export function NotificationDropdown({
                     !n.is_read ? "bg-primary/5" : ""
                   }`}
                 >
-                  <span className="material-symbols-outlined text-on-surface-variant/60 text-lg mt-0.5">
+                  <span aria-hidden="true" className="material-symbols-outlined text-on-surface-variant/60 text-lg mt-0.5">
                     {TYPE_ICON[n.type] ?? "info"}
                   </span>
                   <div className="flex-1 min-w-0">

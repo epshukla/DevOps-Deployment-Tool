@@ -69,7 +69,7 @@ export function RunApprovalCard({ projectId, approval }: RunApprovalCardProps) {
     <div className="bg-surface-container rounded-lg p-6 ring-1 ring-warning/30">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-warning">approval</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-warning">approval</span>
           <h3 className="text-sm font-bold text-on-surface">
             Approval Required — {approval.task_name}
           </h3>
@@ -87,7 +87,7 @@ export function RunApprovalCard({ projectId, approval }: RunApprovalCardProps) {
         <div className="space-y-2 mb-4">
           {approval.votes.map((vote) => (
             <div key={vote.id} className="flex items-center gap-3 text-xs">
-              <span
+              <span aria-hidden="true"
                 className={`material-symbols-outlined text-sm ${
                   vote.decision === "approve" ? "text-tertiary" : "text-error"
                 }`}
@@ -124,7 +124,7 @@ export function RunApprovalCard({ projectId, approval }: RunApprovalCardProps) {
               disabled={isVoting}
               className="flex items-center gap-1.5 px-4 py-2 bg-tertiary text-on-tertiary text-xs font-bold rounded hover:bg-tertiary/90 transition-colors disabled:opacity-50"
             >
-              <span className="material-symbols-outlined text-sm">check</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-sm">check</span>
               Approve
             </button>
             <button
@@ -132,7 +132,7 @@ export function RunApprovalCard({ projectId, approval }: RunApprovalCardProps) {
               disabled={isVoting}
               className="flex items-center gap-1.5 px-4 py-2 border border-error/30 text-error text-xs font-bold rounded hover:bg-error/10 transition-colors disabled:opacity-50"
             >
-              <span className="material-symbols-outlined text-sm">close</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-sm">close</span>
               Reject
             </button>
           </div>

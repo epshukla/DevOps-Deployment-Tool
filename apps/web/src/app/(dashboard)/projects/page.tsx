@@ -77,7 +77,7 @@ export default async function ProjectsPage() {
             href="/projects/new"
             className="flex items-center gap-2 bg-primary-container text-on-primary-container px-4 py-2.5 rounded-md font-semibold text-sm hover:opacity-90 transition-all shadow-lg shadow-primary/10"
           >
-            <span className="material-symbols-outlined text-sm">add</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
             New Project
           </Link>
         </div>
@@ -85,7 +85,7 @@ export default async function ProjectsPage() {
         {/* Projects Grid */}
         {!projects || projects.length === 0 ? (
           <div className="bg-surface-container rounded-xl p-16 text-center">
-            <span className="material-symbols-outlined text-5xl text-on-surface-variant/30 mb-4 block">
+            <span aria-hidden="true" className="material-symbols-outlined text-5xl text-on-surface-variant/30 mb-4 block">
               account_tree
             </span>
             <p className="text-sm text-on-surface-variant font-medium">
@@ -98,7 +98,7 @@ export default async function ProjectsPage() {
               href="/projects/new"
               className="inline-flex items-center gap-2 bg-primary-container text-on-primary-container px-4 py-2 rounded-md font-semibold text-xs hover:opacity-90 transition-all"
             >
-              <span className="material-symbols-outlined text-sm">add</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
               New Project
             </Link>
           </div>

@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/top-bar";
 import { formatDate } from "@/lib/format-date";
 
@@ -24,6 +26,10 @@ interface AuditLogClientProps {
   readonly orgId: string;
   readonly events: readonly AuditEventData[];
   readonly members: readonly MemberRef[];
+  readonly filters: { readonly action: string; readonly user: string };
+  readonly page: number;
+  readonly pageCount: number;
+  readonly total: number;
 }
 
 const ACTION_BADGE: Record<string, { text: string; className: string }> = {
@@ -37,19 +43,27 @@ const ACTION_BADGE: Record<string, { text: string; className: string }> = {
   login: { text: "Login", className: "bg-primary/10 text-primary" },
 };
 
+/** Build an audit-log URL; changing a filter always returns to page 1. */
+function auditHref(filters: { action: string; user: string }, page = 1): string {
+  const params = new URLSearchParams();
+  if (filters.action) params.set("action", filters.action);
+  if (filters.user) params.set("user", filters.user);
+  if (page > 1) params.set("page", String(page));
+  const qs = params.toString();
+  return `/settings/audit-log${qs ? `?${qs}` : ""}`;
+}
+
 export function AuditLogClient({
   events,
   members,
+  filters,
+  page,
+  pageCount,
+  total,
 }: AuditLogClientProps) {
-  const [filterAction, setFilterAction] = useState("");
-  const [filterUser, setFilterUser] = useState("");
+  const router = useRouter();
   const [expandedId, setExpandedId] = useState<string | null>(null);
-
-  const filteredEvents = events.filter((e) => {
-    if (filterAction && e.action !== filterAction) return false;
-    if (filterUser && e.user_id !== filterUser) return false;
-    return true;
-  });
+  const filteredEvents = events;
 
   return (
     <>
@@ -60,7 +74,7 @@ export function AuditLogClient({
         ]}
       />
 
-      <div className="p-8 max-w-5xl">
+      <div className="p-8 max-w-[1400px] mx-auto">
         <h2 className="text-xl font-bold text-on-surface mb-1">Audit Log</h2>
         <p className="text-sm text-on-surface-variant/60 mb-6">
           Track all actions performed in your organization
@@ -68,8 +82,9 @@ export function AuditLogClient({
 
         <div className="flex gap-3 mb-4">
           <select
-            value={filterAction}
-            onChange={(e) => setFilterAction(e.target.value)}
+            aria-label="Filter by action"
+            value={filters.action}
+            onChange={(e) => router.push(auditHref({ ...filters, action: e.target.value }))}
             className="bg-surface-container-low border border-outline-variant/20 rounded-md px-3 py-1.5 text-xs text-on-surface"
           >
             <option value="">All Actions</option>
@@ -80,8 +95,9 @@ export function AuditLogClient({
             ))}
           </select>
           <select
-            value={filterUser}
-            onChange={(e) => setFilterUser(e.target.value)}
+            aria-label="Filter by user"
+            value={filters.user}
+            onChange={(e) => router.push(auditHref({ ...filters, user: e.target.value }))}
             className="bg-surface-container-low border border-outline-variant/20 rounded-md px-3 py-1.5 text-xs text-on-surface"
           >
             <option value="">All Users</option>
@@ -95,7 +111,7 @@ export function AuditLogClient({
 
         {filteredEvents.length === 0 ? (
           <div className="border border-outline-variant/10 rounded-lg p-12 text-center">
-            <span className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
+            <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
               history
             </span>
             <p className="text-on-surface-variant/50 text-sm">
@@ -121,9 +137,8 @@ export function AuditLogClient({
                     className: "bg-surface-container-high text-on-surface-variant",
                   };
                   return (
-                    <>
+                    <Fragment key={event.id}>
                       <tr
-                        key={event.id}
                         className="border-b border-outline-variant/5 hover:bg-surface-container-high/50 transition-colors"
                       >
                         <td className="px-4 py-3 text-on-surface-variant/60 text-xs whitespace-nowrap">
@@ -148,6 +163,7 @@ export function AuditLogClient({
                         <td className="px-4 py-3">
                           {event.details && (
                             <button
+                              aria-label={expandedId === event.id ? "Hide details" : "Show details"}
                               onClick={() =>
                                 setExpandedId(
                                   expandedId === event.id ? null : event.id,
@@ -155,7 +171,7 @@ export function AuditLogClient({
                               }
                               className="text-on-surface-variant/40 hover:text-on-surface-variant transition-colors"
                             >
-                              <span className="material-symbols-outlined text-sm">
+                              <span aria-hidden="true" className="material-symbols-outlined text-sm">
                                 {expandedId === event.id
                                   ? "expand_less"
                                   : "expand_more"}
@@ -165,7 +181,7 @@ export function AuditLogClient({
                         </td>
                       </tr>
                       {expandedId === event.id && event.details && (
-                        <tr key={`${event.id}-details`}>
+                        <tr>
                           <td
                             colSpan={5}
                             className="px-4 py-3 bg-surface-container-low"
@@ -176,12 +192,41 @@ export function AuditLogClient({
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>
             </table>
           </div>
+        )}
+
+        {total > 0 && (
+          <nav
+            aria-label="Audit log pages"
+            className="flex items-center justify-between mt-4 text-xs text-on-surface-variant/70"
+          >
+            <span className="font-mono">
+              {total} event{total === 1 ? "" : "s"} · page {page} of {pageCount}
+            </span>
+            <div className="flex gap-2">
+              {page > 1 ? (
+                <Link
+                  href={auditHref(filters, page - 1)}
+                  className="px-3 py-1.5 rounded-md bg-surface-container-high hover:bg-surface-container-highest text-on-surface transition-colors"
+                >
+                  Newer
+                </Link>
+              ) : null}
+              {page < pageCount ? (
+                <Link
+                  href={auditHref(filters, page + 1)}
+                  className="px-3 py-1.5 rounded-md bg-surface-container-high hover:bg-surface-container-highest text-on-surface transition-colors"
+                >
+                  Older
+                </Link>
+              ) : null}
+            </div>
+          </nav>
         )}
       </div>
     </>

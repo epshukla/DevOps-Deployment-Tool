@@ -51,14 +51,14 @@ export default async function PipelinesPage({ params }: PageProps) {
             href={`/projects/${projectId}/pipelines/new`}
             className="px-5 py-2.5 bg-primary text-on-primary font-bold rounded-md hover:brightness-110 active:scale-95 transition-all flex items-center gap-2"
           >
-            <span className="material-symbols-outlined text-sm">add</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
             New Pipeline
           </Link>
         </div>
 
         {pipelines.length === 0 ? (
           <div className="bg-surface-container-low rounded-xl p-12 text-center ring-1 ring-outline-variant/10">
-            <span className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
+            <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
               account_tree
             </span>
             <p className="text-sm text-on-surface-variant">No pipelines yet</p>

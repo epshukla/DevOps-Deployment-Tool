@@ -308,3 +308,10 @@ describe("isValidTimeZone", () => {
     expect(isValidTimeZone("Mars/Olympus_Mons")).toBe(false);
   });
 });
+
+describe("describeCron with a time zone", () => {
+  it("names the zone the schedule runs in instead of assuming UTC", () => {
+    expect(describeCron("0 0 * * *", "Asia/Kolkata")).toBe("Every day at midnight Asia/Kolkata");
+    expect(describeCron("30 14 * * *", "Europe/Berlin")).toContain("Europe/Berlin");
+  });
+});

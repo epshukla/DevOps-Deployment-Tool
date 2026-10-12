@@ -18,7 +18,7 @@ export function FailureRiskBadge({ level, risk }: FailureRiskBadgeProps) {
     <span
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${style.bg} ${style.text}`}
     >
-      <span className="material-symbols-outlined text-sm">
+      <span aria-hidden="true" className="material-symbols-outlined text-sm">
         {level === "high" ? "error" : level === "medium" ? "warning" : "check_circle"}
       </span>
       {style.label} ({Math.round(risk * 100)}%)

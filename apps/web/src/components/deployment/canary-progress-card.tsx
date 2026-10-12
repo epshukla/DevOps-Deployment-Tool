@@ -39,7 +39,7 @@ export function CanaryProgressCard({ healingEvents }: CanaryProgressCardProps) {
     <div className="bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10 overflow-hidden">
       <div className="px-6 py-4 border-b border-outline-variant/10">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-sm text-primary">
+          <span aria-hidden="true" className="material-symbols-outlined text-sm text-primary">
             tune
           </span>
           <h3 className="text-sm font-bold text-on-surface">

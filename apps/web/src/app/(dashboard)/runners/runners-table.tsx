@@ -82,7 +82,7 @@ export function RunnersTable({ runners, currentRole }: RunnersTableProps) {
     return (
       <div className="bg-surface-container-low rounded-xl overflow-hidden">
         <div className="px-6 py-12 text-center">
-          <span className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
+          <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
             memory
           </span>
           <p className="text-sm text-on-surface-variant">No runners registered</p>
@@ -225,7 +225,7 @@ export function RunnersTable({ runners, currentRole }: RunnersTableProps) {
                 className="flex items-center gap-2 px-6 py-2 bg-error text-on-error text-sm font-bold rounded-md hover:brightness-110 disabled:opacity-50 transition-all"
               >
                 {isPending && (
-                  <span className="material-symbols-outlined text-sm animate-spin">
+                  <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">
                     progress_activity
                   </span>
                 )}

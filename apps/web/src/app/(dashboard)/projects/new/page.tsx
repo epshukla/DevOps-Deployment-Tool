@@ -102,7 +102,7 @@ export default function NewProjectPage() {
                     : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
                 }`}
               >
-                <span className="material-symbols-outlined text-sm">link</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-sm">link</span>
                 Enter URL
               </button>
             </div>
@@ -112,7 +112,7 @@ export default function NewProjectPage() {
               <div>
                 {ghLoading ? (
                   <div className="flex items-center justify-center py-16">
-                    <span className="material-symbols-outlined text-xl text-on-surface-variant/40 animate-spin">
+                    <span aria-hidden="true" className="material-symbols-outlined text-xl text-on-surface-variant/40 animate-spin">
                       progress_activity
                     </span>
                   </div>
@@ -262,7 +262,7 @@ function GitHubConfigForm({
                   <option key={b} value={b}>{b}</option>
                 ))}
               </select>
-              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/50">
+              <span aria-hidden="true" className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/50">
                 expand_more
               </span>
             </div>
@@ -292,7 +292,7 @@ function GitHubConfigForm({
             <option value="railway">Railway</option>
             <option value="fly_io">Fly.io</option>
           </select>
-          <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/50">
+          <span aria-hidden="true" className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/50">
             expand_more
           </span>
         </div>
@@ -305,7 +305,7 @@ function GitHubConfigForm({
             Dockerfile Path
           </label>
           <div className="flex items-center bg-surface-container-lowest rounded-md px-3 py-2">
-            <span className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
+            <span aria-hidden="true" className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
               description
             </span>
             <input
@@ -321,7 +321,7 @@ function GitHubConfigForm({
             Build Context
           </label>
           <div className="flex items-center bg-surface-container-lowest rounded-md px-3 py-2">
-            <span className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
+            <span aria-hidden="true" className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
               folder
             </span>
             <input
@@ -348,11 +348,11 @@ function GitHubConfigForm({
           className="px-8 py-2.5 rounded-md text-sm font-bold bg-gradient-to-br from-primary to-primary-container text-on-primary-container shadow-lg shadow-primary/10 hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {pending ? (
-            <span className="material-symbols-outlined text-sm animate-spin">
+            <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">
               progress_activity
             </span>
           ) : (
-            <span className="material-symbols-outlined text-sm">add</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
           )}
           {pending ? "Creating..." : "Create Project"}
         </button>
@@ -408,7 +408,7 @@ function ManualUrlForm({
               <option value="railway">Railway</option>
               <option value="fly_io">Fly.io</option>
             </select>
-            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/50">
+            <span aria-hidden="true" className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/50">
               expand_more
             </span>
           </div>
@@ -423,7 +423,7 @@ function ManualUrlForm({
         </label>
         <div className="relative group">
           <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center pr-3 border-r border-outline-variant/20">
-            <span className="material-symbols-outlined text-on-surface-variant/40 group-focus-within:text-primary transition-colors">
+            <span aria-hidden="true" className="material-symbols-outlined text-on-surface-variant/40 group-focus-within:text-primary transition-colors">
               link
             </span>
           </div>
@@ -445,7 +445,7 @@ function ManualUrlForm({
             Default Branch
           </label>
           <div className="flex items-center bg-surface-container-lowest rounded-md px-3 py-2">
-            <span className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
+            <span aria-hidden="true" className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
               account_tree
             </span>
             <input
@@ -461,7 +461,7 @@ function ManualUrlForm({
             Dockerfile Path
           </label>
           <div className="flex items-center bg-surface-container-lowest rounded-md px-3 py-2">
-            <span className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
+            <span aria-hidden="true" className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
               description
             </span>
             <input
@@ -477,7 +477,7 @@ function ManualUrlForm({
             Build Context
           </label>
           <div className="flex items-center bg-surface-container-lowest rounded-md px-3 py-2">
-            <span className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
+            <span aria-hidden="true" className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
               folder
             </span>
             <input
@@ -504,11 +504,11 @@ function ManualUrlForm({
           className="px-8 py-2.5 rounded-md text-sm font-bold bg-gradient-to-br from-primary to-primary-container text-on-primary-container shadow-lg shadow-primary/10 hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {pending ? (
-            <span className="material-symbols-outlined text-sm animate-spin">
+            <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">
               progress_activity
             </span>
           ) : (
-            <span className="material-symbols-outlined text-sm">add</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
           )}
           {pending ? "Creating..." : "Create Project"}
         </button>
@@ -528,9 +528,9 @@ function RepoRequirements() {
   return (
     <details className="mt-6 group">
       <summary className="flex items-center gap-3 px-4 py-3 bg-tertiary-container/10 rounded-md border border-tertiary-container/20 cursor-pointer select-none hover:bg-tertiary-container/15 transition-colors">
-        <span className="material-symbols-outlined text-tertiary text-sm">info</span>
+        <span aria-hidden="true" className="material-symbols-outlined text-tertiary text-sm">info</span>
         <span className="text-xs text-tertiary/80 font-semibold">Repository Requirements</span>
-        <span className="material-symbols-outlined text-tertiary/50 text-sm ml-auto transition-transform group-open:rotate-180">
+        <span aria-hidden="true" className="material-symbols-outlined text-tertiary/50 text-sm ml-auto transition-transform group-open:rotate-180">
           expand_more
         </span>
       </summary>
@@ -540,19 +540,19 @@ function RepoRequirements() {
         </p>
         <ul className="text-xs text-on-surface-variant/80 space-y-2 ml-1">
           <li className="flex items-start gap-2">
-            <span className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
             <span>A <code className="text-primary font-mono text-[11px]">Dockerfile</code> at the configured path</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
             <span>A health check endpoint at <code className="text-primary font-mono text-[11px]">GET /health</code> returning HTTP 200</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
             <span>App reads port from <code className="text-primary font-mono text-[11px]">PORT</code> environment variable</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
             <span>Graceful shutdown on <code className="text-primary font-mono text-[11px]">SIGTERM</code> signal</span>
           </li>
         </ul>

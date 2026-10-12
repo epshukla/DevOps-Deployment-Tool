@@ -58,7 +58,7 @@ export default async function RunnersPage() {
         <section className="mb-10">
           <div className="bg-surface-container rounded-lg p-6 relative overflow-hidden group">
             <div className="absolute right-0 top-0 opacity-5 pointer-events-none">
-              <span
+              <span aria-hidden="true"
                 className="material-symbols-outlined text-[120px]"
                 style={{
                   fontVariationSettings: "'wght' 100",
@@ -140,7 +140,7 @@ export default async function RunnersPage() {
               <ul className="space-y-2">
                 {systemEvents.map((event) => (
                   <li key={event.id} className="flex items-center gap-3 text-xs">
-                    <span className="material-symbols-outlined text-sm text-on-surface-variant/60">
+                    <span aria-hidden="true" className="material-symbols-outlined text-sm text-on-surface-variant/60">
                       {event.icon}
                     </span>
                     <span className="text-on-surface">{event.label}</span>

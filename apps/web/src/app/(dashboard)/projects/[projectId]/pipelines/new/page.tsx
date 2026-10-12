@@ -138,7 +138,7 @@ export default function NewPipelinePage() {
                   className="px-6 py-2.5 bg-primary text-on-primary text-sm font-bold rounded-md hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all flex items-center gap-2"
                 >
                   {pending && (
-                    <span className="material-symbols-outlined text-sm animate-spin">
+                    <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">
                       progress_activity
                     </span>
                   )}

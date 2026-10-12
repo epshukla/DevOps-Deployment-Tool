@@ -1,22 +1,24 @@
 import { requireUserWithOrg } from "@/lib/auth/session";
 import { SettingsClient } from "./settings-client";
+import { loadProfiles } from "@/lib/profiles";
 
 export default async function SettingsPage() {
   const { supabase, org, role, user } = await requireUserWithOrg();
 
-  // Fetch org members with their profiles
+  // Fetch org members, then their profiles (no FK → can't embed)
   const { data: memberships } = await supabase
     .from("org_memberships")
-    .select("user_id, role, created_at, user_profiles(display_name, avatar_url, github_username)")
+    .select("user_id, role, created_at")
     .eq("org_id", org.id)
     .order("created_at", { ascending: true });
 
+  const profiles = await loadProfiles(
+    supabase,
+    (memberships ?? []).map((m) => m.user_id as string),
+  );
+
   const members = (memberships ?? []).map((m) => {
-    const profile = m.user_profiles as unknown as {
-      display_name: string;
-      avatar_url: string | null;
-      github_username: string | null;
-    } | null;
+    const profile = profiles.get(m.user_id as string);
     return {
       user_id: m.user_id as string,
       role: m.role as string,

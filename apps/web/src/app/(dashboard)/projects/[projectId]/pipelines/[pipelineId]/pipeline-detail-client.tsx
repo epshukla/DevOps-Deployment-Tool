@@ -93,6 +93,8 @@ export function PipelineDetailClient({
 
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveFieldError, setSaveFieldError] = useState<string | null>(null);
+  // Saving is only offered for YAML that parses and validates
+  const [yamlValid, setYamlValid] = useState(true);
   const [isSaving, startSaveTransition] = useTransition();
 
   // Navigate to the new run only after a successful trigger — side effect
@@ -125,9 +127,11 @@ export function PipelineDetailClient({
     setYamlDraft(value);
     if (!value.trim()) {
       setYamlPreview(null);
+      setYamlValid(false);
       return;
     }
     const result = tryParsePipelineYaml(value);
+    setYamlValid(result.success);
     setYamlPreview(
       result.success
         ? `Valid — ${Object.keys(result.data.tasks).length} task(s)`
@@ -202,11 +206,11 @@ export function PipelineDetailClient({
                 className="px-4 py-2.5 bg-primary text-on-primary font-bold rounded-md hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all flex items-center gap-2 text-sm"
               >
                 {isTriggering ? (
-                  <span className="material-symbols-outlined text-sm animate-spin">
+                  <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">
                     progress_activity
                   </span>
                 ) : (
-                  <span className="material-symbols-outlined text-sm">bolt</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-sm">bolt</span>
                 )}
                 {isTriggering ? "Triggering..." : "Run Pipeline"}
               </button>
@@ -216,7 +220,7 @@ export function PipelineDetailClient({
                 onClick={handleStartEdit}
                 className="px-4 py-2.5 border border-outline-variant/30 hover:bg-surface-container-highest text-on-surface font-bold rounded-md transition-all flex items-center gap-2 text-sm"
               >
-                <span className="material-symbols-outlined text-sm">edit</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-sm">edit</span>
                 Edit
               </button>
             )}
@@ -341,11 +345,11 @@ export function PipelineDetailClient({
                   <div className="flex justify-end gap-3">
                     <button
                       type="submit"
-                      disabled={isSaving}
+                      disabled={isSaving || !yamlValid}
                       className="px-5 py-2 bg-primary text-on-primary text-sm font-bold rounded-md hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all flex items-center gap-2"
                     >
                       {isSaving && (
-                        <span className="material-symbols-outlined text-sm animate-spin">
+                        <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">
                           progress_activity
                         </span>
                       )}

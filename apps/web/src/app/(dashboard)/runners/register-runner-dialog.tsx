@@ -47,7 +47,7 @@ export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps)
           title="Admin permissions required to register runners"
           className="px-5 py-2.5 bg-surface-container-highest text-on-surface-variant/50 font-bold rounded-md flex items-center gap-2 cursor-not-allowed"
         >
-          <span className="material-symbols-outlined text-sm">add</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
           Register Runner
         </button>
         <p className="text-[10px] text-on-surface-variant/50 mt-1 text-right">
@@ -63,7 +63,7 @@ export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps)
         onClick={handleOpen}
         className="px-5 py-2.5 bg-primary text-on-primary font-bold rounded-md hover:brightness-110 active:scale-95 transition-all flex items-center gap-2"
       >
-        <span className="material-symbols-outlined text-sm">add</span>
+        <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
         Register Runner
       </button>
 
@@ -123,7 +123,7 @@ export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps)
                       className="px-6 py-2 bg-primary text-on-primary text-sm font-bold rounded-md hover:brightness-110 disabled:opacity-50 transition-all flex items-center gap-2"
                     >
                       {pending && (
-                        <span className="material-symbols-outlined text-sm animate-spin">
+                        <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">
                           progress_activity
                         </span>
                       )}
@@ -156,7 +156,7 @@ export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps)
                         onClick={() => handleCopy(registerCmd)}
                         className="shrink-0 flex items-center gap-1 text-on-surface-variant hover:text-primary transition-colors"
                       >
-                        <span className="material-symbols-outlined text-lg">
+                        <span aria-hidden="true" className="material-symbols-outlined text-lg">
                           {copied ? "check" : "content_copy"}
                         </span>
                       </button>
@@ -179,7 +179,7 @@ export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps)
                         onClick={() => handleCopy(startCmd)}
                         className="shrink-0 flex items-center gap-1 text-on-surface-variant hover:text-primary transition-colors"
                       >
-                        <span className="material-symbols-outlined text-lg">
+                        <span aria-hidden="true" className="material-symbols-outlined text-lg">
                           content_copy
                         </span>
                       </button>

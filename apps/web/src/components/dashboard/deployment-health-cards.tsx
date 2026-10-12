@@ -35,7 +35,7 @@ export function DeploymentHealthCards({
   return (
     <div className="flex flex-col gap-4">
       <h3 className="text-base font-bold flex items-center gap-2 mb-2">
-        <span className="material-symbols-outlined text-tertiary">
+        <span aria-hidden="true" className="material-symbols-outlined text-tertiary">
           monitor_heart
         </span>
         Deployment Health
@@ -43,7 +43,7 @@ export function DeploymentHealthCards({
 
       {deployments.length === 0 ? (
         <div className="bg-surface-container p-8 rounded-lg text-center">
-          <span className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
+          <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
             monitor_heart
           </span>
           <p className="text-sm text-on-surface-variant">
@@ -62,7 +62,7 @@ export function DeploymentHealthCards({
           >
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 bg-surface-container-highest rounded flex items-center justify-center">
-                <span className="material-symbols-outlined text-on-surface-variant">
+                <span aria-hidden="true" className="material-symbols-outlined text-on-surface-variant">
                   web
                 </span>
               </div>
@@ -70,7 +70,7 @@ export function DeploymentHealthCards({
                 <h4 className="text-sm font-bold">{dep.name}</h4>
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[10px] text-on-surface-variant uppercase tracking-tighter">
-                    SHA:
+                    Image:
                   </span>
                   <span className="text-[10px] font-mono text-primary bg-primary/5 px-1 rounded">
                     {dep.image_sha}

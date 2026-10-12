@@ -38,7 +38,7 @@ export default function LoginPage() {
         {/* Brand */}
         <div className="flex flex-col items-center mb-10 text-center">
           <div className="w-16 h-16 mb-6 flex items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-container shadow-2xl shadow-primary/20">
-            <span className="material-symbols-outlined text-on-primary text-4xl">
+            <span aria-hidden="true" className="material-symbols-outlined text-on-primary text-4xl">
               rocket_launch
             </span>
           </div>
@@ -77,7 +77,7 @@ export default function LoginPage() {
               className="w-full group flex items-center justify-center gap-3 bg-surface-container-lowest border border-outline-variant/50 text-on-surface font-semibold py-3.5 px-4 rounded-md transition-all duration-200 hover:bg-surface-bright active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
-                <span className="material-symbols-outlined text-xl animate-spin">
+                <span aria-hidden="true" className="material-symbols-outlined text-xl animate-spin">
                   progress_activity
                 </span>
               ) : (

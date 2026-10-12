@@ -269,12 +269,12 @@ export function DeploymentDetailClient({
             </div>
             <div className="flex items-center gap-4 text-on-surface-variant text-sm">
               <span className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-sm">strategy</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-sm">strategy</span>
                 {deployment.strategy.replace("_", " ")}
               </span>
               <span className="text-outline-variant">|</span>
               <span className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-sm">dns</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-sm">dns</span>
                 {deployment.deploy_target.replace("_", " ")}
               </span>
               <span className="text-outline-variant">|</span>
@@ -290,7 +290,7 @@ export function DeploymentDetailClient({
                   onClick={handleOpenRollback}
                   className="flex items-center gap-2 px-4 py-2 border border-outline-variant/30 text-on-surface hover:bg-surface-container-high transition-colors font-medium text-sm rounded-md"
                 >
-                  <span className="material-symbols-outlined text-sm">undo</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-sm">undo</span>
                   Rollback
                 </button>
               )}
@@ -300,7 +300,7 @@ export function DeploymentDetailClient({
                   disabled={isPending}
                   className="flex items-center gap-2 px-4 py-2 border border-error/30 text-error hover:bg-error/10 transition-colors font-medium text-sm rounded-md disabled:opacity-50"
                 >
-                  <span className="material-symbols-outlined text-sm">stop_circle</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-sm">stop_circle</span>
                   {isPending ? "Stopping..." : "Stop"}
                 </button>
               )}
@@ -442,7 +442,7 @@ export function DeploymentDetailClient({
               </table>
             ) : (
               <div className="px-6 py-8 text-center">
-                <span className="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2 block">
+                <span aria-hidden="true" className="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2 block">
                   monitor_heart
                 </span>
                 <p className="text-xs text-on-surface-variant">
@@ -543,7 +543,7 @@ export function DeploymentDetailClient({
               <div className="space-y-3">
                 {healingEvents.map((event) => (
                   <div key={event.id} className="flex items-start gap-3">
-                    <span
+                    <span aria-hidden="true"
                       className={`material-symbols-outlined text-sm mt-0.5 ${
                         HEALING_EVENT_COLOR[event.event_type] ?? "text-on-surface-variant"
                       }`}
@@ -610,7 +610,7 @@ function ApprovalCard({
     <div className="bg-surface-container rounded-lg p-6 ring-1 ring-primary/20">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-primary">approval</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-primary">approval</span>
           <h3 className="text-sm font-bold text-on-surface">Deployment Approval</h3>
           <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase ${statusBadge.className}`}>
             {statusBadge.text}
@@ -626,7 +626,7 @@ function ApprovalCard({
         <div className="space-y-2 mb-4">
           {votes.map((vote) => (
             <div key={vote.id} className="flex items-center gap-3 text-xs">
-              <span className={`material-symbols-outlined text-sm ${
+              <span aria-hidden="true" className={`material-symbols-outlined text-sm ${
                 vote.decision === "approve" ? "text-tertiary" : "text-error"
               }`}>
                 {vote.decision === "approve" ? "check_circle" : "cancel"}
@@ -655,7 +655,7 @@ function ApprovalCard({
             disabled={isVoting}
             className="flex items-center gap-1.5 px-4 py-2 bg-tertiary text-on-tertiary text-xs font-bold rounded hover:bg-tertiary/90 transition-colors disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-sm">check</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">check</span>
             Approve
           </button>
           <button
@@ -663,7 +663,7 @@ function ApprovalCard({
             disabled={isVoting}
             className="flex items-center gap-1.5 px-4 py-2 border border-error/30 text-error text-xs font-bold rounded hover:bg-error/10 transition-colors disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-sm">close</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">close</span>
             Reject
           </button>
         </div>

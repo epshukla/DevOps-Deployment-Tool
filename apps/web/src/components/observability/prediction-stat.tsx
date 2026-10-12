@@ -48,7 +48,7 @@ export function PredictionStat({
                 : "text-on-surface-variant/40"
           }`}
         >
-          <span className="material-symbols-outlined text-xs">
+          <span aria-hidden="true" className="material-symbols-outlined text-xs">
             {trend > 5
               ? "trending_up"
               : trend < -5

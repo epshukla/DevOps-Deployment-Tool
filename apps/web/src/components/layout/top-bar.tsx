@@ -34,7 +34,7 @@ export function TopBar({
         {breadcrumbs?.map((crumb, i) => (
           <span key={crumb.label} className="flex items-center gap-2">
             {i > 0 && (
-              <span className="material-symbols-outlined text-sm">
+              <span aria-hidden="true" className="material-symbols-outlined text-sm">
                 chevron_right
               </span>
             )}
@@ -76,7 +76,7 @@ export function TopBar({
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span className="material-symbols-outlined text-on-surface-variant">
+              <span aria-hidden="true" className="material-symbols-outlined text-on-surface-variant">
                 person
               </span>
             )}
