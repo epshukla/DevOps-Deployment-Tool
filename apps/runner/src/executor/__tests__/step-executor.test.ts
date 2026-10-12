@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { Readable } from "node:stream";
 import { executeStep, buildDockerCommand, isValidImageRef } from "../step-executor";
 import type { LogStreamer } from "../../logging/log-streamer";
@@ -199,6 +199,190 @@ describe("executeStep", () => {
         env: expect.objectContaining({ MY_VAR: "test-value" }),
       }),
     );
+  });
+});
+
+describe("cancellation", () => {
+  let mockExeca: ReturnType<typeof vi.fn>;
+
+  /** A subprocess that stays running until `finish` is called. */
+  function pendingSubprocess(pid?: number) {
+    let finish!: (result: Record<string, unknown>) => void;
+    const promise = new Promise((resolve) => {
+      finish = resolve;
+    });
+    const subprocess = Object.assign(promise, {
+      pid,
+      stdout: Readable.from([]),
+      stderr: Readable.from([]),
+    });
+    return { subprocess, finish };
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    const mod = await import("execa");
+    mockExeca = mod.execa as unknown as ReturnType<typeof vi.fn>;
+    mockExeca.mockImplementation(() => makeSubprocess(0, false));
+  });
+
+  it("passes the abort signal to execa as cancelSignal", async () => {
+    const controller = new AbortController();
+
+    const result = await executeStep({
+      command: "echo hi",
+      cwd: "/tmp",
+      logStreamer: createMockLogStreamer(),
+      signal: controller.signal,
+    });
+
+    expect(result.cancelled).toBe(false);
+    expect(mockExeca).toHaveBeenCalledWith(
+      "sh",
+      ["-c", "echo hi"],
+      expect.objectContaining({ cancelSignal: controller.signal }),
+    );
+  });
+
+  it("does not spawn anything when already cancelled", async () => {
+    const controller = new AbortController();
+    controller.abort();
+
+    const result = await executeStep({
+      command: "echo hi",
+      cwd: "/tmp",
+      logStreamer: createMockLogStreamer(),
+      signal: controller.signal,
+    });
+
+    expect(result).toEqual({ exitCode: 1, timedOut: false, cancelled: true });
+    expect(mockExeca).not.toHaveBeenCalled();
+  });
+
+  it("reports cancelled and kills the step's process group on abort", async () => {
+    const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+    const { subprocess, finish } = pendingSubprocess(4242);
+    mockExeca.mockImplementationOnce(() => subprocess);
+    const controller = new AbortController();
+
+    const resultPromise = executeStep({
+      command: "sleep 600",
+      cwd: "/tmp",
+      logStreamer: createMockLogStreamer(),
+      signal: controller.signal,
+    });
+    controller.abort();
+    finish({ exitCode: undefined, timedOut: false, isCanceled: true });
+    const result = await resultPromise;
+
+    expect(result.cancelled).toBe(true);
+    if (process.platform !== "win32") {
+      expect(killSpy).toHaveBeenCalledWith(-4242, "SIGTERM");
+    }
+  });
+
+  it("force-removes the step container on abort", async () => {
+    vi.spyOn(process, "kill").mockImplementation(() => true);
+    const { subprocess, finish } = pendingSubprocess(4243);
+    mockExeca
+      .mockImplementationOnce(() => subprocess)
+      .mockImplementationOnce(() => Promise.resolve({ exitCode: 0, stderr: "" }));
+    const controller = new AbortController();
+
+    const resultPromise = executeStep({
+      command: "npm test",
+      cwd: "/tmp/ws",
+      image: "node:20",
+      logStreamer: createMockLogStreamer(),
+      signal: controller.signal,
+    });
+    controller.abort();
+
+    await vi.waitFor(() =>
+      expect(mockExeca).toHaveBeenCalledWith(
+        "docker",
+        ["rm", "-f", expect.stringMatching(/^deployx-step-[0-9a-f-]{12}$/)],
+        expect.objectContaining({ reject: false }),
+      ),
+    );
+    const containerName = mockExeca.mock.calls[1][1][2];
+    expect(mockExeca.mock.calls[0][1][1]).toContain(`--name '${containerName}'`);
+
+    finish({ exitCode: 137, timedOut: false, isCanceled: true });
+    expect((await resultPromise).cancelled).toBe(true);
+  });
+
+  describe("timeout_seconds", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("kills the process group and removes the step container when the timeout elapses", async () => {
+      vi.useFakeTimers();
+      const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+      const { subprocess, finish } = pendingSubprocess(5151);
+      mockExeca
+        .mockImplementationOnce(() => subprocess)
+        .mockImplementationOnce(() => Promise.resolve({ exitCode: 0, stderr: "" }));
+
+      const resultPromise = executeStep({
+        command: "sleep 600",
+        cwd: "/tmp/ws",
+        image: "node:20",
+        timeoutSeconds: 2,
+        logStreamer: createMockLogStreamer(),
+      });
+
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(killSpy).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+
+      if (process.platform !== "win32") {
+        expect(killSpy).toHaveBeenCalledWith(-5151, "SIGTERM");
+      }
+      expect(mockExeca).toHaveBeenCalledWith(
+        "docker",
+        ["rm", "-f", expect.stringMatching(/^deployx-step-/)],
+        expect.anything(),
+      );
+
+      // execa itself may not flag the timeout when the group kill wins the race
+      finish({ exitCode: 143, timedOut: false, isCanceled: false });
+      const result = await resultPromise;
+      expect(result).toEqual({ exitCode: 143, timedOut: true, cancelled: false });
+    });
+
+    it("does not kill anything when the step finishes before the timeout", async () => {
+      vi.useFakeTimers();
+      const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+      mockExeca.mockImplementation(() => makeSubprocess(0, false));
+
+      const result = await executeStep({
+        command: "true",
+        cwd: "/tmp",
+        timeoutSeconds: 1,
+        logStreamer: createMockLogStreamer(),
+      });
+      await vi.advanceTimersByTimeAsync(5000);
+
+      expect(result.timedOut).toBe(false);
+      expect(killSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  it("does not report cancelled when a step finished normally", async () => {
+    const controller = new AbortController();
+    mockExeca.mockImplementation(() => makeSubprocess(0, false));
+
+    const result = await executeStep({
+      command: "true",
+      cwd: "/tmp",
+      logStreamer: createMockLogStreamer(),
+      signal: controller.signal,
+    });
+
+    expect(result).toEqual({ exitCode: 0, timedOut: false, cancelled: false });
   });
 });
 
