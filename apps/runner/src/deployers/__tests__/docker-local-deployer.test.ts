@@ -35,7 +35,7 @@ vi.spyOn(globalThis, "setTimeout").mockImplementation((fn: () => void) => {
   return 0 as unknown as ReturnType<typeof setTimeout>;
 });
 
-const { isContainerRunning, runContainer, removeContainerIfExists } =
+const { isContainerRunning, inspectContainer, runContainer, removeContainerIfExists } =
   await import("../container-manager");
 const { waitForHealthyViaDocker } = await import("../health-checker");
 const { releasePort } = await import("../port-allocator");
@@ -81,6 +81,30 @@ describe("DockerLocalDeployer (blue-green)", () => {
       expect(result.success).toBe(true);
       expect(vi.mocked(runContainer)).toHaveBeenCalledWith(
         expect.objectContaining({ name: "deployx-myapp-blue", image: "myapp:v2" }),
+      );
+      const labels = (vi.mocked(runContainer).mock.calls[0][0] as any).labels;
+      expect(labels["deployx.previousImage"]).toBeUndefined();
+    });
+
+    it("labels the new color with the image it replaces", async () => {
+      vi.mocked(isContainerRunning).mockImplementation(
+        async (name: string) => name === "deployx-myapp-blue",
+      );
+      vi.mocked(inspectContainer).mockImplementation(async (name: string) =>
+        name === "deployx-myapp-blue"
+          ? { id: "1", name, state: "running", image: "myapp:v1", labels: {} }
+          : null,
+      );
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+
+      const result = await deployer.deploy(createCtx());
+
+      expect(result.success).toBe(true);
+      expect(vi.mocked(runContainer)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "deployx-myapp-green",
+          labels: expect.objectContaining({ "deployx.previousImage": "myapp:v1" }),
+        }),
       );
     });
   });

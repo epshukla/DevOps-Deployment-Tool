@@ -10,9 +10,11 @@ import {
   stopContainer,
   removeContainerIfExists,
   isContainerRunning,
+  inspectContainer,
   getContainerLogs,
 } from "./container-manager";
 import { allocatePort, releasePort } from "./port-allocator";
+import { resolvePreviousImage, withPreviousImageLabel } from "./previous-image";
 import { generateNginxConfig, writeNginxConfig, reloadNginx } from "./nginx-config";
 import { waitForHealthyViaDocker } from "./health-checker";
 
@@ -60,6 +62,11 @@ export class DockerLocalDeployer implements DeployerDriver {
       // 3. Clean up any stale container with the new color name
       await removeContainerIfExists(newContainerName);
 
+      // Record the image being replaced so self-healing can roll back to it
+      const previousImage = oldContainerName
+        ? resolvePreviousImage(await inspectContainer(oldContainerName), ctx.imageTag)
+        : null;
+
       // 4. Start new app container
       logStreamer.push({
         level: "info",
@@ -77,15 +84,18 @@ export class DockerLocalDeployer implements DeployerDriver {
         image: ctx.imageTag,
         network: DEPLOYER_NETWORK_NAME,
         env: deployEnv,
-        labels: {
-          "deployx.project": projectSlug,
-          "deployx.role": "app",
-          "deployx.color": newColor,
-          "deployx.deployment": ctx.deploymentId,
-          "deployx.runId": ctx.job.run_id,
-          "deployx.healthPath": healthPath,
-          "deployx.appPort": String(appPort),
-        },
+        labels: withPreviousImageLabel(
+          {
+            "deployx.project": projectSlug,
+            "deployx.role": "app",
+            "deployx.color": newColor,
+            "deployx.deployment": ctx.deploymentId,
+            "deployx.runId": ctx.job.run_id,
+            "deployx.healthPath": healthPath,
+            "deployx.appPort": String(appPort),
+          },
+          previousImage,
+        ),
         detach: true,
         restart: "unless-stopped",
       });
