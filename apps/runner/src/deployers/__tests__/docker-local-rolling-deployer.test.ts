@@ -19,6 +19,7 @@ vi.mock("../health-checker", () => ({
 
 vi.mock("../port-allocator", () => ({
   allocatePort: vi.fn().mockReturnValue({ proxyPort: 10002 }),
+  releasePort: vi.fn(),
 }));
 
 vi.mock("../nginx-config", () => ({
@@ -276,6 +277,29 @@ describe("DockerLocalRollingDeployer", () => {
       expect(vi.mocked(removeContainerIfExists)).toHaveBeenCalledWith("deployx-myapp-inst-0");
       expect(vi.mocked(removeContainerIfExists)).toHaveBeenCalledWith("deployx-myapp-inst-1");
       expect(vi.mocked(removeContainerIfExists)).toHaveBeenCalledWith("deployx-proxy-myapp");
+    });
+
+    it("releases the proxy port after the proxy is removed", async () => {
+      const { releasePort } = await import("../port-allocator");
+
+      await deployer.stop(createCtx());
+
+      expect(vi.mocked(releasePort)).toHaveBeenCalledWith("myapp");
+      const proxyRemovalOrder = vi.mocked(removeContainerIfExists).mock.invocationCallOrder[
+        vi.mocked(removeContainerIfExists).mock.calls.findIndex((c) => c[0] === "deployx-proxy-myapp")
+      ];
+      expect(vi.mocked(releasePort).mock.invocationCallOrder[0]).toBeGreaterThan(proxyRemovalOrder);
+    });
+
+    it("keeps the port allocated if proxy removal fails", async () => {
+      const { releasePort } = await import("../port-allocator");
+      vi.mocked(removeContainerIfExists).mockImplementation(async (name: string) => {
+        if (name === "deployx-proxy-myapp") throw new Error("daemon unavailable");
+      });
+
+      await expect(deployer.stop(createCtx())).rejects.toThrow("daemon unavailable");
+      expect(vi.mocked(releasePort)).not.toHaveBeenCalled();
+      vi.mocked(removeContainerIfExists).mockReset();
     });
   });
 

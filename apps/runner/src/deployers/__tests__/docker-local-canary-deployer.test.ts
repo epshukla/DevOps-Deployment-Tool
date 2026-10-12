@@ -21,6 +21,7 @@ vi.mock("../health-checker", () => ({
 
 vi.mock("../port-allocator", () => ({
   allocatePort: vi.fn().mockReturnValue({ proxyPort: 10001 }),
+  releasePort: vi.fn(),
 }));
 
 vi.mock("../nginx-config", () => ({
@@ -313,6 +314,18 @@ describe("DockerLocalCanaryDeployer", () => {
       expect(vi.mocked(removeContainerIfExists)).toHaveBeenCalledWith("deployx-myapp-stable");
       expect(vi.mocked(removeContainerIfExists)).toHaveBeenCalledWith("deployx-myapp-canary");
       expect(vi.mocked(removeContainerIfExists)).toHaveBeenCalledWith("deployx-proxy-myapp");
+    });
+
+    it("releases the proxy port after the proxy is removed", async () => {
+      const { releasePort } = await import("../port-allocator");
+
+      await deployer.stop(createCtx());
+
+      expect(vi.mocked(releasePort)).toHaveBeenCalledWith("myapp");
+      const proxyRemovalOrder = vi.mocked(removeContainerIfExists).mock.invocationCallOrder[
+        vi.mocked(removeContainerIfExists).mock.calls.findIndex((c) => c[0] === "deployx-proxy-myapp")
+      ];
+      expect(vi.mocked(releasePort).mock.invocationCallOrder[0]).toBeGreaterThan(proxyRemovalOrder);
     });
   });
 
