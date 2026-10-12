@@ -172,6 +172,13 @@ export class DockerLocalDeployer implements DeployerDriver {
       await writeNginxConfig(proxyContainerName, nginxConfig);
       await reloadNginx(proxyContainerName);
 
+      await this.recordHealingEvent(ctx, "blue_green_cutover", {
+        from_color: currentColor,
+        to_color: newColor,
+        image_tag: ctx.imageTag,
+        previous_image_tag: previousImage,
+      });
+
       // 7. Drain and stop old container
       if (oldContainerName && (await isContainerRunning(oldContainerName))) {
         logStreamer.push({
@@ -365,6 +372,23 @@ export class DockerLocalDeployer implements DeployerDriver {
       // Fire-and-forget — don't crash deployment over API error
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`Failed to report health check: ${msg}`);
+    }
+  }
+
+  private async recordHealingEvent(
+    ctx: DeployContext,
+    eventType: string,
+    details: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await ctx.client.recordHealingEvent(ctx.job.run_id, ctx.deploymentId, {
+        event_type: eventType,
+        details,
+      });
+    } catch (err) {
+      // Fire-and-forget — the cutover already happened
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[deploy] Failed to record ${eventType} event: ${msg}`);
     }
   }
 }

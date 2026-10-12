@@ -39,6 +39,7 @@ const { isContainerRunning, inspectContainer, runContainer, removeContainerIfExi
   await import("../container-manager");
 const { waitForHealthyViaDocker } = await import("../health-checker");
 const { releasePort } = await import("../port-allocator");
+const { reloadNginx } = await import("../nginx-config");
 
 function createCtx(overrides?: Partial<DeployContext>): DeployContext {
   return {
@@ -106,6 +107,75 @@ describe("DockerLocalDeployer (blue-green)", () => {
           labels: expect.objectContaining({ "deployx.previousImage": "myapp:v1" }),
         }),
       );
+    });
+  });
+
+  describe("cutover event", () => {
+    it("records blue_green_cutover after nginx switches to the new color", async () => {
+      vi.mocked(isContainerRunning).mockImplementation(
+        async (name: string) => name === "deployx-myapp-blue",
+      );
+      vi.mocked(inspectContainer).mockResolvedValue({
+        id: "1",
+        name: "deployx-myapp-blue",
+        state: "running",
+        image: "myapp:v1",
+        labels: {},
+      });
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+      const ctx = createCtx();
+
+      await deployer.deploy(ctx);
+
+      const record = vi.mocked(ctx.client.recordHealingEvent);
+      expect(record).toHaveBeenCalledWith("run-1", "dep-1", {
+        event_type: "blue_green_cutover",
+        details: {
+          from_color: "blue",
+          to_color: "green",
+          image_tag: "myapp:v2",
+          previous_image_tag: "myapp:v1",
+        },
+      });
+      expect(record.mock.invocationCallOrder[0]).toBeGreaterThan(
+        vi.mocked(reloadNginx).mock.invocationCallOrder[0],
+      );
+    });
+
+    it("reports a null from_color on first deploy and survives API errors", async () => {
+      vi.mocked(isContainerRunning).mockResolvedValue(false);
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const ctx = createCtx();
+      vi.mocked(ctx.client.recordHealingEvent).mockRejectedValue(new Error("API down"));
+
+      const result = await deployer.deploy(ctx);
+
+      expect(result.success).toBe(true);
+      expect(vi.mocked(ctx.client.recordHealingEvent)).toHaveBeenCalledWith(
+        "run-1",
+        "dep-1",
+        expect.objectContaining({
+          details: expect.objectContaining({ from_color: null, to_color: "blue", previous_image_tag: null }),
+        }),
+      );
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("API down"));
+      errorSpy.mockRestore();
+    });
+
+    it("does not record a cutover when the new color fails health checks", async () => {
+      vi.mocked(isContainerRunning).mockResolvedValue(false);
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue({
+        passed: false,
+        statusCode: null,
+        responseTimeMs: 10,
+        error: "refused",
+      });
+      const ctx = createCtx();
+
+      await deployer.deploy(ctx);
+
+      expect(vi.mocked(ctx.client.recordHealingEvent)).not.toHaveBeenCalled();
     });
   });
 

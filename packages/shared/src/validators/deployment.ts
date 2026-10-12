@@ -138,6 +138,7 @@ export const RecordHealingEventSchema = z.object({
     "canary_rollback",
     "rolling_instance_updated",
     "rolling_rollback",
+    "blue_green_cutover",
   ]),
   attempt_number: z.number().int().nonnegative().optional(),
   container_name: z.string().max(256).optional(),
