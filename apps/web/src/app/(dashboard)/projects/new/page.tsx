@@ -68,7 +68,7 @@ export default function NewProjectPage() {
 
         <div className="w-full max-w-2xl">
           <div className="mb-8">
-            <h2 className="text-3xl font-extrabold tracking-tight text-on-surface mb-2">
+            <h2 className="font-mono text-xl font-semibold text-on-surface mb-2">
               Create New Project
             </h2>
             <p className="text-on-surface-variant text-sm">
@@ -76,13 +76,13 @@ export default function NewProjectPage() {
             </p>
           </div>
 
-          <div className="bg-surface-container rounded-xl overflow-hidden shadow-2xl border border-outline-variant/10">
+          <div className="bg-surface-container rounded-lg overflow-hidden shadow-2xl border border-outline-variant/10">
             {/* Tab switcher */}
             <div className="flex border-b border-outline-variant/10">
               <button
                 type="button"
                 onClick={() => setTab("github")}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-xs font-bold transition-colors ${
                   tab === "github"
                     ? "text-primary border-b-2 border-primary bg-primary/5"
                     : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
@@ -96,13 +96,13 @@ export default function NewProjectPage() {
               <button
                 type="button"
                 onClick={() => setTab("url")}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-xs font-bold transition-colors ${
                   tab === "url"
                     ? "text-primary border-b-2 border-primary bg-primary/5"
                     : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
                 }`}
               >
-                <span className="material-symbols-outlined text-sm">link</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-sm">link</span>
                 Enter URL
               </button>
             </div>
@@ -112,7 +112,7 @@ export default function NewProjectPage() {
               <div>
                 {ghLoading ? (
                   <div className="flex items-center justify-center py-16">
-                    <span className="material-symbols-outlined text-xl text-on-surface-variant/40 animate-spin">
+                    <span aria-hidden="true" className="material-symbols-outlined text-xl text-on-surface-variant/40 animate-spin">
                       progress_activity
                     </span>
                   </div>
@@ -199,12 +199,12 @@ function GitHubConfigForm({
         <img
           src={repo.owner.avatar_url}
           alt={repo.owner.login}
-          className="w-8 h-8 rounded-full ring-1 ring-outline-variant/10"
+          className="w-8 h-8 rounded-full border border-outline-variant"
         />
         <div className="flex-1 min-w-0">
           <span className="text-sm font-semibold text-on-surface">{repo.full_name}</span>
           <span
-            className={`ml-2 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
+            className={`ml-2 text-[11px] font-bold uppercase px-1.5 py-0.5 rounded-full ${
               repo.private
                 ? "bg-warning-container/20 text-warning"
                 : "bg-tertiary-container/20 text-tertiary"
@@ -213,7 +213,7 @@ function GitHubConfigForm({
             {repo.private ? "private" : "public"}
           </span>
           {repo.description && (
-            <p className="text-[10px] text-on-surface-variant/60 truncate mt-0.5">{repo.description}</p>
+            <p className="text-xs text-on-surface-variant/60 truncate mt-0.5">{repo.description}</p>
           )}
         </div>
         <button
@@ -232,7 +232,7 @@ function GitHubConfigForm({
       {/* Project name + Branch */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest ml-1">
+          <label className="text-xs font-bold text-on-surface-variant/60 ml-1">
             Project Name
           </label>
           <input
@@ -247,7 +247,7 @@ function GitHubConfigForm({
           <FieldError errors={state.fieldErrors?.name} />
         </div>
         <div className="space-y-2">
-          <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest ml-1">
+          <label className="text-xs font-bold text-on-surface-variant/60 ml-1">
             Branch
           </label>
           {branches.length > 0 ? (
@@ -262,7 +262,7 @@ function GitHubConfigForm({
                   <option key={b} value={b}>{b}</option>
                 ))}
               </select>
-              <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/50">
+              <span aria-hidden="true" className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/50">
                 expand_more
               </span>
             </div>
@@ -280,7 +280,7 @@ function GitHubConfigForm({
 
       {/* Deploy target */}
       <div className="space-y-2">
-        <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest ml-1">
+        <label className="text-xs font-bold text-on-surface-variant/60 ml-1">
           Deploy Target
         </label>
         <div className="relative">
@@ -292,7 +292,7 @@ function GitHubConfigForm({
             <option value="railway">Railway</option>
             <option value="fly_io">Fly.io</option>
           </select>
-          <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/50">
+          <span aria-hidden="true" className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/50">
             expand_more
           </span>
         </div>
@@ -301,11 +301,11 @@ function GitHubConfigForm({
       {/* Advanced Config */}
       <div className="pt-4 border-t border-outline-variant/10 grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <label className="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-1">
+          <label className="text-xs font-bold text-on-surface-variant/60 ml-1">
             Dockerfile Path
           </label>
           <div className="flex items-center bg-surface-container-lowest rounded-md px-3 py-2">
-            <span className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
+            <span aria-hidden="true" className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
               description
             </span>
             <input
@@ -317,11 +317,11 @@ function GitHubConfigForm({
           </div>
         </div>
         <div className="space-y-2">
-          <label className="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-1">
+          <label className="text-xs font-bold text-on-surface-variant/60 ml-1">
             Build Context
           </label>
           <div className="flex items-center bg-surface-container-lowest rounded-md px-3 py-2">
-            <span className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
+            <span aria-hidden="true" className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
               folder
             </span>
             <input
@@ -345,14 +345,14 @@ function GitHubConfigForm({
         <button
           type="submit"
           disabled={pending}
-          className="px-8 py-2.5 rounded-md text-sm font-bold bg-gradient-to-br from-primary to-primary-container text-on-primary-container shadow-lg shadow-primary/10 hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-8 py-2.5 rounded-md text-sm font-bold bg-gradient-to-br from-primary to-primary-container text-on-primary-container hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {pending ? (
-            <span className="material-symbols-outlined text-sm animate-spin">
+            <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">
               progress_activity
             </span>
           ) : (
-            <span className="material-symbols-outlined text-sm">add</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
           )}
           {pending ? "Creating..." : "Create Project"}
         </button>
@@ -383,7 +383,7 @@ function ManualUrlForm({
       {/* Identity Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-2">
-          <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest ml-1">
+          <label className="text-xs font-bold text-on-surface-variant/60 ml-1">
             Project Name
           </label>
           <input
@@ -396,7 +396,7 @@ function ManualUrlForm({
           <FieldError errors={state.fieldErrors?.name} />
         </div>
         <div className="space-y-2">
-          <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest ml-1">
+          <label className="text-xs font-bold text-on-surface-variant/60 ml-1">
             Deploy Target
           </label>
           <div className="relative">
@@ -408,7 +408,7 @@ function ManualUrlForm({
               <option value="railway">Railway</option>
               <option value="fly_io">Fly.io</option>
             </select>
-            <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/50">
+            <span aria-hidden="true" className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-on-surface-variant/50">
               expand_more
             </span>
           </div>
@@ -418,12 +418,12 @@ function ManualUrlForm({
 
       {/* Source Control */}
       <div className="space-y-2">
-        <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest ml-1">
+        <label className="text-xs font-bold text-on-surface-variant/60 ml-1">
           Git Repository URL
         </label>
         <div className="relative group">
           <div className="absolute left-4 top-1/2 -translate-y-1/2 flex items-center pr-3 border-r border-outline-variant/20">
-            <span className="material-symbols-outlined text-on-surface-variant/40 group-focus-within:text-primary transition-colors">
+            <span aria-hidden="true" className="material-symbols-outlined text-on-surface-variant/40 group-focus-within:text-primary transition-colors">
               link
             </span>
           </div>
@@ -441,11 +441,11 @@ function ManualUrlForm({
       {/* Advanced Config */}
       <div className="pt-4 border-t border-outline-variant/10 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-2">
-          <label className="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-1">
+          <label className="text-xs font-bold text-on-surface-variant/60 ml-1">
             Default Branch
           </label>
           <div className="flex items-center bg-surface-container-lowest rounded-md px-3 py-2">
-            <span className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
+            <span aria-hidden="true" className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
               account_tree
             </span>
             <input
@@ -457,11 +457,11 @@ function ManualUrlForm({
           </div>
         </div>
         <div className="space-y-2">
-          <label className="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-1">
+          <label className="text-xs font-bold text-on-surface-variant/60 ml-1">
             Dockerfile Path
           </label>
           <div className="flex items-center bg-surface-container-lowest rounded-md px-3 py-2">
-            <span className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
+            <span aria-hidden="true" className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
               description
             </span>
             <input
@@ -473,11 +473,11 @@ function ManualUrlForm({
           </div>
         </div>
         <div className="space-y-2">
-          <label className="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest ml-1">
+          <label className="text-xs font-bold text-on-surface-variant/60 ml-1">
             Build Context
           </label>
           <div className="flex items-center bg-surface-container-lowest rounded-md px-3 py-2">
-            <span className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
+            <span aria-hidden="true" className="material-symbols-outlined text-xs text-on-surface-variant/50 mr-2">
               folder
             </span>
             <input
@@ -501,14 +501,14 @@ function ManualUrlForm({
         <button
           type="submit"
           disabled={pending}
-          className="px-8 py-2.5 rounded-md text-sm font-bold bg-gradient-to-br from-primary to-primary-container text-on-primary-container shadow-lg shadow-primary/10 hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-8 py-2.5 rounded-md text-sm font-bold bg-gradient-to-br from-primary to-primary-container text-on-primary-container hover:opacity-90 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {pending ? (
-            <span className="material-symbols-outlined text-sm animate-spin">
+            <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">
               progress_activity
             </span>
           ) : (
-            <span className="material-symbols-outlined text-sm">add</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
           )}
           {pending ? "Creating..." : "Create Project"}
         </button>
@@ -528,9 +528,9 @@ function RepoRequirements() {
   return (
     <details className="mt-6 group">
       <summary className="flex items-center gap-3 px-4 py-3 bg-tertiary-container/10 rounded-md border border-tertiary-container/20 cursor-pointer select-none hover:bg-tertiary-container/15 transition-colors">
-        <span className="material-symbols-outlined text-tertiary text-sm">info</span>
+        <span aria-hidden="true" className="material-symbols-outlined text-tertiary text-sm">info</span>
         <span className="text-xs text-tertiary/80 font-semibold">Repository Requirements</span>
-        <span className="material-symbols-outlined text-tertiary/50 text-sm ml-auto transition-transform group-open:rotate-180">
+        <span aria-hidden="true" className="material-symbols-outlined text-tertiary/50 text-sm ml-auto transition-transform group-open:rotate-180">
           expand_more
         </span>
       </summary>
@@ -540,19 +540,19 @@ function RepoRequirements() {
         </p>
         <ul className="text-xs text-on-surface-variant/80 space-y-2 ml-1">
           <li className="flex items-start gap-2">
-            <span className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
             <span>A <code className="text-primary font-mono text-[11px]">Dockerfile</code> at the configured path</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
             <span>A health check endpoint at <code className="text-primary font-mono text-[11px]">GET /health</code> returning HTTP 200</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
             <span>App reads port from <code className="text-primary font-mono text-[11px]">PORT</code> environment variable</span>
           </li>
           <li className="flex items-start gap-2">
-            <span className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-tertiary text-sm mt-0.5">check_circle</span>
             <span>Graceful shutdown on <code className="text-primary font-mono text-[11px]">SIGTERM</code> signal</span>
           </li>
         </ul>

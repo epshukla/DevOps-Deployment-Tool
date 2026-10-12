@@ -16,12 +16,15 @@ interface NotificationData {
 
 interface UseRealtimeNotificationsOptions {
   readonly userId: string;
+  /** Active org; when set, broadcasts for that org are delivered too. */
+  readonly orgId?: string | null;
   readonly initialNotifications: readonly NotificationData[];
   readonly initialUnreadCount: number;
 }
 
 export function useRealtimeNotifications({
   userId,
+  orgId = null,
   initialNotifications,
   initialUnreadCount,
 }: UseRealtimeNotificationsOptions) {
@@ -33,8 +36,19 @@ export function useRealtimeNotifications({
   useEffect(() => {
     const supabase = createClient();
 
+    const onInsert = (payload: { new: Record<string, unknown> }) => {
+      const row = payload.new as unknown as NotificationData & { org_id: string };
+      // Producers fan broadcasts out per member, so every row we get is ours;
+      // only show the active org's to match the server-rendered list
+      if (orgId && row.org_id !== orgId) return;
+      setNotifications((prev) => [row, ...prev]);
+      if (!row.is_read) {
+        setUnreadCount((prev) => prev + 1);
+      }
+    };
+
     const channel = supabase
-      .channel(`notifications:${userId}`)
+      .channel(`notifications:${userId}:${orgId ?? "all"}`)
       .on(
         "postgres_changes",
         {
@@ -43,29 +57,7 @@ export function useRealtimeNotifications({
           table: "notifications",
           filter: `user_id=eq.${userId}`,
         },
-        (payload) => {
-          const newNotification = payload.new as NotificationData;
-          setNotifications((prev) => [newNotification, ...prev]);
-          if (!newNotification.is_read) {
-            setUnreadCount((prev) => prev + 1);
-          }
-        },
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=is.null`,
-        },
-        (payload) => {
-          const newNotification = payload.new as NotificationData;
-          setNotifications((prev) => [newNotification, ...prev]);
-          if (!newNotification.is_read) {
-            setUnreadCount((prev) => prev + 1);
-          }
-        },
+        onInsert,
       )
       .subscribe();
 
@@ -74,7 +66,7 @@ export function useRealtimeNotifications({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [userId, orgId]);
 
   function markAsRead(ids: readonly string[]) {
     setNotifications((prev) =>

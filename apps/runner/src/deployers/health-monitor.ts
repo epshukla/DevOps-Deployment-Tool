@@ -24,6 +24,7 @@ import {
   type RemediationState,
   type DeploymentRef,
 } from "./remediation-engine";
+import { readPreviousImage } from "./previous-image";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -47,6 +48,7 @@ interface DiscoveredContainer {
   readonly color: "blue" | "green" | null;
   readonly strategy: string;
   readonly imageTag: string;
+  readonly previousImage: string | null;
   readonly healthPath: string;
   readonly appPort: number;
 }
@@ -158,6 +160,7 @@ export class HealthMonitor {
         color,
         strategy,
         imageTag: inspection.image,
+        previousImage: readPreviousImage(inspection),
         healthPath,
         appPort,
       });
@@ -188,11 +191,12 @@ export class HealthMonitor {
             containerName: d.containerName,
             currentColor: effectiveColor,
             currentImageTag: d.imageTag,
+            previousImageTag: d.previousImage,
           },
         });
       } else {
-        // New deployment — initialize fresh state
-        // For canary/rolling, previousImageTag is null so remediation skips rollback
+        // New deployment — initialize fresh state. The rollback target comes
+        // from the deployx.previousImage label written by the deployers.
         newMap.set(d.deploymentId, {
           ref: {
             deploymentId: d.deploymentId,
@@ -202,8 +206,9 @@ export class HealthMonitor {
             healthPath: d.healthPath,
             appPort: d.appPort,
             currentImageTag: d.imageTag,
-            previousImageTag: null,
+            previousImageTag: d.previousImage,
             currentColor: effectiveColor,
+            strategy: d.strategy,
           },
           window: createWindow(HEALTH_CHECK_WINDOW_SIZE),
           remediationState: createRemediationState(),
@@ -247,7 +252,7 @@ export class HealthMonitor {
       httpPassed = probeResult.passed;
 
       // Report health check to API (fire-and-forget)
-      this.reportHealthCheck(ref, probeResult).catch(() => {});
+      void this.reportHealthCheck(ref, probeResult);
     }
 
     // Combined result: both must pass
@@ -319,8 +324,10 @@ export class HealthMonitor {
         status_code: probeResult.statusCode ?? undefined,
         error_message: probeResult.error,
       });
-    } catch {
-      // Fire-and-forget
+    } catch (err) {
+      // Fire-and-forget — monitoring continues without the API
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[health-monitor] Failed to report health check for ${ref.projectSlug}: ${msg}`);
     }
   }
 }

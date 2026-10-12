@@ -140,9 +140,11 @@ export async function checkHealthViaDocker(
     const responseTimeMs = Date.now() - start;
     const passed = result.exitCode === 0;
 
+    // wget's exit code doesn't carry the HTTP status on success; on failure
+    // its stderr usually includes the status line ("HTTP/1.1 503 ...").
     return {
       passed,
-      statusCode: passed ? 200 : null,
+      statusCode: passed ? null : parseHttpStatus(result.stderr),
       responseTimeMs,
       error: passed ? undefined : (result.stderr || `exit code ${result.exitCode}`),
     };
@@ -202,6 +204,13 @@ export async function waitForHealthyViaDocker(
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
+
+const HTTP_STATUS_PATTERN = /HTTP\/\d(?:\.\d)?\s+(\d{3})/;
+
+function parseHttpStatus(output: string | undefined): number | null {
+  const match = output?.match(HTTP_STATUS_PATTERN);
+  return match ? parseInt(match[1], 10) : null;
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));

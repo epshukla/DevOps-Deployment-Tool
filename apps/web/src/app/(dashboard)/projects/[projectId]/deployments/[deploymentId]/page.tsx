@@ -8,7 +8,7 @@ interface PageProps {
 
 export default async function DeploymentDetailPage({ params }: PageProps) {
   const { projectId, deploymentId } = await params;
-  const { supabase } = await requireUserWithOrg();
+  const { supabase, role } = await requireUserWithOrg();
 
   // Fetch project
   const { data: project } = await supabase
@@ -93,6 +93,7 @@ export default async function DeploymentDetailPage({ params }: PageProps) {
       healingEvents={healingEvents ?? []}
       approval={approval}
       approvalVotes={approvalVotes}
+      currentRole={role}
     />
   );
 }

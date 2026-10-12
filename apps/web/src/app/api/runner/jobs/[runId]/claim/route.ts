@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { authenticateRunner } from "@/lib/auth/runner";
+import { DEFAULT_REQUIRED_APPROVALS } from "@deployx/shared";
+import { authenticateRunner, authorizeRunnerForRun } from "@/lib/auth/runner";
 
 interface RouteParams {
   readonly params: Promise<{ runId: string }>;
@@ -20,6 +21,12 @@ export async function POST(request: Request, { params }: RouteParams) {
   if (!auth.ok) return auth.response;
 
   const { runner, supabase } = auth;
+
+  // A runner may only claim runs from its own org
+  const authz = await authorizeRunnerForRun(supabase, runner, runId, {
+    requireClaimedBy: false,
+  });
+  if (!authz.ok) return authz.response;
 
   // Atomic claim: only succeeds if status is still 'queued'
   const { data: claimed, error: claimError } = await supabase
@@ -69,7 +76,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
   // Expand config_json into task_runs and step_runs
   const version = claimed.pipeline_definition_versions as unknown as {
-    config_json: { tasks?: Record<string, { depends_on?: string[]; approval_required?: boolean; steps?: Array<{ name: string; command: string }> }> };
+    config_json: { tasks?: Record<string, { depends_on?: string[]; approval_required?: boolean; required_approvals?: number; steps?: Array<{ name: string; command: string }> }> };
   } | null;
 
   const config = version?.config_json;
@@ -94,6 +101,29 @@ export async function POST(request: Request, { params }: RouteParams) {
       .select("id, task_name");
 
     taskRunRecords = insertedTasks ?? [];
+  }
+
+  // Approval-gated tasks get a pending approval the runner waits on
+  const approvalInserts = taskRunRecords
+    .filter((tr) => tasks[tr.task_name]?.approval_required)
+    .map((tr) => ({
+      task_run_id: tr.id,
+      required_approvals: Math.max(
+        1,
+        tasks[tr.task_name]?.required_approvals ?? DEFAULT_REQUIRED_APPROVALS,
+      ),
+      status: "pending" as const,
+    }));
+
+  if (approvalInserts.length > 0) {
+    const { error: approvalError } = await supabase
+      .from("deployment_approvals")
+      .insert(approvalInserts);
+    if (approvalError) {
+      console.error(
+        `[api/runner/claim] Failed to create approvals for run ${runId}: ${approvalError.message}`,
+      );
+    }
   }
 
   // Create step_runs for each task

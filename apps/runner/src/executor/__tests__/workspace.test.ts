@@ -10,6 +10,12 @@ vi.mock("execa", () => ({
   execaCommand: vi.fn().mockResolvedValue({ stdout: "abc1234567890def1234567890abcdef12345678" }),
 }));
 
+// Pass-through fs/promises with a spy-able rm
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs/promises")>();
+  return { ...actual, rm: vi.fn(actual.rm) };
+});
+
 describe("createWorkspace", () => {
   let tempDir: string;
 
@@ -113,6 +119,32 @@ describe("createWorkspace", () => {
         gitCloneToken: null,
       }),
     ).rejects.toThrow("Failed to create workspace");
+  });
+
+  it("logs (does not silently swallow) cleanup failures", async () => {
+    const fsPromises = await import("node:fs/promises");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const workspace = await createWorkspace({
+      runId: "test-run-12345678",
+      gitRepoUrl: "https://github.com/user/repo.git",
+      gitBranch: "main",
+      gitSha: null,
+      gitCloneToken: null,
+    });
+
+    vi.mocked(fsPromises.rm).mockRejectedValueOnce(
+      new Error("EACCES: permission denied, unlink 'node_modules/x'"),
+    );
+
+    await expect(workspace.cleanup()).resolves.toBeUndefined();
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining(`Failed to remove workspace ${workspace.path}`),
+    );
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("EACCES"));
+
+    errorSpy.mockRestore();
+    await fsPromises.rm(workspace.path, { recursive: true, force: true });
   });
 });
 

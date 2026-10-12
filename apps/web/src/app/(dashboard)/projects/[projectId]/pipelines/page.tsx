@@ -37,10 +37,10 @@ export default async function PipelinesPage({ params }: PageProps) {
           { label: "Pipelines" },
         ]}
       />
-      <div className="p-8 max-w-[1400px] mx-auto">
+      <div className="px-4 py-6 md:px-6 max-w-[1400px] mx-auto">
         <div className="flex items-end justify-between mb-8">
           <div>
-            <h2 className="text-2xl font-extrabold tracking-tight text-on-surface">
+            <h2 className="text-2xl font-semibold tracking-tight text-on-surface">
               Pipelines
             </h2>
             <p className="text-on-surface-variant text-sm mt-1">
@@ -49,16 +49,16 @@ export default async function PipelinesPage({ params }: PageProps) {
           </div>
           <Link
             href={`/projects/${projectId}/pipelines/new`}
-            className="px-5 py-2.5 bg-primary text-on-primary font-bold rounded-md hover:brightness-110 active:scale-95 transition-all flex items-center gap-2"
+            className="px-5 py-2.5 bg-primary text-on-primary font-bold rounded-md hover:bg-primary-container active:scale-95 transition-all flex items-center gap-2"
           >
-            <span className="material-symbols-outlined text-sm">add</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
             New Pipeline
           </Link>
         </div>
 
         {pipelines.length === 0 ? (
-          <div className="bg-surface-container-low rounded-xl p-12 text-center ring-1 ring-outline-variant/10">
-            <span className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
+          <div className="bg-surface-container-low rounded-lg p-12 text-center border border-outline-variant">
+            <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
               account_tree
             </span>
             <p className="text-sm text-on-surface-variant">No pipelines yet</p>
@@ -69,9 +69,10 @@ export default async function PipelinesPage({ params }: PageProps) {
         ) : (
           <div className="space-y-4">
             {pipelines.map((p) => (
-              <div
+              <Link
                 key={p.id}
-                className="bg-surface-container-low rounded-xl p-6 ring-1 ring-outline-variant/10 hover:bg-surface-container transition-colors"
+                href={`/projects/${projectId}/pipelines/${p.id}`}
+                className="block bg-surface-container-low rounded-lg p-6 border border-outline-variant hover:bg-surface-container transition-colors"
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -81,11 +82,11 @@ export default async function PipelinesPage({ params }: PageProps) {
                       {p.current_version_id ? " — has active version" : " — no version"}
                     </p>
                   </div>
-                  <span className="text-[10px] text-on-surface-variant/40 uppercase tracking-wider font-semibold">
+                  <span className="text-xs text-on-surface-variant/40 font-semibold">
                     {p.current_version_id ? "Active" : "Draft"}
                   </span>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}

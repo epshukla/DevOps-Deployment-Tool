@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { RecordHealingEventSchema } from "@deployx/shared";
-import { authenticateRunner } from "@/lib/auth/runner";
+import { authenticateRunner, authorizeRunnerForDeployment } from "@/lib/auth/runner";
 
 interface RouteParams {
   readonly params: Promise<{ runId: string; deploymentId: string }>;
@@ -12,11 +12,20 @@ interface RouteParams {
  * Records a self-healing event (restart, rollback, health state change).
  */
 export async function POST(request: Request, { params }: RouteParams) {
-  const { deploymentId } = await params;
+  const { runId, deploymentId } = await params;
   const auth = await authenticateRunner(request);
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth;
+  const { runner, supabase } = auth;
+
+  // Deployment must belong to the run's project, in the runner's org
+  const authz = await authorizeRunnerForDeployment(
+    supabase,
+    runner,
+    runId,
+    deploymentId,
+  );
+  if (!authz.ok) return authz.response;
 
   let body: unknown;
   try {

@@ -11,6 +11,11 @@ export const HEALTH_THRESHOLD_DEGRADED = 0.5;
 export const HEALTH_MONITOR_INTERVAL_MS = 15_000;
 export const HEALTH_MONITOR_PROBE_TIMEOUT_MS = 5_000;
 
+// ── Run Control (cancellation / approval) ───────────────────────
+export const RUN_CANCEL_POLL_INTERVAL_MS = 3_000;
+export const STEP_CANCEL_GRACE_MS = 5_000;
+export const APPROVAL_POLL_INTERVAL_MS = 5_000;
+
 // ── Pipeline Run State Transitions ──────────────────────────────
 import type { PipelineRunStatus, TaskRunStatus, StepRunStatus } from "./types/enums";
 
@@ -38,9 +43,10 @@ export const PIPELINE_RUN_TERMINAL_STATES: readonly PipelineRunStatus[] = [
 export const VALID_TASK_RUN_TRANSITIONS: Readonly<
   Record<TaskRunStatus, readonly TaskRunStatus[]>
 > = {
-  pending: ["running", "cancelled", "skipped"],
+  pending: ["running", "awaiting_approval", "cancelled", "skipped"],
   running: ["success", "failed", "cancelled"],
-  awaiting_approval: ["running", "cancelled"],
+  // approved → running; rejected → failed
+  awaiting_approval: ["running", "failed", "cancelled"],
   success: [],
   failed: [],
   cancelled: [],
@@ -111,6 +117,12 @@ export const CANARY_DRAIN_SECONDS = 5;
 export const ROLLING_DEFAULT_INSTANCES = 2;
 export const ROLLING_MAX_UNAVAILABLE = 1;
 export const ROLLING_OBSERVATION_SECONDS = 15;
+/** Upper bound on rolling instances (matches RollingConfigSchema.instances max) */
+export const ROLLING_MAX_INSTANCES = 10;
+
+// ── Container Labels ───────────────────────────────────────────
+/** Label carrying the image a docker_local deployment replaced (self-healing rollback target) */
+export const DEPLOYX_PREVIOUS_IMAGE_LABEL = "deployx.previousImage";
 
 // ── SLA / Uptime Constants ─────────────────────────────────────
 export const SLA_DEFAULT_WINDOW_HOURS = 24;
@@ -136,6 +148,20 @@ export const ALERT_OPERATORS = ["gt", "lt", "gte", "lte", "eq"] as const;
 // ── Notification Constants ─────────────────────────────────────
 export const NOTIFICATION_PAGE_SIZE = 20;
 
+// ── Approval Constants ─────────────────────────────────────────
+export const DEFAULT_REQUIRED_APPROVALS = 1;
+export const MAX_REQUIRED_APPROVALS = 10;
+
+// ── Maintenance (cron tick) Constants ──────────────────────────
+/** A runner is considered dead after missing this many heartbeats. */
+export const RUNNER_STALE_HEARTBEAT_MULTIPLIER = 3;
+/** Grace period before a run whose runner went silent is timed out. */
+export const ORPHANED_RUN_GRACE_MS = 90_000;
+/** Lookback window for pipeline-based alert metrics (success rate, duration). */
+export const ALERT_EVALUATION_WINDOW_HOURS = 24;
+/** Lookback window for health-check-based alert metrics. */
+export const HEALTH_ALERT_WINDOW_MINUTES = 60;
+
 // ── Artifact Constants ─────────────────────────────────────────
 export const ARTIFACT_MAX_SIZE_BYTES = 50 * 1024 * 1024;
 export const ARTIFACT_ALLOWED_EXTENSIONS = [
@@ -147,3 +173,5 @@ export const ARTIFACT_ALLOWED_EXTENSIONS = [
   ".rpm",
   ".log",
 ] as const;
+/** Upper bound on files a single task uploads (globs can match a lot) */
+export const ARTIFACT_MAX_FILES_PER_TASK = 50;

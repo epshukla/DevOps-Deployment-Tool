@@ -76,24 +76,7 @@ export class RunnerApiClient {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
 
-    const contentType = response.headers.get("content-type") ?? "";
-
-    if (!contentType.includes("application/json")) {
-      const text = await response.text();
-      throw new Error(
-        `API error ${response.status}: expected JSON but got ${contentType || "unknown content-type"} (${text.slice(0, 200)})`,
-      );
-    }
-
-    const data = await response.json() as T & { error?: string };
-
-    if (!response.ok) {
-      throw new Error(
-        `API error ${response.status}: ${data.error ?? response.statusText}`,
-      );
-    }
-
-    return data;
+    return parseJsonResponse<T>(response);
   }
 
   async register(
@@ -255,4 +238,82 @@ export class RunnerApiClient {
       `/api/runner/jobs/${runId}/status`,
     );
   }
+
+  // ── Approvals ────────────────────────────────────────────────
+
+  async getApprovalStatus(
+    runId: string,
+    taskName: string,
+  ): Promise<{ status: ApprovalStatus }> {
+    const data = await this.request<{ status?: unknown }>(
+      "GET",
+      `/api/runner/jobs/${runId}/approvals?task_name=${encodeURIComponent(taskName)}`,
+    );
+
+    if (!APPROVAL_STATUSES.includes(data.status as ApprovalStatus)) {
+      throw new Error(`Unexpected approval status: ${JSON.stringify(data.status)}`);
+    }
+
+    return { status: data.status as ApprovalStatus };
+  }
+
+  // ── Artifacts ────────────────────────────────────────────────
+
+  async uploadArtifact(
+    runId: string,
+    artifact: {
+      readonly projectId: string;
+      readonly filename: string;
+      readonly content: Uint8Array;
+    },
+  ): Promise<{ path: string }> {
+    const form = new FormData();
+    // Copy into a plain ArrayBuffer-backed view (Buffers may be SharedArrayBuffer-typed)
+    form.append("file", new Blob([new Uint8Array(artifact.content)]), artifact.filename);
+    form.append("filename", artifact.filename);
+    form.append("project_id", artifact.projectId);
+
+    // No Content-Type header: fetch adds the multipart boundary itself
+    const response = await fetch(`${this.baseUrl}/api/runner/jobs/${runId}/artifacts`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${this.token}` },
+      body: form,
+    });
+
+    return parseJsonResponse<{ path: string }>(response);
+  }
+}
+
+// ── Helpers ─────────────────────────────────────────────────────
+
+export type ApprovalStatus = "pending" | "approved" | "rejected";
+
+const APPROVAL_STATUSES: readonly ApprovalStatus[] = ["pending", "approved", "rejected"];
+
+/**
+ * Parses a control-plane JSON response, throwing `API error <status>: ...`
+ * for non-JSON bodies and non-2xx responses.
+ */
+async function parseJsonResponse<T>(response: Response): Promise<T> {
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (!contentType.includes("application/json")) {
+    const text = await response.text();
+    throw new Error(
+      `API error ${response.status}: expected JSON but got ${contentType || "unknown content-type"} (${text.slice(0, 200)})`,
+    );
+  }
+
+  const data = await response.json() as T & { error?: unknown };
+
+  if (!response.ok) {
+    const detail = typeof data.error === "string"
+      ? data.error
+      : data.error !== undefined
+        ? JSON.stringify(data.error)
+        : response.statusText;
+    throw new Error(`API error ${response.status}: ${detail}`);
+  }
+
+  return data;
 }

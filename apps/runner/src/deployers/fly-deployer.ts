@@ -80,7 +80,11 @@ export class FlyDeployer implements DeployerDriver {
           message: `[fly.io] Creating new machine`,
           task_run_id: taskRunId,
         });
-        machine = await flyClient.createMachine(appName, machineConfig);
+        machine = await flyClient.createMachine(
+          appName,
+          machineConfig,
+          ctx.config.fly?.region,
+        );
       }
 
       this.cachedMachineId = machine.id;
@@ -119,7 +123,7 @@ export class FlyDeployer implements DeployerDriver {
         startPeriodMs: HEALTH_CHECK_START_PERIOD_MS,
       });
 
-      this.reportHealthCheck(ctx, healthResult).catch(() => {});
+      await this.reportHealthCheck(ctx, healthResult);
 
       if (!healthResult.passed) {
         return {
@@ -172,7 +176,8 @@ export class FlyDeployer implements DeployerDriver {
         if (machine.state === "started") {
           await flyClient.stopMachine(appName, machine.id);
         }
-        await flyClient.destroyMachine(appName, machine.id);
+        // Stop is asynchronous — force ensures a still-stopping machine is deleted
+        await flyClient.destroyMachine(appName, machine.id, true);
       }
 
       ctx.logStreamer.push({
@@ -203,7 +208,9 @@ export class FlyDeployer implements DeployerDriver {
         this.cachedMachineId,
       );
       return mapFlyState(machine.state);
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[fly.io] Failed to get machine ${this.cachedMachineId} status: ${msg}`);
       return "unknown" as DeploymentStatus;
     }
   }
@@ -227,31 +234,30 @@ export class FlyDeployer implements DeployerDriver {
       return result.passed
         ? ("healthy" as HealthStatus)
         : ("unhealthy" as HealthStatus);
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[fly.io] Health probe of ${this.cachedAppName} failed: ${msg}`);
       return "unknown" as HealthStatus;
     }
   }
 
   // ── Logs ────────────────────────────────────────────────────
 
+  /**
+   * The Fly Machines REST API exposes no logs endpoint
+   * (https://docs.fly.io/machines/api/machines-resource), so logs cannot be
+   * fetched here. Use `fly logs -a <app>` or Fly's log shipping instead.
+   */
   async getLogs(
     _containerName: string,
-    tailLines = 100,
+    _tailLines = 100,
   ): Promise<readonly string[]> {
-    if (!this.cachedClient || !this.cachedAppName || !this.cachedMachineId) {
-      return [];
-    }
-
-    try {
-      const logs = await this.cachedClient.getMachineLogs(
-        this.cachedAppName,
-        this.cachedMachineId,
-        tailLines,
+    if (this.cachedAppName) {
+      console.warn(
+        `[fly.io] Logs for app ${this.cachedAppName} are unavailable via the Machines API — use "fly logs -a ${this.cachedAppName}"`,
       );
-      return logs.map((l) => `${l.timestamp} ${l.message}`);
-    } catch {
-      return [];
     }
+    return [];
   }
 
   // ── Helpers ─────────────────────────────────────────────────
@@ -286,14 +292,14 @@ export class FlyDeployer implements DeployerDriver {
     const port = ctx.config.port ?? 3000;
     const vmSize = ctx.config.fly?.vm_size ?? "shared-cpu-1x";
     const guest = VM_SIZE_MAP[vmSize] ?? VM_SIZE_MAP["shared-cpu-1x"];
-    const region = ctx.config.fly?.region;
 
+    // Region is passed to createMachine as a top-level field (FLY_REGION is
+    // a runtime variable Fly sets itself, so it is not injected here)
     return {
       image: ctx.imageTag,
       env: {
         PORT: String(port),
         ...ctx.config.env,
-        ...(region ? { FLY_REGION: region } : {}),
       },
       services: [
         {
@@ -329,8 +335,10 @@ export class FlyDeployer implements DeployerDriver {
         status_code: result.statusCode ?? undefined,
         error_message: result.error,
       });
-    } catch {
-      // Fire-and-forget
+    } catch (err) {
+      // Don't fail the deployment over a reporting error
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[fly.io] Failed to report health check: ${msg}`);
     }
   }
 }

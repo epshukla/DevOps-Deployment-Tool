@@ -314,6 +314,7 @@ describe("RecordHealingEventSchema", () => {
       "canary_rollback",
       "rolling_instance_updated",
       "rolling_rollback",
+      "blue_green_cutover",
     ];
 
     for (const eventType of validTypes) {

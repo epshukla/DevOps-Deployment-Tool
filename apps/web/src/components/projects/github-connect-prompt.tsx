@@ -42,7 +42,7 @@ export function GitHubConnectPrompt() {
         className="flex items-center gap-2 px-5 py-2.5 bg-surface-container-lowest border border-outline-variant/50 text-on-surface text-sm font-semibold rounded-md hover:bg-surface-bright active:scale-[0.98] transition-all disabled:opacity-50"
       >
         {loading ? (
-          <span className="material-symbols-outlined text-sm animate-spin">
+          <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">
             progress_activity
           </span>
         ) : (

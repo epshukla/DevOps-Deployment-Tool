@@ -1,17 +1,11 @@
 "use client";
 
+import Link from "next/link";
+import { Avatar } from "@/components/ui/avatar";
 import { NotificationDropdown } from "./notification-dropdown";
-import { useUser } from "./user-context";
-
-interface NotificationData {
-  readonly id: string;
-  readonly type: string;
-  readonly title: string;
-  readonly body: string;
-  readonly metadata: Record<string, unknown> | null;
-  readonly is_read: boolean;
-  readonly created_at: string;
-}
+import { GlobalSearch } from "./global-search";
+import { useUser, type NotificationData } from "./user-context";
+import { useNav } from "./nav-context";
 
 interface TopBarProps {
   readonly breadcrumbs?: ReadonlyArray<{
@@ -29,74 +23,80 @@ export function TopBar({
   initialNotifications,
   initialUnreadCount,
 }: TopBarProps) {
-  const { avatarUrl, displayName } = useUser();
+  const user = useUser();
+  const { avatarUrl, displayName } = user;
+  // Pages may still pass notification props explicitly; otherwise the
+  // dashboard layout supplies them through UserContext.
+  const effectiveUserId = userId ?? user.userId;
+  const { open, setOpen } = useNav();
 
   return (
-    <header className="flex items-center justify-between h-14 pl-8 pr-8 w-full sticky top-0 z-40 bg-surface/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-30 flex h-14 w-full items-center gap-3 border-b border-outline-variant bg-surface/90 px-4 backdrop-blur-md md:px-6">
+      {/* Mobile: open the navigation drawer */}
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-label="Open navigation"
+        aria-expanded={open}
+        aria-controls="app-sidebar"
+        className="grid h-9 w-9 place-items-center rounded-md text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface lg:hidden"
+      >
+        <span aria-hidden="true" className="material-symbols-outlined text-[20px]">
+          menu
+        </span>
+      </button>
+
       {/* Breadcrumbs */}
-      <div className="flex items-center gap-2 text-on-surface-variant text-sm">
-        {breadcrumbs?.map((crumb, i) => (
-          <span key={crumb.label} className="flex items-center gap-2">
-            {i > 0 && (
-              <span className="material-symbols-outlined text-sm">
-                chevron_right
-              </span>
-            )}
-            {crumb.href ? (
-              <a
-                href={crumb.href}
-                className="hover:text-primary transition-colors"
+      <nav aria-label="Breadcrumb" className="min-w-0 flex-1">
+        <ol className="flex min-w-0 items-center gap-1.5 text-[13px] text-on-surface-variant">
+          {breadcrumbs?.map((crumb, i) => {
+            const last = i === (breadcrumbs?.length ?? 0) - 1;
+            return (
+              <li
+                key={`${crumb.label}-${i}`}
+                className={`flex min-w-0 items-center gap-1.5 ${last ? "" : "hidden sm:flex"}`}
               >
-                {crumb.label}
-              </a>
-            ) : (
-              <span className="text-on-surface font-semibold">
-                {crumb.label}
-              </span>
-            )}
-          </span>
-        ))}
-      </div>
+                {i > 0 && (
+                  <span aria-hidden="true" className="text-on-surface-variant/40">
+                    /
+                  </span>
+                )}
+                {crumb.href && !last ? (
+                  <Link
+                    href={crumb.href}
+                    className="truncate transition-colors hover:text-on-surface"
+                  >
+                    {crumb.label}
+                  </Link>
+                ) : (
+                  <span aria-current="page" className="truncate font-medium text-on-surface">
+                    {crumb.label}
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
 
       {/* Right side: search, notifications, avatar */}
-      <div className="flex items-center gap-6">
-        <div className="relative flex items-center group">
-          <span className="material-symbols-outlined absolute left-3 text-outline text-lg">
-            search
-          </span>
-          <input
-            type="text"
-            placeholder="Search resources..."
-            className="bg-surface-container-low border-none rounded-md pl-10 pr-4 py-1.5 text-xs w-64 focus:ring-1 focus:ring-primary/40 placeholder:text-outline/50 text-on-surface-variant transition-all"
+      <div className="flex items-center gap-2 md:gap-3">
+        <div className="hidden md:block">
+          <GlobalSearch />
+        </div>
+        {effectiveUserId && (
+          <NotificationDropdown
+            // Remount on org switch so state re-seeds from the new org
+            key={user.activeOrgId ?? "none"}
+            userId={effectiveUserId}
+            orgId={user.activeOrgId}
+            initialNotifications={initialNotifications ?? user.notifications}
+            initialUnreadCount={initialUnreadCount ?? user.unreadCount}
           />
-        </div>
-        <div className="flex items-center gap-4 text-on-surface-variant/60">
-          {userId ? (
-            <NotificationDropdown
-              userId={userId}
-              initialNotifications={initialNotifications ?? []}
-              initialUnreadCount={initialUnreadCount ?? 0}
-            />
-          ) : (
-            <button className="hover:text-on-surface transition-all duration-200 relative">
-              <span className="material-symbols-outlined">notifications</span>
-              <span className="absolute top-0 right-0 w-2 h-2 bg-primary rounded-full border-2 border-surface" />
-            </button>
-          )}
-          <div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border border-outline-variant/30">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={displayName}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span className="material-symbols-outlined text-on-surface-variant">
-                person
-              </span>
-            )}
-          </div>
-        </div>
+        )}
+        <Link href="/profile" aria-label="Your profile" className="rounded-full">
+          <Avatar name={displayName} url={avatarUrl} size="sm" decorative />
+        </Link>
       </div>
     </header>
   );

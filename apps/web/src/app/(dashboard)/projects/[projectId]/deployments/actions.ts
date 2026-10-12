@@ -41,16 +41,21 @@ export async function stopDeployment(
     return { error: `Deployment is already ${deployment.status}` };
   }
 
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from("deployments")
     .update({
       status: "stopped",
       updated_at: new Date().toISOString(),
     })
-    .eq("id", deploymentId);
+    .eq("id", deploymentId)
+    .select("id");
 
   if (error) {
     return { error: "Failed to stop deployment" };
+  }
+
+  if (!updatedRows || updatedRows.length === 0) {
+    return { error: "Deployment not found or not permitted" };
   }
 
   // Also update the current revision status
@@ -70,7 +75,7 @@ export async function stopDeployment(
   });
 
   revalidatePath(`/projects/${projectId}/deployments/${deploymentId}`);
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${projectId}`, "layout");
 
   return { success: true };
 }
@@ -91,6 +96,11 @@ export async function rollbackDeployment(
     return { error: "You don't have permission to rollback deployments" };
   }
 
+  const trimmedReason = reason.trim();
+  if (!trimmedReason) {
+    return { error: "A rollback reason is required" };
+  }
+
   // Verify the deployment exists
   const { data: deployment } = await supabase
     .from("deployments")
@@ -107,28 +117,46 @@ export async function rollbackDeployment(
     return { error: `Cannot rollback deployment in ${deployment.status} state` };
   }
 
+  // Verify the target revision actually belongs to this deployment —
+  // otherwise a caller could point current_revision_id at any revision row.
+  const { data: targetRevision } = await supabase
+    .from("deployment_revisions")
+    .select("id")
+    .eq("id", targetRevisionId)
+    .eq("deployment_id", deploymentId)
+    .single();
+
+  if (!targetRevision) {
+    return { error: "Target revision not found for this deployment" };
+  }
+
   // Update current revision as rolled back
   await supabase
     .from("deployment_revisions")
     .update({
       status: "rolled_back",
-      rollback_reason: reason,
+      rollback_reason: trimmedReason,
     })
     .eq("deployment_id", deploymentId)
     .eq("status", "active");
 
   // Update the deployment to point to the target revision
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from("deployments")
     .update({
       status: "rolled_back",
       current_revision_id: targetRevisionId,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", deploymentId);
+    .eq("id", deploymentId)
+    .select("id");
 
   if (error) {
     return { error: "Failed to rollback deployment" };
+  }
+
+  if (!updatedRows || updatedRows.length === 0) {
+    return { error: "Deployment not found or not permitted" };
   }
 
   recordAuditEvent(supabase, {
@@ -137,7 +165,7 @@ export async function rollbackDeployment(
     action: "rollback",
     resource_type: "deployment",
     resource_id: deploymentId,
-    details: { reason, targetRevisionId },
+    details: { reason: trimmedReason, targetRevisionId },
   });
 
   revalidatePath(`/projects/${projectId}/deployments/${deploymentId}`);
@@ -161,14 +189,27 @@ export async function submitApprovalVote(
     return { error: "You don't have permission to vote on approvals" };
   }
 
-  // Verify the approval exists and is pending
+  // Verify the approval exists, is pending, and belongs to a run of this
+  // project in the caller's org (approval → task_run → pipeline_run → project)
   const { data: approval } = await supabase
     .from("deployment_approvals")
-    .select("id, status, required_approvals")
+    .select(
+      "id, status, required_approvals, task_runs!inner(pipeline_run_id, pipeline_runs!inner(project_id, projects!inner(org_id)))",
+    )
     .eq("id", approvalId)
-    .single();
+    .maybeSingle();
 
-  if (!approval) {
+  const owner = (approval?.task_runs as unknown as {
+    pipeline_run_id: string;
+    pipeline_runs: { project_id: string; projects: { org_id: string } };
+  } | null) ?? null;
+
+  if (
+    !approval ||
+    !owner ||
+    owner.pipeline_runs.project_id !== projectId ||
+    owner.pipeline_runs.projects.org_id !== org.id
+  ) {
     return { error: "Approval not found" };
   }
 
@@ -199,7 +240,8 @@ export async function submitApprovalVote(
     await supabase
       .from("deployment_approvals")
       .update({ status: "rejected", updated_at: new Date().toISOString() })
-      .eq("id", approvalId);
+      .eq("id", approvalId)
+      .eq("status", "pending");
   } else {
     // Count approve votes
     const { count } = await supabase
@@ -209,14 +251,16 @@ export async function submitApprovalVote(
       .eq("decision", "approve");
 
     if (count !== null && count >= approval.required_approvals) {
+      // Conditional on pending so a concurrent reject can't be overwritten
       await supabase
         .from("deployment_approvals")
         .update({ status: "approved", updated_at: new Date().toISOString() })
-        .eq("id", approvalId);
+        .eq("id", approvalId)
+        .eq("status", "pending");
     }
   }
 
-  recordAuditEvent(supabase, {
+  await recordAuditEvent(supabase, {
     org_id: org.id,
     user_id: user.id,
     action: decision === "approve" ? "approve" : "reject",

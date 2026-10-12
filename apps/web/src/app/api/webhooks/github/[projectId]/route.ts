@@ -93,7 +93,16 @@ export async function POST(request: Request, { params }: RouteParams) {
       return NextResponse.json({ skipped: true, reason: "disabled" });
     }
 
-    // Only process push events for now
+    // Respect the per-webhook event subscription (defaults to ["push"])
+    const enabledEvents: readonly string[] =
+      Array.isArray(config.events) && config.events.length > 0 ? config.events : ["push"];
+    if (!enabledEvents.includes(eventType)) {
+      log(`Skipped: event type '${eventType}' not enabled for this webhook`);
+      await logDelivery(supabase, config.id, eventType, null, "skipped", `Event type '${eventType}' not enabled`);
+      return NextResponse.json({ skipped: true, reason: "event_not_enabled" });
+    }
+
+    // Only push events can trigger runs today
     if (eventType !== "push") {
       log(`Skipped: event type '${eventType}' not handled`);
       await logDelivery(supabase, config.id, eventType, null, "skipped", `Event type '${eventType}' not handled`);

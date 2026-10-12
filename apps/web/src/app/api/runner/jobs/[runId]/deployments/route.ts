@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { CreateDeploymentSchema } from "@deployx/shared";
-import { authenticateRunner } from "@/lib/auth/runner";
+import { authenticateRunner, authorizeRunnerForRun } from "@/lib/auth/runner";
 
 interface RouteParams {
   readonly params: Promise<{ runId: string }>;
@@ -17,7 +17,12 @@ export async function POST(request: Request, { params }: RouteParams) {
   const auth = await authenticateRunner(request);
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth;
+  const { runner, supabase } = auth;
+
+  const authz = await authorizeRunnerForRun(supabase, runner, runId, {
+    requireClaimedBy: true,
+  });
+  if (!authz.ok) return authz.response;
 
   let body: unknown;
   try {

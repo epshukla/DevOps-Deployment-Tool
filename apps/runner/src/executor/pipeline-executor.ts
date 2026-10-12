@@ -1,24 +1,30 @@
 import type { RunnerApiClient, JobPayload, ClaimedJob } from "../api-client";
-import type { StepConfig, DeployConfig } from "@deployx/shared";
 import { resolveDAG } from "@deployx/pipeline-engine";
 import { createWorkspace, getHeadSha } from "./workspace";
-import { resolveVariables, type VariableContext } from "./variable-resolver";
-import { executeStep } from "./step-executor";
+import type { VariableContext } from "./variable-resolver";
 import { LogStreamer } from "../logging/log-streamer";
-import { checkDocker, buildImage, pushImage, generateTags } from "../docker/docker-client";
-import { createDeployer } from "../deployers";
+import { checkDocker } from "../docker/docker-client";
+import { CancellationWatcher } from "./cancellation-watcher";
+import { reportSafe, reportCancelled } from "./status-reporter";
+import {
+  executeTask,
+  type PipelineTaskConfig,
+  type RunContext,
+  type TaskOutcome,
+} from "./task-executor";
 
 export interface PipelineContext {
   readonly client: RunnerApiClient;
   readonly job: JobPayload;
   readonly claimed: ClaimedJob;
+  /** Override poll intervals (tests); defaults come from @deployx/shared */
+  readonly pollIntervals?: {
+    readonly cancelMs?: number;
+    readonly approvalMs?: number;
+  };
 }
 
-interface TaskConfig {
-  readonly depends_on?: readonly string[];
-  readonly steps?: readonly StepConfig[];
-  readonly deploy?: DeployConfig;
-}
+type TaskMap = Readonly<Record<string, PipelineTaskConfig>>;
 
 /**
  * Executes a full pipeline run:
@@ -27,15 +33,16 @@ interface TaskConfig {
  * 3. Walk groups sequentially, tasks in parallel
  * 4. Execute each step via execa with log streaming
  * 5. Handle failures (skip downstream tasks)
- * 6. Always clean up workspace
+ * 6. Watch for cancellation: kill in-flight steps, mark the rest cancelled,
+ *    and leave the pipeline status alone (the control plane set it)
+ * 7. Always clean up workspace
  */
 export async function executePipeline(ctx: PipelineContext): Promise<void> {
   const { client, job, claimed } = ctx;
-  const config = claimed.config_json as { tasks?: Record<string, TaskConfig> } | null;
-  const tasks = config?.tasks ?? {};
-  const taskNames = Object.keys(tasks);
+  const config = claimed.config_json as { tasks?: Record<string, PipelineTaskConfig> } | null;
+  const tasks: TaskMap = config?.tasks ?? {};
 
-  if (taskNames.length === 0) {
+  if (Object.keys(tasks).length === 0) {
     console.log("No tasks in pipeline — marking as success.");
     await client.reportStatus(job.run_id, {
       scope: "pipeline",
@@ -49,26 +56,18 @@ export async function executePipeline(ctx: PipelineContext): Promise<void> {
   const dag = resolveDAG(tasks);
   console.log(`DAG resolved: ${dag.groups.length} group(s), ${dag.order.length} task(s)`);
 
-  // Create log streamer
   const logStreamer = new LogStreamer({ client, runId: job.run_id });
+  const watcher = new CancellationWatcher({
+    client,
+    runId: job.run_id,
+    intervalMs: ctx.pollIntervals?.cancelMs,
+  });
 
-  // Build lookup maps: task_name → task_run, step_name → step_run
-  const taskRunMap = new Map<string, string>();
-  const stepRunMap = new Map<string, string>(); // key: "taskName:stepName"
-  for (const tr of claimed.task_runs) {
-    taskRunMap.set(tr.task_name, tr.id);
-    for (const sr of tr.step_runs) {
-      stepRunMap.set(`${tr.task_name}:${sr.step_name}`, sr.id);
-    }
-  }
-
-  // Create workspace (clone repo)
   logStreamer.push({
     level: "info",
     message: `Cloning ${job.git_repo_url} (branch: ${job.git_branch})...`,
   });
 
-  let workspacePath: string | null = null;
   let cleanupFn: (() => Promise<void>) | null = null;
 
   try {
@@ -79,186 +78,46 @@ export async function executePipeline(ctx: PipelineContext): Promise<void> {
       gitSha: job.git_sha,
       gitCloneToken: job.git_clone_token,
     });
-    workspacePath = workspace.path;
     cleanupFn = workspace.cleanup;
+    logStreamer.push({ level: "info", message: `Workspace ready: ${workspace.path}` });
 
-    logStreamer.push({
-      level: "info",
-      message: `Workspace ready: ${workspacePath}`,
-    });
-
-    // Get the actual HEAD SHA
-    const headSha = await getHeadSha(workspacePath);
-    const shortSha = headSha.slice(0, 7);
-
-    logStreamer.push({
-      level: "info",
-      message: `HEAD at ${shortSha}`,
-    });
-
-    // Fetch project secrets and merge with process.env
-    let projectSecrets: Record<string, string> = {};
-    try {
-      projectSecrets = await client.getSecrets(job.run_id);
-      logStreamer.push({
-        level: "info",
-        message: `Loaded ${Object.keys(projectSecrets).length} project secret(s)`,
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      logStreamer.push({
-        level: "warn",
-        message: `Failed to fetch project secrets: ${msg} — continuing without`,
-      });
-    }
-
-    // Build variable context for ${{ }} interpolation
-    // Project secrets override process.env (more specific wins)
-    const variableContext: VariableContext = {
-      git: {
-        sha: headSha,
-        short_sha: shortSha,
-        branch: job.git_branch,
-      },
-      project: {
-        name: job.project_name,
-        slug: job.project_slug,
-      },
-      env: { ...process.env, ...projectSecrets } as Record<string, string | undefined>,
-    };
-
-    // Check Docker availability once upfront
-    const dockerAvailable = await checkDocker();
-
-    // Track failed tasks to skip downstream dependents
-    const failedTasks = new Set<string>();
-
-    // Execute groups sequentially
-    let cancelled = false;
-
-    for (const group of dag.groups) {
-      // Check for cancellation before each group
-      try {
-        const runStatus = await client.getRunStatus(job.run_id);
-        if (runStatus.status === "cancelled") {
-          logStreamer.push({
-            level: "warn",
-            message: "Run cancelled by user — aborting",
-          });
-          cancelled = true;
-          break;
-        }
-      } catch {
-        // If we can't check status, continue execution
-      }
-
-      // For each task in the group, check if any of its dependencies failed
-      const tasksToRun: string[] = [];
-      const tasksToSkip: string[] = [];
-
-      for (const taskName of group) {
-        const taskDeps = tasks[taskName]?.depends_on ?? [];
-        const hasFailedDep = taskDeps.some((dep) => failedTasks.has(dep));
-
-        if (hasFailedDep) {
-          tasksToSkip.push(taskName);
-        } else {
-          tasksToRun.push(taskName);
-        }
-      }
-
-      // Skip tasks with failed dependencies
-      for (const taskName of tasksToSkip) {
-        failedTasks.add(taskName); // Propagate failure downstream
-        const taskRunId = taskRunMap.get(taskName);
-
-        logStreamer.push({
-          level: "warn",
-          message: `[task:${taskName}] Skipped (dependency failed)`,
-          task_run_id: taskRunId,
-        });
-
-        await reportSafe(client, job.run_id, {
-          scope: "task",
-          status: "skipped",
-          task_name: taskName,
-          finished_at: new Date().toISOString(),
-        });
-
-        // Skip all steps in this task too
-        const taskConfig = tasks[taskName];
-        for (const step of taskConfig?.steps ?? []) {
-          await reportSafe(client, job.run_id, {
-            scope: "step",
-            status: "skipped",
-            task_name: taskName,
-            step_name: step.name,
-            finished_at: new Date().toISOString(),
-          });
-        }
-      }
-
-      // Run remaining tasks in parallel
-      if (tasksToRun.length > 0) {
-        await Promise.all(
-          tasksToRun.map(async (taskName) => {
-            const success = await executeTask({
-              client,
-              job,
-              logStreamer,
-              variableContext,
-              taskName,
-              taskConfig: tasks[taskName],
-              taskRunId: taskRunMap.get(taskName),
-              stepRunMap,
-              workspacePath: workspacePath!,
-              dockerAvailable,
-              projectSecrets,
-            });
-
-            if (!success) {
-              failedTasks.add(taskName);
-            }
-          }),
-        );
-      }
-    }
-
-    // Determine final pipeline status
-    // If cancelled, the status was already set by the cancel action — skip reporting
-    if (!cancelled) {
-      const pipelineStatus = failedTasks.size > 0 ? "failed" : "success";
-
-      await logStreamer.shutdown();
-
-      await client.reportStatus(job.run_id, {
-        scope: "pipeline",
-        status: pipelineStatus,
-        finished_at: new Date().toISOString(),
-      });
-
-      console.log(`Job ${job.run_id} completed: ${pipelineStatus}`);
-    } else {
-      await logStreamer.shutdown();
-      console.log(`Job ${job.run_id} cancelled`);
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    logStreamer.push({
-      level: "error",
-      message: `Pipeline failed: ${msg}`,
-    });
+    watcher.start();
+    const run = await prepareRunContext(ctx, logStreamer, workspace.path, watcher.signal);
+    const taskRunIds = new Map(claimed.task_runs.map((tr) => [tr.task_name, tr.id] as const));
+    const outcomes = await executeGroups(run, { tasks, groups: dag.groups, taskRunIds }, watcher);
 
     await logStreamer.shutdown();
 
-    await reportSafe(client, job.run_id, {
+    // If cancelled, the status was already set by the cancel action — skip reporting
+    if (watcher.cancelled) {
+      console.log(`Job ${job.run_id} cancelled`);
+      return;
+    }
+
+    const failed = [...outcomes.values()].some((o) => o !== "success");
+    const pipelineStatus = failed ? "failed" : "success";
+    await client.reportStatus(job.run_id, {
       scope: "pipeline",
-      status: "failed",
+      status: pipelineStatus,
       finished_at: new Date().toISOString(),
     });
+    console.log(`Job ${job.run_id} completed: ${pipelineStatus}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logStreamer.push({ level: "error", message: `Pipeline failed: ${msg}` });
+    await logStreamer.shutdown();
+
+    if (!watcher.cancelled) {
+      await reportSafe(client, job.run_id, {
+        scope: "pipeline",
+        status: "failed",
+        finished_at: new Date().toISOString(),
+      });
+    }
 
     throw err;
   } finally {
+    watcher.stop();
     if (cleanupFn) {
       await cleanupFn().catch((cleanupErr) => {
         console.error(`Workspace cleanup failed: ${cleanupErr}`);
@@ -267,450 +126,176 @@ export async function executePipeline(ctx: PipelineContext): Promise<void> {
   }
 }
 
-// ── Task execution ─────────────────────────────────────────────────
+// ── Run setup ──────────────────────────────────────────────────────
 
-interface ExecuteTaskOptions {
-  readonly client: RunnerApiClient;
-  readonly job: JobPayload;
-  readonly logStreamer: LogStreamer;
-  readonly variableContext: VariableContext;
-  readonly taskName: string;
-  readonly taskConfig: TaskConfig | undefined;
-  readonly taskRunId: string | undefined;
-  readonly stepRunMap: Map<string, string>;
-  readonly workspacePath: string;
-  readonly dockerAvailable: boolean;
-  readonly projectSecrets: Record<string, string>;
-}
+async function prepareRunContext(
+  ctx: PipelineContext,
+  logStreamer: LogStreamer,
+  workspacePath: string,
+  signal: AbortSignal,
+): Promise<RunContext> {
+  const { client, job, claimed } = ctx;
 
-/**
- * Execute all steps in a single task. Returns true on success, false on failure.
- */
-async function executeTask(options: ExecuteTaskOptions): Promise<boolean> {
-  const {
-    client, job, logStreamer, variableContext,
-    taskName, taskConfig, taskRunId, stepRunMap,
-    workspacePath, dockerAvailable, projectSecrets,
-  } = options;
+  // Get the actual HEAD SHA
+  const headSha = await getHeadSha(workspacePath);
+  const shortSha = headSha.slice(0, 7);
+  logStreamer.push({ level: "info", message: `HEAD at ${shortSha}` });
 
-  const steps = taskConfig?.steps ?? [];
+  const projectSecrets = await loadProjectSecrets(client, job.run_id, logStreamer);
 
-  // Mark task as running
-  await reportSafe(client, job.run_id, {
-    scope: "task",
-    status: "running",
-    task_name: taskName,
-    started_at: new Date().toISOString(),
-  });
+  // Build variable context for ${{ }} interpolation
+  // Project secrets override process.env (more specific wins)
+  const variableContext: VariableContext = {
+    git: { sha: headSha, short_sha: shortSha, branch: job.git_branch },
+    project: { name: job.project_name, slug: job.project_slug },
+    env: { ...process.env, ...projectSecrets } as Record<string, string | undefined>,
+  };
 
-  logStreamer.push({
-    level: "info",
-    message: `[task:${taskName}] Starting (${steps.length} step(s))`,
-    task_run_id: taskRunId,
-  });
+  // Lookup map: "taskName:stepName" → step_run id
+  const stepRunMap = new Map(
+    claimed.task_runs.flatMap((tr) =>
+      tr.step_runs.map((sr) => [`${tr.task_name}:${sr.step_name}`, sr.id] as const),
+    ),
+  );
 
-  try {
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      const stepRunId = stepRunMap.get(`${taskName}:${step.name}`);
-
-      const success = await executeStepWithReporting({
-        client,
-        job,
-        logStreamer,
-        variableContext,
-        taskName,
-        step,
-        taskRunId,
-        stepRunId,
-        workspacePath,
-        dockerAvailable,
-      });
-
-      if (!success) {
-        // Skip remaining steps in this task
-        for (let j = i + 1; j < steps.length; j++) {
-          const skippedStep = steps[j];
-          const skippedStepRunId = stepRunMap.get(`${taskName}:${skippedStep.name}`);
-
-          logStreamer.push({
-            level: "warn",
-            message: `[step:${skippedStep.name}] Skipped (previous step failed)`,
-            task_run_id: taskRunId,
-            step_run_id: skippedStepRunId,
-          });
-
-          await reportSafe(client, job.run_id, {
-            scope: "step",
-            status: "skipped",
-            task_name: taskName,
-            step_name: skippedStep.name,
-            finished_at: new Date().toISOString(),
-          });
-        }
-
-        // Mark task as failed
-        await reportSafe(client, job.run_id, {
-          scope: "task",
-          status: "failed",
-          task_name: taskName,
-          finished_at: new Date().toISOString(),
-        });
-
-        logStreamer.push({
-          level: "error",
-          message: `[task:${taskName}] Failed`,
-          task_run_id: taskRunId,
-        });
-
-        return false;
-      }
-    }
-
-    // Execute deployment if configured on this task
-    if (taskConfig?.deploy) {
-      const deploySuccess = await executeDeployment({
-        client,
-        job,
-        logStreamer,
-        variableContext,
-        taskName,
-        deployConfig: taskConfig.deploy,
-        taskRunId,
-        dockerAvailable,
-        projectSecrets,
-      });
-
-      if (!deploySuccess) {
-        await reportSafe(client, job.run_id, {
-          scope: "task",
-          status: "failed",
-          task_name: taskName,
-          finished_at: new Date().toISOString(),
-        });
-
-        logStreamer.push({
-          level: "error",
-          message: `[task:${taskName}] Deployment failed`,
-          task_run_id: taskRunId,
-        });
-
-        return false;
-      }
-    }
-
-    // Mark task as success
-    await reportSafe(client, job.run_id, {
-      scope: "task",
-      status: "success",
-      task_name: taskName,
-      finished_at: new Date().toISOString(),
-    });
-
-    logStreamer.push({
-      level: "info",
-      message: `[task:${taskName}] Completed`,
-      task_run_id: taskRunId,
-    });
-
-    return true;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    logStreamer.push({
-      level: "error",
-      message: `[task:${taskName}] Unexpected error: ${msg}`,
-      task_run_id: taskRunId,
-    });
-
-    await reportSafe(client, job.run_id, {
-      scope: "task",
-      status: "failed",
-      task_name: taskName,
-      finished_at: new Date().toISOString(),
-    });
-
-    return false;
-  }
-}
-
-// ── Step execution with reporting ──────────────────────────────────
-
-interface ExecuteStepWithReportingOptions {
-  readonly client: RunnerApiClient;
-  readonly job: JobPayload;
-  readonly logStreamer: LogStreamer;
-  readonly variableContext: VariableContext;
-  readonly taskName: string;
-  readonly step: StepConfig;
-  readonly taskRunId: string | undefined;
-  readonly stepRunId: string | undefined;
-  readonly workspacePath: string;
-  readonly dockerAvailable: boolean;
-}
-
-/**
- * Executes a single step with status reporting. Returns true on success.
- */
-async function executeStepWithReporting(
-  options: ExecuteStepWithReportingOptions,
-): Promise<boolean> {
-  const {
-    client, job, logStreamer, variableContext,
-    taskName, step, taskRunId, stepRunId,
-    workspacePath, dockerAvailable,
-  } = options;
-
-  // Check if step needs Docker but it's not available
-  if (step.image && !dockerAvailable) {
-    logStreamer.push({
-      level: "error",
-      message: `[step:${step.name}] Docker not available on this runner (required for image: ${step.image})`,
-      task_run_id: taskRunId,
-      step_run_id: stepRunId,
-    });
-
-    await reportSafe(client, job.run_id, {
-      scope: "step",
-      status: "failed",
-      task_name: taskName,
-      step_name: step.name,
-      finished_at: new Date().toISOString(),
-    });
-
-    return false;
-  }
-
-  // Mark step as running
-  await reportSafe(client, job.run_id, {
-    scope: "step",
-    status: "running",
-    task_name: taskName,
-    step_name: step.name,
-    started_at: new Date().toISOString(),
-  });
-
-  // Resolve variables in the command
-  const resolvedCommand = resolveVariables(step.command, variableContext);
-
-  logStreamer.push({
-    level: "info",
-    message: `[step:${step.name}] $ ${resolvedCommand}`,
-    task_run_id: taskRunId,
-    step_run_id: stepRunId,
-  });
-
-  // Build environment: step env overlays process env
-  const stepEnv: Record<string, string> = {};
-  if (step.env) {
-    for (const [key, value] of Object.entries(step.env) as [string, string][]) {
-      stepEnv[key] = resolveVariables(value, variableContext);
-    }
-  }
-
-  // Execute
-  const result = await executeStep({
-    command: resolvedCommand,
-    cwd: workspacePath,
-    env: stepEnv,
-    timeoutSeconds: step.timeout_seconds,
-    image: step.image,
+  return {
+    client,
+    job,
     logStreamer,
-    taskRunId,
-    stepRunId,
-  });
-
-  if (result.timedOut) {
-    logStreamer.push({
-      level: "error",
-      message: `[step:${step.name}] Timed out after ${step.timeout_seconds}s`,
-      task_run_id: taskRunId,
-      step_run_id: stepRunId,
-    });
-
-    await reportSafe(client, job.run_id, {
-      scope: "step",
-      status: "failed",
-      task_name: taskName,
-      step_name: step.name,
-      exit_code: result.exitCode,
-      finished_at: new Date().toISOString(),
-    });
-
-    return false;
-  }
-
-  if (result.exitCode !== 0) {
-    logStreamer.push({
-      level: "error",
-      message: `[step:${step.name}] Failed with exit code ${result.exitCode}`,
-      task_run_id: taskRunId,
-      step_run_id: stepRunId,
-    });
-
-    await reportSafe(client, job.run_id, {
-      scope: "step",
-      status: "failed",
-      task_name: taskName,
-      step_name: step.name,
-      exit_code: result.exitCode,
-      finished_at: new Date().toISOString(),
-    });
-
-    return false;
-  }
-
-  // Success
-  logStreamer.push({
-    level: "info",
-    message: `[step:${step.name}] Completed (exit code 0)`,
-    task_run_id: taskRunId,
-    step_run_id: stepRunId,
-  });
-
-  await reportSafe(client, job.run_id, {
-    scope: "step",
-    status: "success",
-    task_name: taskName,
-    step_name: step.name,
-    exit_code: 0,
-    finished_at: new Date().toISOString(),
-  });
-
-  return true;
+    variableContext,
+    stepRunMap,
+    workspacePath,
+    dockerAvailable: await checkDocker(),
+    projectSecrets,
+    signal,
+    approvalPollIntervalMs: ctx.pollIntervals?.approvalMs,
+  };
 }
 
-// ── Deployment Execution ───────────────────────────────────────────
-
-interface ExecuteDeploymentOptions {
-  readonly client: RunnerApiClient;
-  readonly job: JobPayload;
-  readonly logStreamer: LogStreamer;
-  readonly variableContext: VariableContext;
-  readonly taskName: string;
-  readonly deployConfig: DeployConfig;
-  readonly taskRunId: string | undefined;
-  readonly dockerAvailable: boolean;
-  readonly projectSecrets: Record<string, string>;
-}
-
-/**
- * Executes a deployment after task steps succeed.
- * Creates deployment record, invokes the deployer driver, reports results.
- */
-async function executeDeployment(
-  options: ExecuteDeploymentOptions,
-): Promise<boolean> {
-  const {
-    client, job, logStreamer, variableContext,
-    taskName, deployConfig, taskRunId, dockerAvailable, projectSecrets,
-  } = options;
-
-  // Docker is only required for docker_local deployments
-  if (deployConfig.driver === "docker_local" && !dockerAvailable) {
-    logStreamer.push({
-      level: "error",
-      message: `[deploy:${taskName}] Docker not available on this runner`,
-      task_run_id: taskRunId,
-    });
-    return false;
-  }
-
-  // Determine image tag: explicit config or built from git SHA
-  const imageTag = deployConfig.image
-    ? resolveVariables(deployConfig.image, variableContext)
-    : `${job.project_slug}:${variableContext.git.short_sha}`;
-
-  logStreamer.push({
-    level: "info",
-    message: `[deploy:${taskName}] Starting deployment: ${imageTag} via ${deployConfig.driver}`,
-    task_run_id: taskRunId,
-  });
-
-  try {
-    // Create deployment record in control plane
-    const { deployment_id, revision_id } = await client.createDeployment(
-      job.run_id,
-      {
-        strategy: deployConfig.strategy,
-        deploy_target: deployConfig.driver,
-        image_tag: imageTag,
-      },
-    );
-
-    // Create the deployer driver
-    const deployer = createDeployer(
-      deployConfig.driver as Parameters<typeof createDeployer>[0],
-      deployConfig.strategy as Parameters<typeof createDeployer>[1],
-    );
-
-    // Execute deployment
-    const result = await deployer.deploy({
-      client,
-      logStreamer,
-      job,
-      deploymentId: deployment_id,
-      revisionId: revision_id,
-      imageTag,
-      config: deployConfig,
-      projectSlug: job.project_slug,
-      taskRunId,
-      secrets: projectSecrets,
-    });
-
-    // Update deployment status based on result
-    const finalStatus = result.success ? "active" : "failed";
-    const healthStatus = result.success ? "healthy" : "unhealthy";
-
-    try {
-      await client.updateDeployment(job.run_id, deployment_id, {
-        status: finalStatus,
-        health_status: healthStatus,
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      console.error(`Failed to update deployment status: ${msg}`);
-    }
-
-    if (result.success) {
-      logStreamer.push({
-        level: "info",
-        message: `[deploy:${taskName}] Deployment active at ${result.publicUrl ?? "unknown"}`,
-        task_run_id: taskRunId,
-      });
-    } else {
-      logStreamer.push({
-        level: "error",
-        message: `[deploy:${taskName}] Deployment failed: ${result.error}`,
-        task_run_id: taskRunId,
-      });
-    }
-
-    return result.success;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    logStreamer.push({
-      level: "error",
-      message: `[deploy:${taskName}] Unexpected error: ${msg}`,
-      task_run_id: taskRunId,
-    });
-    return false;
-  }
-}
-
-// ── Helpers ────────────────────────────────────────────────────────
-
-/**
- * Report status to the control plane. Logs errors to stderr but never throws.
- */
-async function reportSafe(
+async function loadProjectSecrets(
   client: RunnerApiClient,
   runId: string,
-  payload: Parameters<RunnerApiClient["reportStatus"]>[1],
-): Promise<void> {
+  logStreamer: LogStreamer,
+): Promise<Record<string, string>> {
   try {
-    await client.reportStatus(runId, payload);
+    const secrets = await client.getSecrets(runId);
+    logStreamer.push({
+      level: "info",
+      message: `Loaded ${Object.keys(secrets).length} project secret(s)`,
+    });
+    return secrets;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`Failed to report status: ${msg}`);
+    logStreamer.push({
+      level: "warn",
+      message: `Failed to fetch project secrets: ${msg} — continuing without`,
+    });
+    return {};
+  }
+}
+
+// ── Group execution ────────────────────────────────────────────────
+
+/**
+ * Walks DAG groups sequentially, running each group's tasks in parallel.
+ * Returns the outcome of every task that was started or skipped. Once the
+ * run is cancelled, no further groups start and every task that never
+ * reached a terminal state is reported cancelled.
+ */
+async function executeGroups(
+  run: RunContext,
+  plan: {
+    readonly tasks: TaskMap;
+    readonly groups: readonly (readonly string[])[];
+    readonly taskRunIds: ReadonlyMap<string, string>;
+  },
+  watcher: CancellationWatcher,
+): Promise<ReadonlyMap<string, TaskOutcome | "skipped">> {
+  const { tasks, groups, taskRunIds } = plan;
+  const outcomes = new Map<string, TaskOutcome | "skipped">();
+
+  for (const group of groups) {
+    // Check for cancellation before each group
+    if (await watcher.check()) break;
+
+    const blocked = (name: string) =>
+      (tasks[name]?.depends_on ?? []).some((dep) => {
+        const o = outcomes.get(dep);
+        return o !== undefined && o !== "success";
+      });
+
+    for (const name of group.filter(blocked)) {
+      await skipTask(run, name, tasks[name], taskRunIds.get(name));
+      outcomes.set(name, "skipped");
+    }
+
+    // Tasks in a group run in parallel — an approval wait only blocks its own task
+    const runnable = group.filter((name) => !blocked(name));
+    const results = await Promise.all(
+      runnable.map((name) =>
+        executeTask(run, { name, config: tasks[name], taskRunId: taskRunIds.get(name) }),
+      ),
+    );
+    runnable.forEach((name, i) => outcomes.set(name, results[i]));
+  }
+
+  if (watcher.cancelled) {
+    await cancelUnstartedTasks(run, tasks, groups.flat(), outcomes);
+  }
+  return outcomes;
+}
+
+async function skipTask(
+  run: RunContext,
+  name: string,
+  config: PipelineTaskConfig | undefined,
+  taskRunId: string | undefined,
+): Promise<void> {
+  const finishedAt = new Date().toISOString();
+  run.logStreamer.push({
+    level: "warn",
+    message: `[task:${name}] Skipped (dependency failed)`,
+    task_run_id: taskRunId,
+  });
+
+  await reportSafe(run.client, run.job.run_id, {
+    scope: "task",
+    status: "skipped",
+    task_name: name,
+    finished_at: finishedAt,
+  });
+
+  // Skip all steps in this task too
+  for (const step of config?.steps ?? []) {
+    await reportSafe(run.client, run.job.run_id, {
+      scope: "step",
+      status: "skipped",
+      task_name: name,
+      step_name: step.name,
+      finished_at: finishedAt,
+    });
+  }
+}
+
+async function cancelUnstartedTasks(
+  run: RunContext,
+  tasks: TaskMap,
+  order: readonly string[],
+  outcomes: ReadonlyMap<string, TaskOutcome | "skipped">,
+): Promise<void> {
+  const unstarted = order.filter((name) => !outcomes.has(name));
+  if (unstarted.length === 0) return;
+
+  run.logStreamer.push({
+    level: "warn",
+    message: `Run cancelled by user — ${unstarted.length} task(s) not started`,
+  });
+
+  for (const name of unstarted) {
+    await reportCancelled(run.client, run.job.run_id, {
+      taskName: name,
+      stepNames: (tasks[name]?.steps ?? []).map((s) => s.name),
+      includeTask: true,
+    });
   }
 }

@@ -80,6 +80,7 @@ export function HealthCheckChart({ checks }: HealthCheckChartProps) {
           strokeWidth={1.5}
           fill="url(#healthGradient)"
           dot={false}
+          isAnimationActive={false}
         />
       </AreaChart>
     </ResponsiveContainer>

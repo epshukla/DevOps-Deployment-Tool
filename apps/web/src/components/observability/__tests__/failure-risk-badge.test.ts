@@ -8,7 +8,7 @@ import { describe, it, expect } from "vitest";
 
 const LEVEL_STYLE: Record<string, { bg: string; text: string; label: string }> = {
   low: { bg: "bg-tertiary/10", text: "text-tertiary", label: "Low Risk" },
-  medium: { bg: "bg-[#ffd54f]/10", text: "text-[#ffd54f]", label: "Medium Risk" },
+  medium: { bg: "bg-warning/10", text: "text-warning", label: "Medium Risk" },
   high: { bg: "bg-error/10", text: "text-error", label: "High Risk" },
 };
 

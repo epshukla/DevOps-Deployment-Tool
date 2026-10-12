@@ -86,6 +86,15 @@ describe("FlyApiClient", () => {
     expect(JSON.parse(options.body)).toEqual({ config: sampleConfig });
   });
 
+  it("createMachine sends region as a top-level field", async () => {
+    mockResponse(sampleMachine);
+
+    await createClient().createMachine(APP_NAME, sampleConfig, "ams");
+
+    const [, options] = mockFetch.mock.calls[0];
+    expect(JSON.parse(options.body)).toEqual({ config: sampleConfig, region: "ams" });
+  });
+
   it("getMachine returns machine object", async () => {
     mockResponse(sampleMachine);
 
@@ -161,22 +170,18 @@ describe("FlyApiClient", () => {
     expect(options.method).toBe("GET");
   });
 
-  it("getMachineLogs returns logs array", async () => {
-    const logs = [
-      { timestamp: "2024-01-01T00:00:00Z", message: "Server started" },
-      { timestamp: "2024-01-01T00:00:01Z", message: "Listening on :8080" },
-    ];
-    mockResponse({ logs });
+  it("destroyMachine appends force=true when forced", async () => {
+    mockResponse(undefined, 204);
 
-    const client = createClient();
-    const result = await client.getMachineLogs(APP_NAME, MACHINE_ID);
+    await createClient().destroyMachine(APP_NAME, MACHINE_ID, true);
 
-    expect(result).toEqual(logs);
+    const [url, options] = mockFetch.mock.calls[0];
+    expect(url).toBe(`${BASE_URL}/apps/${APP_NAME}/machines/${MACHINE_ID}?force=true`);
+    expect(options.method).toBe("DELETE");
+  });
 
-    const [url] = mockFetch.mock.calls[0];
-    expect(url).toBe(
-      `${BASE_URL}/apps/${APP_NAME}/machines/${MACHINE_ID}/logs?limit=100`,
-    );
+  it("does not expose a machine logs call (no such Machines API endpoint)", () => {
+    expect("getMachineLogs" in createClient()).toBe(false);
   });
 
   it("throws on non-200 response with status and body text", async () => {

@@ -95,8 +95,17 @@ describe("Alert rule server actions", () => {
   });
 
   describe("updateAlertRule", () => {
+    /** update().eq().eq().select() resolving to the affected rows. */
+    function mockUpdateChain(rows: unknown[] | null, error: unknown = null) {
+      const select = vi.fn().mockResolvedValue({ data: rows, error });
+      const eqSecond = vi.fn().mockReturnValue({ select });
+      const eq = vi.fn().mockReturnValue({ eq: eqSecond });
+      const update = vi.fn().mockReturnValue({ eq });
+      return { update, eq, eqSecond, select };
+    }
+
     it("updates a rule with valid input", async () => {
-      const chain = mockChain();
+      const chain = mockUpdateChain([{ id: "rule-1" }]);
       mockSupabase.from.mockReturnValue(chain);
 
       const fd = makeFormData({
@@ -114,6 +123,28 @@ describe("Alert rule server actions", () => {
           threshold: 90,
         }),
       );
+    });
+
+    it("clears the project scope when 'All Projects' is chosen", async () => {
+      const chain = mockUpdateChain([{ id: "rule-1" }]);
+      mockSupabase.from.mockReturnValue(chain);
+
+      const fd = makeFormData({ name: "Org-wide", project_id: "" });
+      const result = await updateAlertRule("rule-1", {}, fd);
+
+      expect(result).toEqual({ success: true });
+      expect(chain.update).toHaveBeenCalledWith(
+        expect.objectContaining({ name: "Org-wide", project_id: null }),
+      );
+    });
+
+    it("reports not found when no row in the org matches", async () => {
+      mockSupabase.from.mockReturnValue(mockUpdateChain([]));
+
+      const fd = makeFormData({ name: "Ghost" });
+      const result = await updateAlertRule("rule-404", {}, fd);
+
+      expect(result).toEqual({ error: "Alert rule not found" });
     });
   });
 
