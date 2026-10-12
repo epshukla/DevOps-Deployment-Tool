@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { notifyDeploymentStatus } from "@/lib/notifications";
 import { UpdateDeploymentSchema } from "@deployx/shared";
-import { authenticateRunner } from "@/lib/auth/runner";
+import { authenticateRunner, authorizeRunnerForDeployment } from "@/lib/auth/runner";
 import {
   assertDeploymentTransition,
   InvalidTransitionError,
@@ -21,8 +22,16 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   const auth = await authenticateRunner(request);
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth;
-  void runId; // Used for auth context; deployment identified by deploymentId
+  const { runner, supabase } = auth;
+
+  // Deployment must belong to the run's project, in the runner's org
+  const authz = await authorizeRunnerForDeployment(
+    supabase,
+    runner,
+    runId,
+    deploymentId,
+  );
+  if (!authz.ok) return authz.response;
 
   let body: unknown;
   try {
@@ -100,6 +109,11 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       .from("deployment_revisions")
       .update({ status: parsed.data.status })
       .eq("id", deployment.current_revision_id);
+  }
+
+  if (deployment.status !== parsed.data.status) {
+    const newStatus = parsed.data.status;
+    after(() => notifyDeploymentStatus(supabase, deploymentId, newStatus));
   }
 
   return NextResponse.json({

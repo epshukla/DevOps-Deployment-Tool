@@ -33,7 +33,7 @@ export async function GET(request: Request) {
           config_json,
           yaml_source
         ),
-        projects!pipeline_runs_project_id_fkey (
+        projects!pipeline_runs_project_id_fkey!inner (
           org_id,
           name,
           slug,
@@ -47,6 +47,9 @@ export async function GET(request: Request) {
         )
       `)
       .eq("status", "queued")
+      // Filter by org in the query itself: filtering after limit(1) let one
+      // org's oldest queued run starve every other org's runners.
+      .eq("projects.org_id", runner.org_id)
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
