@@ -65,6 +65,7 @@ export function AlertsClient({
 }: AlertsClientProps) {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
@@ -80,8 +81,13 @@ export function AlertsClient({
     });
   }
 
+  // Two-click delete: first click arms, second click (within the row) deletes
   function handleDelete(rule: AlertRuleData) {
-    if (!window.confirm(`Delete alert rule "${rule.name}"?`)) return;
+    if (confirmDeleteId !== rule.id) {
+      setConfirmDeleteId(rule.id);
+      return;
+    }
+    setConfirmDeleteId(null);
     runRuleAction(deleteAlertRule, rule.id);
   }
 
@@ -201,13 +207,21 @@ export function AlertsClient({
                     </button>
                     <button
                       onClick={() => handleDelete(rule)}
+                      onBlur={() => setConfirmDeleteId(null)}
                       disabled={isPending}
-                      className="p-1.5 hover:bg-error/10 rounded-md transition-colors"
-                      title="Delete"
+                      className={`p-1.5 rounded-md transition-colors flex items-center gap-1 ${
+                        confirmDeleteId === rule.id
+                          ? "bg-error/15 text-error"
+                          : "hover:bg-error/10"
+                      }`}
+                      title={confirmDeleteId === rule.id ? "Click again to delete" : "Delete"}
                     >
                       <span className="material-symbols-outlined text-lg text-error/60">
                         delete
                       </span>
+                      {confirmDeleteId === rule.id && (
+                        <span className="text-xs font-semibold">Confirm</span>
+                      )}
                     </button>
                   </div>
                 )}
