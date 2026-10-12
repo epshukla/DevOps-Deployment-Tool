@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { encryptSecret } from "@deployx/shared";
 import { createServiceClient } from "@/lib/supabase/service";
+import { buildLoginPath, safeRedirectPath } from "@/lib/safe-redirect";
 
 /**
  * OAuth callback handler (PKCE flow).
@@ -13,7 +14,9 @@ import { createServiceClient } from "@/lib/supabase/service";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/";
+  // Only same-origin relative paths — never let `next` bounce the freshly
+  // signed-in user to another site (open redirect).
+  const next = safeRedirectPath(searchParams.get("next"));
 
   if (code) {
     const cookieStore = await cookies();
@@ -67,5 +70,10 @@ export async function GET(request: Request) {
   }
 
   // If code is missing or exchange failed, redirect to login with error hint
-  return NextResponse.redirect(new URL("/login?error=auth", origin));
+  // (keep `next` so a retry still lands on e.g. the invite page)
+  const loginPath = buildLoginPath(next);
+  const separator = loginPath.includes("?") ? "&" : "?";
+  return NextResponse.redirect(
+    new URL(`${loginPath}${separator}error=auth`, origin),
+  );
 }
