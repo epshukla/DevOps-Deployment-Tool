@@ -1,6 +1,11 @@
 "use client";
 
-import { colorForRevision, isCutoverOrDrainEvent, type DeploymentColor } from "@/lib/blue-green";
+import {
+  colorForRevision,
+  colorsFromLatestCutover,
+  isCutoverOrDrainEvent,
+  type DeploymentColor,
+} from "@/lib/blue-green";
 import { formatDate } from "@/lib/format-date";
 
 interface RevisionData {
@@ -14,6 +19,7 @@ interface HealingEvent {
   readonly id: string;
   readonly event_type: string;
   readonly created_at: string;
+  readonly details?: Record<string, unknown> | null;
 }
 
 interface BlueGreenProgressCardProps {
@@ -35,8 +41,11 @@ export function BlueGreenProgressCard({ revisions, healingEvents }: BlueGreenPro
   const active = sorted[0];
   const previous = sorted[1] ?? null;
 
-  const activeColor = colorForRevision(active.revision_number);
-  const previousColor = previous ? colorForRevision(previous.revision_number) : null;
+  // Prefer the colors the runner actually used; derive for older deployments
+  const recorded = colorsFromLatestCutover(healingEvents);
+  const activeColor = recorded?.active ?? colorForRevision(active.revision_number);
+  const previousColor =
+    recorded?.previous ?? (previous ? colorForRevision(previous.revision_number) : null);
 
   const transitionEvents = healingEvents.filter((e) => isCutoverOrDrainEvent(e.event_type));
 
