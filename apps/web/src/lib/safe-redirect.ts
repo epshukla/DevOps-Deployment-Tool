@@ -11,7 +11,6 @@
 
 const MAX_REDIRECT_LENGTH = 2048;
 const PROBE_ORIGIN = "http://redirect.invalid";
-// eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
 
 export function safeRedirectPath(
