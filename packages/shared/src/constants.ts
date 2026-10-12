@@ -43,9 +43,10 @@ export const PIPELINE_RUN_TERMINAL_STATES: readonly PipelineRunStatus[] = [
 export const VALID_TASK_RUN_TRANSITIONS: Readonly<
   Record<TaskRunStatus, readonly TaskRunStatus[]>
 > = {
-  pending: ["running", "cancelled", "skipped"],
+  pending: ["running", "awaiting_approval", "cancelled", "skipped"],
   running: ["success", "failed", "cancelled"],
-  awaiting_approval: ["running", "cancelled"],
+  // failed = rejected by a reviewer
+  awaiting_approval: ["running", "cancelled", "failed"],
   success: [],
   failed: [],
   cancelled: [],
@@ -158,3 +159,5 @@ export const ARTIFACT_ALLOWED_EXTENSIONS = [
   ".rpm",
   ".log",
 ] as const;
+/** Upper bound on files a single task uploads (globs can match a lot) */
+export const ARTIFACT_MAX_FILES_PER_TASK = 50;
