@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useActionState } from "react";
+import { useState, useActionState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/top-bar";
 import { updateProfile } from "./actions";
@@ -55,6 +55,14 @@ export function ProfileClient({
   const router = useRouter();
 
   const [state, formAction] = useActionState(updateProfile, {});
+
+  // Leave edit mode once the save succeeds and show the fresh server data
+  useEffect(() => {
+    if (state.success) {
+      setEditing(false);
+      router.refresh();
+    }
+  }, [state, router]);
 
   return (
     <>

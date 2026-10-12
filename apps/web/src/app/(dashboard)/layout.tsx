@@ -27,7 +27,10 @@ export default async function DashboardLayout({
 
   const notificationFilter = `user_id.eq.${user.id},user_id.is.null`;
 
-  const [orgs, notificationsResult, unreadResult] = await Promise.all([
+  const userEmail = user.email?.toLowerCase();
+
+  const [orgs, notificationsResult, unreadResult, invitesResult] =
+    await Promise.all([
     listUserOrgs(supabase, user.id),
     supabase
       .from("notifications")
@@ -40,6 +43,14 @@ export default async function DashboardLayout({
       .select("id", { count: "exact", head: true })
       .or(notificationFilter)
       .eq("is_read", false),
+    userEmail
+      ? supabase
+          .from("org_invites")
+          .select("id", { count: "exact", head: true })
+          .eq("email", userEmail)
+          .is("accepted_at", null)
+          .gt("expires_at", new Date().toISOString())
+      : Promise.resolve({ count: 0 }),
   ]);
 
   const activeOrg = await resolveActiveOrg(orgs);
@@ -53,6 +64,7 @@ export default async function DashboardLayout({
       unreadCount={unreadResult.count ?? 0}
       orgs={orgs}
       activeOrgId={activeOrg?.id ?? null}
+      pendingInviteCount={invitesResult.count ?? 0}
     >
       <Sidebar />
       <main className="ml-[240px] min-h-screen">{children}</main>

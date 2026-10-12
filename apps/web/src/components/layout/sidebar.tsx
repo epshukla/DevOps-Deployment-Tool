@@ -18,7 +18,8 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { avatarUrl, displayName, orgs, activeOrgId } = useUser();
+  const { avatarUrl, displayName, orgs, activeOrgId, pendingInviteCount } =
+    useUser();
   const [switching, startSwitch] = useTransition();
 
   function handleOrgChange(orgId: string) {
@@ -109,6 +110,14 @@ export function Sidebar() {
               <span className={active ? "font-semibold" : ""}>
                 {item.label}
               </span>
+              {item.href === "/settings" && pendingInviteCount > 0 && (
+                <span
+                  className="ml-auto mr-2 min-w-5 h-5 px-1.5 rounded-full bg-primary text-on-primary text-[10px] font-bold flex items-center justify-center"
+                  title={`${pendingInviteCount} pending organization invite(s)`}
+                >
+                  {pendingInviteCount}
+                </span>
+              )}
             </Link>
           );
         })}

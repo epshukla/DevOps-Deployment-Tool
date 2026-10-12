@@ -52,6 +52,7 @@ export default async function SettingsPage() {
         .select("id, org_id, email, role, expires_at, created_at, organizations(name)")
         .eq("email", userEmail)
         .is("accepted_at", null)
+        .gt("expires_at", new Date().toISOString())
     : { data: null };
 
   const myInvites = (myInviteRows ?? []).map((inv) => {

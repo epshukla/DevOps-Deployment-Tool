@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useTransition, useActionState } from "react";
+import { useState, useTransition, useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/top-bar";
 import { hasMinRole } from "@deployx/shared";
 import {
@@ -10,6 +11,8 @@ import {
   cancelInvite,
   acceptInvite,
   declineInvite,
+  updateOrganizationName,
+  deleteOrganization,
 } from "./actions";
 
 // ── Data interfaces ──
@@ -118,7 +121,7 @@ export function SettingsClient({
           />
         </nav>
 
-        {activeTab === "general" && <GeneralTab org={org} />}
+        {activeTab === "general" && <GeneralTab org={org} canManage={canManage} />}
         {activeTab === "members" && (
           <MembersTab
             members={members}
@@ -128,7 +131,9 @@ export function SettingsClient({
             canManage={canManage}
           />
         )}
-        {activeTab === "danger" && <DangerTab />}
+        {activeTab === "danger" && (
+          <DangerTab org={org} isOwner={currentRole === "owner"} />
+        )}
       </div>
     </>
   );
@@ -179,10 +184,29 @@ function TabButton({
 // ── Invite Banner ──
 
 function InviteBanner({ invites }: { readonly invites: readonly MyInviteData[] }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function respond(action: typeof acceptInvite, inviteId: string) {
+    setError(null);
+    startTransition(async () => {
+      const result = await action(inviteId);
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+      router.refresh();
+    });
+  }
 
   return (
     <div className="mb-6 space-y-3">
+      {error && (
+        <p className="text-sm text-error bg-error/10 border border-error/20 rounded-md px-4 py-2">
+          {error}
+        </p>
+      )}
       {invites.map((inv) => (
         <div
           key={inv.id}
@@ -204,23 +228,17 @@ function InviteBanner({ invites }: { readonly invites: readonly MyInviteData[] }
           </div>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               disabled={isPending}
-              onClick={() =>
-                startTransition(async () => {
-                  await acceptInvite(inv.id);
-                })
-              }
+              onClick={() => respond(acceptInvite, inv.id)}
               className="bg-primary text-on-primary px-4 py-1.5 rounded-md text-sm font-bold hover:opacity-90 transition-all disabled:opacity-50"
             >
               Accept
             </button>
             <button
+              type="button"
               disabled={isPending}
-              onClick={() =>
-                startTransition(async () => {
-                  await declineInvite(inv.id);
-                })
-              }
+              onClick={() => respond(declineInvite, inv.id)}
               className="text-on-surface-variant hover:text-error px-3 py-1.5 rounded-md text-sm transition-all disabled:opacity-50"
             >
               Decline
@@ -234,7 +252,20 @@ function InviteBanner({ invites }: { readonly invites: readonly MyInviteData[] }
 
 // ── General Tab ──
 
-function GeneralTab({ org }: { readonly org: { readonly name: string; readonly slug: string } }) {
+function GeneralTab({
+  org,
+  canManage,
+}: {
+  readonly org: { readonly name: string; readonly slug: string };
+  readonly canManage: boolean;
+}) {
+  const [state, formAction, isPending] = useActionState(
+    updateOrganizationName,
+    {},
+  );
+  const [name, setName] = useState(org.name);
+  const dirty = name.trim() !== org.name;
+
   return (
     <div className="space-y-8">
       <div>
@@ -245,17 +276,36 @@ function GeneralTab({ org }: { readonly org: { readonly name: string; readonly s
           Manage your organization&apos;s profile and preferences.
         </p>
       </div>
-      <div className="bg-surface-container-low rounded-lg p-6 border border-outline-variant/10 space-y-6">
+      <form
+        action={formAction}
+        className="bg-surface-container-low rounded-lg p-6 border border-outline-variant/10 space-y-6"
+      >
         <div className="space-y-2">
-          <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">
+          <label
+            htmlFor="org-name"
+            className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest"
+          >
             Organization Name
           </label>
           <input
+            id="org-name"
+            name="name"
             type="text"
-            defaultValue={org.name}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={!canManage}
+            maxLength={100}
             placeholder="Your organization"
-            className="w-full max-w-md bg-surface-container-lowest border-none rounded-md px-4 py-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary transition-all"
+            className="w-full max-w-md bg-surface-container-lowest border-none rounded-md px-4 py-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary transition-all disabled:text-on-surface-variant/50 disabled:cursor-not-allowed"
           />
+          {state.fieldErrors?.name && (
+            <p className="text-xs text-error">{state.fieldErrors.name[0]}</p>
+          )}
+          {!canManage && (
+            <p className="text-xs text-on-surface-variant/60">
+              Only admins and owners can rename the organization.
+            </p>
+          )}
         </div>
         <div className="space-y-2">
           <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">
@@ -267,8 +317,29 @@ function GeneralTab({ org }: { readonly org: { readonly name: string; readonly s
             defaultValue={org.slug}
             className="w-full max-w-md bg-surface-container-lowest/50 border-none rounded-md px-4 py-2.5 text-sm text-on-surface-variant/50 cursor-not-allowed"
           />
+          <p className="text-xs text-on-surface-variant/50">
+            The slug is permanent — it identifies the organization in URLs and
+            runner configs.
+          </p>
         </div>
-      </div>
+        {canManage && (
+          <div className="flex items-center gap-4">
+            <button
+              type="submit"
+              disabled={isPending || !dirty}
+              className="bg-primary text-on-primary font-bold py-2.5 px-5 rounded-md text-sm hover:opacity-90 transition-all disabled:opacity-50"
+            >
+              {isPending ? "Saving..." : "Save Changes"}
+            </button>
+            {state.success && !dirty && (
+              <span className="text-xs text-tertiary">Saved</span>
+            )}
+            {state.error && (
+              <span className="text-xs text-error">{state.error}</span>
+            )}
+          </div>
+        )}
+      </form>
     </div>
   );
 }
@@ -698,7 +769,25 @@ function InviteRow({
 
 // ── Danger Tab ──
 
-function DangerTab() {
+function DangerTab({
+  org,
+  isOwner,
+}: {
+  readonly org: { readonly name: string; readonly slug: string };
+  readonly isOwner: boolean;
+}) {
+  const router = useRouter();
+  const [confirming, setConfirming] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [state, formAction, isPending] = useActionState(deleteOrganization, {});
+
+  useEffect(() => {
+    if (state.success) {
+      router.push("/");
+      router.refresh();
+    }
+  }, [state.success, router]);
+
   return (
     <div className="space-y-8">
       <div>
@@ -709,20 +798,74 @@ function DangerTab() {
           Irreversible actions. Proceed with caution.
         </p>
       </div>
-      <div className="bg-error-container/10 border border-error/20 rounded-lg p-6 flex items-center justify-between">
-        <div>
-          <h3 className="font-bold text-on-surface">Delete Organization</h3>
-          <p className="text-sm text-on-surface-variant mt-1">
-            Permanently delete this organization and all associated data.
-          </p>
+      <div className="bg-error-container/10 border border-error/20 rounded-lg p-6 space-y-4">
+        <div className="flex items-center justify-between gap-6">
+          <div>
+            <h3 className="font-bold text-on-surface">Delete Organization</h3>
+            <p className="text-sm text-on-surface-variant mt-1">
+              Permanently delete <strong>{org.name}</strong> with all its
+              projects, pipelines, runs, deployments, runners and secrets.
+            </p>
+            {!isOwner && (
+              <p className="text-xs text-on-surface-variant/60 mt-2">
+                Only the organization owner can delete it.
+              </p>
+            )}
+          </div>
+          {!confirming && (
+            <button
+              type="button"
+              disabled={!isOwner}
+              onClick={() => setConfirming(true)}
+              className="bg-error text-on-error px-4 py-2 rounded-md text-sm font-bold transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+            >
+              Delete Organization
+            </button>
+          )}
         </div>
-        <button
-          disabled
-          className="bg-error text-on-error px-4 py-2 rounded-md text-sm font-bold transition-all opacity-50 cursor-not-allowed"
-          title="Coming soon"
-        >
-          Delete Organization
-        </button>
+
+        {confirming && isOwner && (
+          <form action={formAction} className="space-y-3 border-t border-error/20 pt-4">
+            <label htmlFor="confirm-slug" className="block text-sm text-on-surface">
+              Type <code className="font-mono text-error">{org.slug}</code> to
+              confirm.
+            </label>
+            <input
+              id="confirm-slug"
+              name="confirm_slug"
+              type="text"
+              autoComplete="off"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              className="w-full max-w-md bg-surface-container-lowest border border-error/30 rounded-md px-4 py-2.5 text-sm font-mono text-on-surface focus:ring-2 focus:ring-error"
+            />
+            {state.fieldErrors?.confirm_slug && (
+              <p className="text-xs text-error">
+                {state.fieldErrors.confirm_slug[0]}
+              </p>
+            )}
+            {state.error && <p className="text-xs text-error">{state.error}</p>}
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={isPending || typed !== org.slug}
+                className="bg-error text-on-error px-4 py-2 rounded-md text-sm font-bold transition-all hover:opacity-90 disabled:opacity-40"
+              >
+                {isPending ? "Deleting..." : "I understand, delete it"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirming(false);
+                  setTyped("");
+                }}
+                className="text-on-surface-variant hover:text-on-surface px-3 py-2 rounded-md text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
       </div>
     </div>
   );
