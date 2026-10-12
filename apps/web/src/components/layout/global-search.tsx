@@ -182,9 +182,12 @@ export function GlobalSearch() {
 
   return (
     <div ref={containerRef} className="relative flex items-center group">
-      <span aria-hidden="true" className="material-symbols-outlined absolute left-3 text-outline text-lg">
+      <span aria-hidden="true" className="material-symbols-outlined pointer-events-none absolute left-2.5 text-[18px] text-on-surface-variant">
         search
       </span>
+      <kbd className="pointer-events-none absolute right-2 rounded border border-outline-variant px-1 font-mono text-[10px] text-on-surface-variant">
+        /
+      </kbd>
       <input
         ref={inputRef}
         type="text"
@@ -195,12 +198,12 @@ export function GlobalSearch() {
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={onInputKeyDown}
-        placeholder="Search resources...  /"
+        placeholder="Search"
         aria-label="Search projects, pipelines and runners"
-        className="bg-surface-container-low border-none rounded-md pl-10 pr-4 py-1.5 text-xs w-64 focus:ring-1 focus:ring-primary/40 placeholder:text-outline/50 text-on-surface-variant transition-all"
+        className="h-8 w-60 rounded-md border border-outline-variant bg-surface-container-low pl-9 pr-8 text-[13px] text-on-surface placeholder:text-on-surface-variant/60 transition-colors focus:border-outline focus:outline-none"
       />
       {showPanel && (
-        <div className="absolute top-full right-0 mt-2 w-80 bg-surface-container-high rounded-lg shadow-2xl border border-outline-variant/20 overflow-hidden z-50">
+        <div className="absolute top-full right-0 mt-2 w-80 bg-surface-container rounded-lg shadow-2xl border border-outline-variant overflow-hidden z-50">
           {loading && results.length === 0 ? (
             <p className="px-4 py-3 text-xs text-on-surface-variant/60">
               Searching…

@@ -1,25 +1,16 @@
 import type { Metadata } from "next";
-import {
-  Bricolage_Grotesque,
-  Instrument_Sans,
-  JetBrains_Mono,
-} from "next/font/google";
+import { IBM_Plex_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-// Display: a characterful grotesk for headings and numbers that matter
-const bricolage = Bricolage_Grotesque({
-  variable: "--font-bricolage",
+// Body: IBM Plex Sans — technical, highly legible at dense 12–14px sizes
+const plex = IBM_Plex_Sans({
+  variable: "--font-plex",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-// Body: compact and legible at the small sizes a dense dashboard needs
-const instrument = Instrument_Sans({
-  variable: "--font-instrument",
-  subsets: ["latin"],
-  display: "swap",
-});
-
+// Headings and data: JetBrains Mono (see design-system/deployx/MASTER.md)
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
   subsets: ["latin"],
@@ -40,7 +31,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${bricolage.variable} ${instrument.variable} ${jetbrainsMono.variable} dark`}
+      className={`${plex.variable} ${jetbrainsMono.variable} dark`}
     >
       <head>
         <link

@@ -1,101 +1,63 @@
 import Link from "next/link";
-import type { DeploymentStatus, HealthStatus } from "@deployx/shared";
+import { Panel } from "@/components/ui/panel";
+import { StatusBadge } from "@/components/ui/status-badge";
 
-interface DeploymentHealthRow {
+export interface DeploymentHealthRow {
   readonly id: string;
   readonly name: string;
   readonly project_id: string;
-  readonly status: DeploymentStatus;
-  readonly health: HealthStatus;
-  readonly image_sha: string;
+  readonly status: string;
+  readonly health: string;
+  readonly image: string;
   readonly uptime: string;
 }
 
-interface DeploymentHealthCardsProps {
-  readonly deployments: readonly DeploymentHealthRow[];
-}
-
-const STATUS_BADGE: Record<string, string> = {
-  active: "text-tertiary bg-tertiary/10",
-  deploying: "text-primary bg-primary/10",
-  rolled_back: "text-error bg-error/10",
-  stopped: "text-on-surface-variant bg-surface-container-highest",
-};
-
-const HEALTH_DOT: Record<string, string> = {
-  healthy: "bg-tertiary",
-  degraded: "bg-tertiary-fixed",
-  unhealthy: "bg-error",
-  unknown: "bg-on-surface-variant/40",
-};
-
+/**
+ * Compact deployment list: project + image on the left, lifecycle/health
+ * badges and uptime on the right. One row per deployment, whole row links.
+ */
 export function DeploymentHealthCards({
   deployments,
-}: DeploymentHealthCardsProps) {
+}: {
+  readonly deployments: readonly DeploymentHealthRow[];
+}) {
   return (
-    <div className="flex flex-col gap-4">
-      <h3 className="text-base font-bold flex items-center gap-2 mb-2">
-        <span aria-hidden="true" className="material-symbols-outlined text-tertiary">
-          monitor_heart
-        </span>
-        Deployment Health
-      </h3>
-
+    <Panel title="Deployments" description="Latest per project · 24h uptime">
       {deployments.length === 0 ? (
-        <div className="bg-surface-container p-8 rounded-lg text-center">
-          <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
-            monitor_heart
-          </span>
-          <p className="text-sm text-on-surface-variant">
-            No active deployments
-          </p>
-          <p className="text-xs text-on-surface-variant/60 mt-1">
-            Deploy a project to see health status here
+        <div className="px-4 py-10 text-center">
+          <p className="text-sm text-on-surface">Nothing deployed yet</p>
+          <p className="mt-1 text-xs text-on-surface-variant">
+            Add a <code className="font-mono">deploy:</code> block to a pipeline task.
           </p>
         </div>
       ) : (
-        deployments.map((dep) => (
-          <Link
-            key={dep.id}
-            href={`/projects/${dep.project_id}/deployments/${dep.id}`}
-            className="bg-surface-container p-4 rounded-lg flex items-center justify-between border border-outline-variant/10 group hover:border-primary/30 transition-all"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-surface-container-highest rounded flex items-center justify-center">
-                <span aria-hidden="true" className="material-symbols-outlined text-on-surface-variant">
-                  web
-                </span>
-              </div>
-              <div>
-                <h4 className="text-sm font-bold">{dep.name}</h4>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[10px] text-on-surface-variant uppercase tracking-tighter">
-                    Image:
-                  </span>
-                  <span className="text-[10px] font-mono text-primary bg-primary/5 px-1 rounded">
-                    {dep.image_sha}
+        <ul className="divide-y divide-outline-variant/60">
+          {deployments.map((d) => (
+            <li key={d.id}>
+              <Link
+                href={`/projects/${d.project_id}/deployments/${d.id}`}
+                className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-surface-container"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-medium">{d.name}</p>
+                  <p className="truncate font-mono text-[11px] text-on-surface-variant" title={d.image}>
+                    {d.image}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  <div className="flex items-center gap-1.5">
+                    {d.status !== "active" && <StatusBadge status={d.status} />}
+                    <StatusBadge status={d.health} />
+                  </div>
+                  <span className="font-mono text-[11px] tabular-nums text-on-surface-variant">
+                    {d.uptime === "—" ? "no checks" : `${d.uptime} up`}
                   </span>
                 </div>
-              </div>
-            </div>
-            <div className="flex flex-col items-end gap-1.5">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded-sm uppercase ${STATUS_BADGE[dep.status] ?? STATUS_BADGE.stopped}`}
-                >
-                  {dep.status.replace("_", " ")}
-                </span>
-                <span
-                  className={`w-2 h-2 rounded-full ${HEALTH_DOT[dep.health] ?? HEALTH_DOT.unknown}`}
-                />
-              </div>
-              <span className="text-[10px] text-on-surface-variant">
-                Uptime: {dep.uptime}
-              </span>
-            </div>
-          </Link>
-        ))
+              </Link>
+            </li>
+          ))}
+        </ul>
       )}
-    </div>
+    </Panel>
   );
 }
