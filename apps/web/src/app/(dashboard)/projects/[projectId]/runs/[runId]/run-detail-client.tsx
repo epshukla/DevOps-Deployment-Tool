@@ -104,12 +104,12 @@ const STATUS_CONFIG: Record<string, { label: string; className: string; dotClass
   cancelled: { label: "Cancelled", className: "bg-on-surface-variant/10 text-on-surface-variant", dotClass: "bg-on-surface-variant/40" },
   skipped: { label: "Skipped", className: "bg-on-surface-variant/10 text-on-surface-variant", dotClass: "bg-on-surface-variant/40" },
   timed_out: { label: "Timed Out", className: "bg-error/10 text-error", dotClass: "bg-error" },
-  awaiting_approval: { label: "Awaiting Approval", className: "bg-[#f59e0b]/10 text-[#f59e0b]", dotClass: "bg-[#f59e0b] animate-pulse" },
+  awaiting_approval: { label: "Awaiting Approval", className: "bg-warning/10 text-warning", dotClass: "bg-warning animate-pulse" },
 };
 
 const LOG_LEVEL_CLASS: Record<string, string> = {
   error: "text-error",
-  warn: "text-[#f59e0b]",
+  warn: "text-warning",
   info: "text-on-surface-variant/90",
   debug: "text-on-surface-variant/50",
 };

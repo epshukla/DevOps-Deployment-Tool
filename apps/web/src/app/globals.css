@@ -1,88 +1,116 @@
 @import "tailwindcss";
 
 /*
- * DeployX Design System — extracted from Stitch output
- * "The Digital Architect" — Tonal Layering, No-Line Rule
+ * DeployX Design System — "Launch Control"
  *
- * Material Design 3 inspired dark theme with
- * deep navy surfaces, electric blue primary, green success, coral error
+ * Graphite instrument-panel surfaces, one loud accent (ignition orange) for
+ * action and in-flight work, and a strict signal palette for status:
+ *   ignition (primary)  → actions, running / in-flight
+ *   go (tertiary)       → success, healthy
+ *   abort (error)       → failed, unhealthy
+ *   hold (warning)      → awaiting approval, degraded, warnings
+ *   info                → neutral information
+ * Token names keep the Material-3 roles so every component re-themes at once.
  */
 
 @theme inline {
-  /* ─── Surface Hierarchy (dark → light) ─── */
-  --color-surface-container-lowest: #060e20;
-  --color-surface-container-low: #131b2e;
-  --color-surface-container: #171f33;
-  --color-surface-container-high: #222a3d;
-  --color-surface-container-highest: #2d3449;
-  --color-surface: #0b1326;
-  --color-surface-dim: #0b1326;
-  --color-surface-bright: #31394d;
-  --color-surface-variant: #2d3449;
-  --color-surface-tint: #adc6ff;
-  --color-background: #0b1326;
+  /* ─── Surface hierarchy (graphite, dark → light) ─── */
+  --color-surface-container-lowest: #07080a;
+  --color-surface-container-low: #101216;
+  --color-surface-container: #14171c;
+  --color-surface-container-high: #1b1f26;
+  --color-surface-container-highest: #252a33;
+  --color-surface: #0b0c0f;
+  --color-surface-dim: #0b0c0f;
+  --color-surface-bright: #2e343e;
+  --color-surface-variant: #252a33;
+  --color-surface-tint: #ff8a3d;
+  --color-background: #0b0c0f;
 
-  /* ─── Primary (Blue) ─── */
-  --color-primary: #adc6ff;
-  --color-primary-container: #4d8eff;
-  --color-primary-fixed: #d8e2ff;
-  --color-primary-fixed-dim: #adc6ff;
-  --color-on-primary: #002e6a;
-  --color-on-primary-container: #00285d;
-  --color-on-primary-fixed: #001a42;
-  --color-on-primary-fixed-variant: #004395;
-  --color-inverse-primary: #005ac2;
+  /* ─── Primary — ignition orange ─── */
+  --color-primary: #ff8a3d;
+  --color-primary-container: #ff6a14;
+  --color-primary-fixed: #ffd9c2;
+  --color-primary-fixed-dim: #ffb68a;
+  --color-on-primary: #2a1000;
+  --color-on-primary-container: #1f0b00;
+  --color-on-primary-fixed: #2a1000;
+  --color-on-primary-fixed-variant: #7a3000;
+  --color-inverse-primary: #b84a00;
 
-  /* ─── Secondary (Steel Blue) ─── */
-  --color-secondary: #b7c8e1;
-  --color-secondary-container: #3a4a5f;
-  --color-secondary-fixed: #d3e4fe;
-  --color-secondary-fixed-dim: #b7c8e1;
-  --color-on-secondary: #213145;
-  --color-on-secondary-container: #a9bad3;
-  --color-on-secondary-fixed: #0b1c30;
-  --color-on-secondary-fixed-variant: #38485d;
+  /* ─── Secondary — cool steel ─── */
+  --color-secondary: #a9b8cc;
+  --color-secondary-container: #2b3442;
+  --color-secondary-fixed: #d6e1f0;
+  --color-secondary-fixed-dim: #a9b8cc;
+  --color-on-secondary: #17202c;
+  --color-on-secondary-container: #b9c7d9;
+  --color-on-secondary-fixed: #0d1520;
+  --color-on-secondary-fixed-variant: #364254;
 
-  /* ─── Tertiary (Green / Success) ─── */
-  --color-tertiary: #4ae176;
-  --color-tertiary-container: #00a74b;
-  --color-tertiary-fixed: #6bff8f;
-  --color-tertiary-fixed-dim: #4ae176;
-  --color-on-tertiary: #003915;
-  --color-on-tertiary-container: #003111;
-  --color-on-tertiary-fixed: #002109;
-  --color-on-tertiary-fixed-variant: #005321;
+  /* ─── Tertiary — go / success ─── */
+  --color-tertiary: #3ddc84;
+  --color-tertiary-container: #1a9a55;
+  --color-tertiary-fixed: #7dffb0;
+  --color-tertiary-fixed-dim: #3ddc84;
+  --color-on-tertiary: #00391a;
+  --color-on-tertiary-container: #00210e;
+  --color-on-tertiary-fixed: #002110;
+  --color-on-tertiary-fixed-variant: #005228;
 
-  /* ─── Error (Coral) ─── */
-  --color-error: #ffb4ab;
-  --color-error-container: #93000a;
-  --color-on-error: #690005;
-  --color-on-error-container: #ffdad6;
+  /* ─── Error — abort ─── */
+  --color-error: #ff6b6b;
+  --color-error-container: #5a1013;
+  --color-on-error: #3a0004;
+  --color-on-error-container: #ffd8d5;
 
-  /* ─── Text / On-Surface ─── */
-  --color-on-surface: #dae2fd;
-  --color-on-surface-variant: #c2c6d6;
-  --color-on-background: #dae2fd;
-  --color-inverse-surface: #dae2fd;
-  --color-inverse-on-surface: #283044;
+  /* ─── Warning — hold ─── */
+  --color-warning: #f5c542;
+  --color-warning-container: #4a3a0a;
+  --color-on-warning: #2e2300;
+
+  /* ─── Info ─── */
+  --color-info: #6cb6ff;
+
+  /* ─── Text ─── */
+  --color-on-surface: #e7e9ec;
+  --color-on-surface-variant: #a1a9b5;
+  --color-on-background: #e7e9ec;
+  --color-inverse-surface: #e7e9ec;
+  --color-inverse-on-surface: #1b1f26;
 
   /* ─── Outlines ─── */
-  --color-outline: #8c909f;
-  --color-outline-variant: #424754;
+  --color-outline: #7c8491;
+  --color-outline-variant: #2e343e;
 
-  /* ─── Border Radius (tight, engineering feel) ─── */
+  /* ─── Radius (tight, engineered) ─── */
   --radius-DEFAULT: 0.125rem;
-  --radius-sm: 0.125rem;
-  --radius-md: 0.25rem;
+  --radius-sm: 0.1875rem;
+  --radius-md: 0.3125rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
 
   /* ─── Typography ─── */
-  --font-headline: "Inter", system-ui, sans-serif;
-  --font-body: "Inter", system-ui, sans-serif;
-  --font-label: "Inter", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
-  --font-sans: "Inter", system-ui, sans-serif;
+  --font-display: var(--font-bricolage), "Bricolage Grotesque", system-ui, sans-serif;
+  --font-headline: var(--font-display);
+  --font-body: var(--font-instrument), "Instrument Sans", system-ui, sans-serif;
+  --font-label: var(--font-body);
+  --font-sans: var(--font-body);
+  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace;
+
+  /* ─── Motion ─── */
+  --animate-reveal: reveal 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* ─── Base styles ─── */
@@ -90,6 +118,60 @@ body {
   background-color: var(--color-background);
   color: var(--color-on-surface);
   font-family: var(--font-body);
+  font-feature-settings: "ss01", "cv11";
+  /* Atmosphere: ignition glow from the top edge, blueprint grid, film grain */
+  background-image:
+    radial-gradient(1200px 420px at 18% -8%, rgb(255 138 61 / 0.07), transparent 70%),
+    radial-gradient(900px 380px at 100% 0%, rgb(108 182 255 / 0.04), transparent 70%),
+    linear-gradient(rgb(255 255 255 / 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.018) 1px, transparent 1px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+  background-size: auto, auto, 32px 32px, 32px 32px, 160px 160px;
+  background-attachment: fixed;
+}
+
+h1,
+h2,
+h3,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+  font-optical-sizing: auto;
+}
+
+/* Numbers in data views line up */
+.font-mono,
+code,
+kbd,
+table {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+::selection {
+  background: rgb(255 138 61 / 0.35);
+  color: var(--color-on-surface);
+}
+
+/* ─── Page entrance: stagger the page's top-level blocks ─── */
+.page-enter > * {
+  animation: var(--animate-reveal);
+}
+.page-enter > *:nth-child(2) { animation-delay: 40ms; }
+.page-enter > *:nth-child(3) { animation-delay: 80ms; }
+.page-enter > *:nth-child(4) { animation-delay: 120ms; }
+.page-enter > *:nth-child(5) { animation-delay: 160ms; }
+.page-enter > *:nth-child(n + 6) { animation-delay: 200ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter > * {
+    animation: none;
+  }
 }
 
 /* ─── Material Symbols configuration ─── */
@@ -99,8 +181,11 @@ body {
 
 /* ─── Glass card (login page, overlays) ─── */
 .glass-card {
-  background: rgba(23, 31, 51, 0.7);
-  backdrop-filter: blur(12px);
+  background: rgb(20 23 28 / 0.72);
+  backdrop-filter: blur(14px) saturate(1.1);
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.04) inset,
+    0 24px 60px -24px rgb(0 0 0 / 0.7);
 }
 
 /* ─── Custom scrollbar ─── */

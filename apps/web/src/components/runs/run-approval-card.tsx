@@ -29,7 +29,7 @@ interface RunApprovalCardProps {
 }
 
 const STATUS_BADGE: Record<string, { text: string; className: string }> = {
-  pending: { text: "Awaiting Approval", className: "bg-[#f59e0b]/10 text-[#f59e0b]" },
+  pending: { text: "Awaiting Approval", className: "bg-warning/10 text-warning" },
   approved: { text: "Approved", className: "bg-tertiary/10 text-tertiary" },
   rejected: { text: "Rejected", className: "bg-error/10 text-error" },
 };
@@ -66,10 +66,10 @@ export function RunApprovalCard({ projectId, approval }: RunApprovalCardProps) {
   };
 
   return (
-    <div className="bg-surface-container rounded-lg p-6 ring-1 ring-[#f59e0b]/30">
+    <div className="bg-surface-container rounded-lg p-6 ring-1 ring-warning/30">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-[#f59e0b]">approval</span>
+          <span className="material-symbols-outlined text-warning">approval</span>
           <h3 className="text-sm font-bold text-on-surface">
             Approval Required — {approval.task_name}
           </h3>

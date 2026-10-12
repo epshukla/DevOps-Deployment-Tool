@@ -39,7 +39,7 @@ interface AlertsClientProps {
 
 const SEVERITY_BADGE: Record<string, string> = {
   info: "bg-primary/10 text-primary",
-  warning: "bg-[#ffd54f]/10 text-[#ffd54f]",
+  warning: "bg-warning/10 text-warning",
   critical: "bg-error/10 text-error",
 };
 

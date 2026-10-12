@@ -30,10 +30,10 @@ const ACTION_BADGE: Record<string, { text: string; className: string }> = {
   create: { text: "Create", className: "bg-tertiary/10 text-tertiary" },
   update: { text: "Update", className: "bg-primary/10 text-primary" },
   delete: { text: "Delete", className: "bg-error/10 text-error" },
-  trigger: { text: "Trigger", className: "bg-[#ffd54f]/10 text-[#ffd54f]" },
+  trigger: { text: "Trigger", className: "bg-warning/10 text-warning" },
   approve: { text: "Approve", className: "bg-tertiary/10 text-tertiary" },
   reject: { text: "Reject", className: "bg-error/10 text-error" },
-  rollback: { text: "Rollback", className: "bg-[#ffd54f]/10 text-[#ffd54f]" },
+  rollback: { text: "Rollback", className: "bg-warning/10 text-warning" },
   login: { text: "Login", className: "bg-primary/10 text-primary" },
 };
 
