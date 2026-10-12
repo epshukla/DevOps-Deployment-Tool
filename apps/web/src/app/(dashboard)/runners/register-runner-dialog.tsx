@@ -5,7 +5,11 @@ import { generateRunnerToken, type GenerateTokenResult } from "./actions";
 
 const initialState: GenerateTokenResult = {};
 
-export function RegisterRunnerDialog() {
+interface RegisterRunnerDialogProps {
+  readonly canRegister: boolean;
+}
+
+export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [state, formAction, pending] = useActionState(
@@ -34,6 +38,24 @@ export function RegisterRunnerDialog() {
     ? `pnpm runner register --token ${state.token} --url ${window.location.origin}`
     : "";
   const startCmd = "pnpm runner start";
+
+  if (!canRegister) {
+    return (
+      <div className="relative group">
+        <button
+          disabled
+          title="Admin permissions required to register runners"
+          className="px-5 py-2.5 bg-surface-container-highest text-on-surface-variant/50 font-bold rounded-md flex items-center gap-2 cursor-not-allowed"
+        >
+          <span className="material-symbols-outlined text-sm">add</span>
+          Register Runner
+        </button>
+        <p className="text-[10px] text-on-surface-variant/50 mt-1 text-right">
+          Admin permissions required
+        </p>
+      </div>
+    );
+  }
 
   return (
     <>
