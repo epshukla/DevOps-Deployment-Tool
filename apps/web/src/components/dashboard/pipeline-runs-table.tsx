@@ -70,39 +70,53 @@ export function PipelineRunsTable({ runs }: PipelineRunsTableProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/5">
-              {runs.map((run) => (
-                <tr key={run.id} className="group">
-                  <td colSpan={6} className="p-0">
-                    <Link
-                      href={`/projects/${run.project_id}/runs/${run.id}`}
-                      className="flex hover:bg-surface-container-highest/40 transition-colors"
-                    >
-                      <span className="px-6 py-4 w-[80px]">
+              {runs.map((run) => {
+                // Real cells keep columns aligned with the header; every cell
+                // links to the run so the whole row stays clickable.
+                const href = `/projects/${run.project_id}/runs/${run.id}`;
+                const cell = "block px-6 py-4";
+                return (
+                  <tr
+                    key={run.id}
+                    className="group hover:bg-surface-container-highest/40 transition-colors"
+                  >
+                    <td className="p-0 w-[80px]">
+                      <Link href={href} className={cell} aria-label={`Run ${run.status}`}>
                         <span
                           className={`w-2 h-2 rounded-full inline-block ${STATUS_DOT[run.status] ?? STATUS_DOT.created}`}
                         />
-                      </span>
-                      <span className="px-6 py-4 flex-1 font-mono text-xs font-semibold">
+                      </Link>
+                    </td>
+                    <td className="p-0">
+                      <Link href={href} className={`${cell} font-mono text-xs font-semibold`}>
                         {run.name}
-                      </span>
-                      <span className="px-6 py-4 flex-1 text-xs">
+                      </Link>
+                    </td>
+                    <td className="p-0">
+                      <Link href={href} className={`${cell} text-xs`}>
                         {run.project}
-                      </span>
-                      <span className="px-6 py-4 flex-1">
+                      </Link>
+                    </td>
+                    <td className="p-0">
+                      <Link href={href} className={cell} tabIndex={-1}>
                         <span className="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-mono">
                           {run.branch}
                         </span>
-                      </span>
-                      <span className="px-6 py-4 flex-1 text-xs text-on-surface-variant">
+                      </Link>
+                    </td>
+                    <td className="p-0">
+                      <Link href={href} className={`${cell} text-xs text-on-surface-variant`} tabIndex={-1}>
                         {run.duration ?? "--"}
-                      </span>
-                      <span className="px-6 py-4 flex-1 text-xs text-right text-on-surface-variant">
+                      </Link>
+                    </td>
+                    <td className="p-0">
+                      <Link href={href} className={`${cell} text-xs text-right text-on-surface-variant`} tabIndex={-1}>
                         {run.triggered_at}
-                      </span>
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
