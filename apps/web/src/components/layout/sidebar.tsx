@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Avatar } from "@/components/ui/avatar";
 import { useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "./user-context";
@@ -130,19 +131,7 @@ export function Sidebar() {
             href="/profile"
             className="flex items-center gap-3 px-4 py-3 text-on-surface-variant/60 hover:bg-surface-container-high hover:text-on-surface-variant transition-colors rounded-lg"
           >
-            <div className="w-7 h-7 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border border-outline-variant/30 flex-shrink-0">
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={displayName}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span aria-hidden="true" className="material-symbols-outlined text-[18px]">
-                  account_circle
-                </span>
-              )}
-            </div>
+            <Avatar name={displayName} url={avatarUrl} size="xs" decorative />
             <span className="truncate">{displayName}</span>
           </Link>
         </div>

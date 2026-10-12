@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useActionState } from "react";
+import { Avatar } from "@/components/ui/avatar";
 import { TopBar } from "@/components/layout/top-bar";
 import { updateProfile } from "./actions";
 import { formatDate, formatDateShort } from "@/lib/format-date";
@@ -71,19 +72,7 @@ export function ProfileClient({
         <div className="border border-outline-variant/10 rounded-lg p-6 mb-6">
           <div className="flex items-start gap-6">
             {/* Avatar */}
-            <div className="w-20 h-20 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border border-outline-variant/30 flex-shrink-0">
-              {user.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt={user.display_name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span aria-hidden="true" className="material-symbols-outlined text-3xl text-on-surface-variant">
-                  person
-                </span>
-              )}
-            </div>
+            <Avatar name={user.display_name} url={user.avatar_url} size="lg" />
 
             <div className="flex-1">
               {editing ? (

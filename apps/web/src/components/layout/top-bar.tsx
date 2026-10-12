@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Avatar } from "@/components/ui/avatar";
 import { NotificationDropdown } from "./notification-dropdown";
 import { GlobalSearch } from "./global-search";
 import { useUser, type NotificationData } from "./user-context";
@@ -68,19 +69,9 @@ export function TopBar({
               initialUnreadCount={initialUnreadCount ?? user.unreadCount}
             />
           )}
-          <div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border border-outline-variant/30">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={displayName}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <span aria-hidden="true" className="material-symbols-outlined text-on-surface-variant">
-                person
-              </span>
-            )}
-          </div>
+          <Link href="/profile" aria-label="Your profile" className="rounded-full">
+            <Avatar name={displayName} url={avatarUrl} size="sm" decorative />
+          </Link>
         </div>
       </div>
     </header>

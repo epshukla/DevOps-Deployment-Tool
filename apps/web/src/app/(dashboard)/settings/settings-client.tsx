@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition, useActionState, useEffect } from "react";
+import { Avatar } from "@/components/ui/avatar";
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/top-bar";
 import { hasMinRole } from "@deployx/shared";
@@ -283,7 +284,7 @@ function GeneralTab({
         <div className="space-y-2">
           <label
             htmlFor="org-name"
-            className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest"
+            className="block text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest"
           >
             Organization Name
           </label>
@@ -308,7 +309,7 @@ function GeneralTab({
           )}
         </div>
         <div className="space-y-2">
-          <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">
+          <label className="block text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">
             Slug
           </label>
           <input
@@ -583,19 +584,7 @@ function MemberRow({
     <tr className="hover:bg-surface-container-high/30 transition-colors">
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
-          {member.avatar_url ? (
-            <img
-              src={member.avatar_url}
-              alt=""
-              className="w-8 h-8 rounded-full"
-            />
-          ) : (
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-xs font-bold text-primary">
-                {member.display_name.charAt(0).toUpperCase()}
-              </span>
-            </div>
-          )}
+          <Avatar name={member.display_name} url={member.avatar_url} size="sm" decorative />
           <div>
             <p className="text-sm font-medium text-on-surface">
               {member.display_name}
