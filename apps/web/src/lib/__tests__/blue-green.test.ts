@@ -3,6 +3,7 @@ import {
   colorForRevision,
   oppositeColor,
   isCutoverOrDrainEvent,
+  colorsFromLatestCutover,
 } from "../blue-green";
 
 describe("colorForRevision", () => {
@@ -45,5 +46,24 @@ describe("isCutoverOrDrainEvent", () => {
   it("does not match unrelated event types", () => {
     expect(isCutoverOrDrainEvent("restart_started")).toBe(false);
     expect(isCutoverOrDrainEvent("canary_promotion")).toBe(false);
+  });
+});
+
+describe("colorsFromLatestCutover", () => {
+  it("uses the most recent cutover event's colors", () => {
+    expect(
+      colorsFromLatestCutover([
+        { event_type: "blue_green_cutover", created_at: "2026-01-01T00:00:00Z", details: { from_color: "blue", to_color: "green" } },
+        { event_type: "blue_green_cutover", created_at: "2026-01-02T00:00:00Z", details: { from_color: "green", to_color: "blue" } },
+        { event_type: "health_degraded", created_at: "2026-01-03T00:00:00Z", details: {} },
+      ]),
+    ).toEqual({ active: "blue", previous: "green" });
+  });
+
+  it("returns null without a usable cutover event", () => {
+    expect(colorsFromLatestCutover([])).toBeNull();
+    expect(
+      colorsFromLatestCutover([{ event_type: "blue_green_cutover", created_at: "x", details: { to_color: "purple" } }]),
+    ).toBeNull();
   });
 });
