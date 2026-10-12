@@ -1,5 +1,55 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import type { OrgRole } from "@deployx/shared";
+
+/** Cookie holding the org the user is currently viewing (multi-org users). */
+export const ACTIVE_ORG_COOKIE = "deployx_active_org";
+
+export interface MembershipOrg {
+  readonly id: string;
+  readonly name: string;
+  readonly slug: string;
+  readonly role: string;
+}
+
+/**
+ * All orgs the user belongs to, oldest membership first (deterministic order).
+ */
+export async function listUserOrgs(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+): Promise<readonly MembershipOrg[]> {
+  const { data } = await supabase
+    .from("org_memberships")
+    .select("org_id, role, created_at, organizations(id, name, slug)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true });
+
+  return (data ?? [])
+    .map((m) => {
+      const org = m.organizations as unknown as {
+        id: string;
+        name: string;
+        slug: string;
+      } | null;
+      return org ? { ...org, role: m.role as string } : null;
+    })
+    .filter((o): o is MembershipOrg => o !== null);
+}
+
+/**
+ * Pick the active org: the cookie's org if the user still belongs to it,
+ * otherwise their oldest membership.
+ */
+export async function resolveActiveOrg(
+  orgs: readonly MembershipOrg[],
+): Promise<MembershipOrg | null> {
+  if (orgs.length === 0) return null;
+  const cookieStore = await cookies();
+  const preferred = cookieStore.get(ACTIVE_ORG_COOKIE)?.value;
+  return orgs.find((o) => o.id === preferred) ?? orgs[0];
+}
 
 /**
  * Get the authenticated user or redirect to login.
@@ -26,21 +76,12 @@ export async function requireUser() {
 export async function requireUserWithOrg() {
   const { supabase, user } = await requireUser();
 
-  // Check existing membership
-  const { data: membership } = await supabase
-    .from("org_memberships")
-    .select("org_id, role, organizations(id, name, slug)")
-    .eq("user_id", user.id)
-    .limit(1)
-    .single();
+  // Check existing memberships; honour the active-org cookie
+  const active = await resolveActiveOrg(await listUserOrgs(supabase, user.id));
 
-  if (membership?.org_id) {
-    const org = membership.organizations as unknown as {
-      id: string;
-      name: string;
-      slug: string;
-    };
-    return { supabase, user, org, role: membership.role };
+  if (active) {
+    const { role, ...org } = active;
+    return { supabase, user, org, role: role as OrgRole };
   }
 
   // First-time user: create a personal org via SECURITY DEFINER function.

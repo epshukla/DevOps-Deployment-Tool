@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useTransition } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useUser } from "./user-context";
 import { createClient } from "@/lib/supabase/client";
+import { switchActiveOrg } from "@/lib/auth/org-actions";
 
 const NAV_ITEMS = [
   { href: "/", label: "Overview", icon: "dashboard" },
@@ -16,7 +18,18 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { avatarUrl, displayName } = useUser();
+  const { avatarUrl, displayName, orgs, activeOrgId } = useUser();
+  const [switching, startSwitch] = useTransition();
+
+  function handleOrgChange(orgId: string) {
+    startSwitch(async () => {
+      const result = await switchActiveOrg(orgId);
+      if (!result.error) {
+        router.push("/");
+        router.refresh();
+      }
+    });
+  }
 
   function isActive(href: string) {
     if (href === "/") return pathname === "/";
@@ -50,6 +63,31 @@ export function Sidebar() {
           </p>
         </div>
       </div>
+
+      {/* Org switcher — only shown when the user belongs to several orgs */}
+      {orgs.length > 1 && (
+        <div className="px-6">
+          <label
+            htmlFor="org-switcher"
+            className="block text-[10px] uppercase tracking-widest text-on-surface-variant/50 font-bold mb-1.5"
+          >
+            Organization
+          </label>
+          <select
+            id="org-switcher"
+            value={activeOrgId ?? ""}
+            disabled={switching}
+            onChange={(e) => handleOrgChange(e.target.value)}
+            className="w-full bg-surface-container-high border border-outline-variant/20 rounded-md px-3 py-2 text-xs text-on-surface focus:ring-1 focus:ring-primary/40 disabled:opacity-50"
+          >
+            {orgs.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.name} ({o.role})
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Navigation */}
       <nav className="flex-1 mt-4 space-y-1">
