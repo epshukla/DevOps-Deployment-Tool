@@ -70,6 +70,7 @@ The dashboard runs at `http://localhost:3000` during local development. The host
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key (server-only) |
 | `DEPLOYX_SECRET_KEY` | Secret key for AES-256-GCM encryption (secrets, GitHub tokens, webhooks) |
+| `CRON_SECRET` | Bearer token required by `/api/cron/*` (generate with `openssl rand -hex 32`) |
 
 ## Deployment
 
@@ -85,13 +86,35 @@ Set these in the Vercel Dashboard under Project Settings > Environment Variables
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
 | `DEPLOYX_SECRET_KEY` | Encryption key for secrets, GitHub tokens, and webhook signatures |
+| `CRON_SECRET` | Bearer token for the maintenance tick (see below) |
+
+### Platform tick (schedules, reaper, alerts)
+
+`/api/cron/tick` must be called once a minute. Each call:
+
+1. dispatches due pipeline schedules (claimed atomically, never double-fired),
+2. marks runners that stopped heartbeating `offline` and times out runs they orphaned,
+3. evaluates alert rules and sends notifications.
+
+Migration `20261012000024_realtime_and_cron_tick.sql` schedules this with Supabase **pg_cron + pg_net**
+(works on every plan; Vercel Hobby crons are limited to once a day). After deploying with
+`CRON_SECRET` set, store the URL and the same secret in Supabase Vault (SQL editor):
+
+```sql
+select vault.create_secret('https://deployx-chi.vercel.app/api/cron/tick', 'deployx_tick_url');
+select vault.create_secret('<CRON_SECRET value>', 'deployx_cron_secret');
+```
+
+Until both secrets exist the job is a no-op. Check runs with
+`select * from cron.job_run_details order by start_time desc limit 5;`.
 
 ### Supabase Auth Configuration
 
 For production, add the following to your Supabase project's Auth settings (Authentication > URL Configuration):
 
 - **Site URL**: `https://deployx-chi.vercel.app`
-- **Redirect URLs**: `https://deployx-chi.vercel.app/auth/callback`
+- **Redirect URLs**: `https://deployx-chi.vercel.app/auth/callback` and, for local development,
+  `http://localhost:3000/auth/callback` (without it, GitHub sign-in from localhost lands on production)
 
 > The runner agent connects to whatever URL is provided during registration. The Register Runner dialog uses `window.location.origin`, so it automatically generates the correct `--url` flag for both local and production environments.
 
@@ -107,6 +130,34 @@ npm start                 # Start locally on port 3000
 
 See [examples/demo-app/README.md](examples/demo-app/README.md) for step-by-step usage with DeployX.
 
+## Pipeline YAML reference (task-level options)
+
+```yaml
+tasks:
+  build:
+    steps:
+      - name: Test
+        command: npm test
+        timeout_seconds: 600        # step is killed and failed after this
+        env: { NODE_ENV: test }
+    artifacts: [dist/*.tar.gz]      # uploaded after the task succeeds (paths inside the repo)
+  deploy:
+    depends_on: [build]
+    approval_required: true         # pauses in "awaiting approval" until reviewed in the run page
+    required_approvals: 2           # optional, default 1; any rejection fails the task
+    steps:
+      - name: Smoke
+        command: ./smoke.sh
+    deploy:
+      driver: docker_local
+      strategy: canary              # blue_green | canary | rolling
+      port: 3000
+      # image omitted → the runner builds from the project's Dockerfile
+```
+
+Project secrets read by the runner: `DEPLOYX_REGISTRY` (e.g. `ghcr.io/acme`; when set, built images
+are tagged and pushed there — required for Railway/Fly), `RAILWAY_PROJECT_TOKEN`, `RAILWAY_ENVIRONMENT_ID`.
+
 ## Features
 
 - **YAML Pipelines** — Define build/test/deploy tasks with DAG dependencies
@@ -116,7 +167,10 @@ See [examples/demo-app/README.md](examples/demo-app/README.md) for step-by-step 
 - **GitHub Webhooks** — Auto-trigger pipelines on push with branch filtering
 - **Scheduled Triggers** — Cron-based pipeline execution with timezone support
 - **Secrets Management** — AES-256-GCM encrypted project secrets
-- **Team Management** — RBAC with Owner/Admin/Developer/Viewer roles
+- **Team Management** — RBAC with Owner/Admin/Developer/Viewer roles, invites, org switcher
+- **Approval Gates** — Human approval (with N required approvers) before sensitive tasks
+- **Notifications & Alerts** — In-app realtime notifications; threshold alerts on success rate, duration, health
+- **Pipeline Versioning** — Edit pipelines, browse version history, restore old versions, re-run any run
 - **Multi-Target** — Deploy to Docker Local, Railway, or Fly.io
 
 ## Documentation
