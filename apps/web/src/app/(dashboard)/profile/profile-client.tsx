@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useActionState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useActionState } from "react";
 import { TopBar } from "@/components/layout/top-bar";
 import { updateProfile } from "./actions";
 import { formatDate, formatDateShort } from "@/lib/format-date";
@@ -52,17 +51,17 @@ export function ProfileClient({
 }: ProfileClientProps) {
   const [editing, setEditing] = useState(false);
   const [displayName, setDisplayName] = useState(user.display_name);
-  const router = useRouter();
 
   const [state, formAction] = useActionState(updateProfile, {});
 
-  // Leave edit mode once the save succeeds and show the fresh server data
-  useEffect(() => {
-    if (state.success) {
-      setEditing(false);
-      router.refresh();
-    }
-  }, [state, router]);
+  // Leave edit mode once a save succeeds. Adjusting state during render
+  // (guarded by the last handled result) avoids an extra effect pass; the
+  // action's revalidatePath already refreshes the server data.
+  const [handledState, setHandledState] = useState(state);
+  if (state !== handledState) {
+    setHandledState(state);
+    if (state.success) setEditing(false);
+  }
 
   return (
     <>
