@@ -98,6 +98,18 @@ describe("Task transitions", () => {
     expect(validateTaskTransition("awaiting_approval", "cancelled")).toBe(true);
   });
 
+  it("allows a gated task to enter awaiting_approval from pending", () => {
+    expect(validateTaskTransition("pending", "awaiting_approval")).toBe(true);
+  });
+
+  it("allows a rejected approval to fail the task", () => {
+    expect(validateTaskTransition("awaiting_approval", "failed")).toBe(true);
+  });
+
+  it("does not allow re-entering approval once running", () => {
+    expect(validateTaskTransition("running", "awaiting_approval")).toBe(false);
+  });
+
   it("rejects pending → success (must go through running)", () => {
     expect(validateTaskTransition("pending", "success")).toBe(false);
   });

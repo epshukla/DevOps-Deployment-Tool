@@ -101,28 +101,91 @@ export function parseCronExpression(expr: string): CronParts {
  * Computes the next execution time for a cron expression after a given date.
  * Iterates minute-by-minute from `after` (max 366 days lookahead).
  */
-export function getNextCronRun(expr: string, after: Date): Date {
-  const parts = parseCronExpression(expr);
+/** True if `tz` is an IANA time zone this runtime understands. */
+export function isValidTimeZone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
+  }
+}
 
-  // Start from the next minute
+interface WallClock {
+  readonly minute: number;
+  readonly hour: number;
+  readonly dayOfMonth: number;
+  readonly month: number;
+  readonly dayOfWeek: number;
+}
+
+const WEEKDAY_INDEX: Readonly<Record<string, number>> = {
+  Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+};
+
+function utcWallClock(date: Date): WallClock {
+  return {
+    minute: date.getUTCMinutes(),
+    hour: date.getUTCHours(),
+    dayOfMonth: date.getUTCDate(),
+    month: date.getUTCMonth() + 1, // JS months are 0-based
+    dayOfWeek: date.getUTCDay(),
+  };
+}
+
+function zonedWallClockReader(timeZone: string): (date: Date) => WallClock {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    minute: "numeric",
+    hour: "numeric",
+    day: "numeric",
+    month: "numeric",
+    weekday: "short",
+  });
+  return (date) => {
+    const parts = Object.fromEntries(
+      formatter.formatToParts(date).map((p) => [p.type, p.value]),
+    );
+    return {
+      minute: Number(parts.minute),
+      hour: Number(parts.hour),
+      dayOfMonth: Number(parts.day),
+      month: Number(parts.month),
+      dayOfWeek: WEEKDAY_INDEX[parts.weekday] ?? 0,
+    };
+  };
+}
+
+/**
+ * Next instant strictly after `after` whose wall-clock time in `timeZone`
+ * (default UTC) matches the cron expression. Across DST transitions a skipped
+ * local time never fires and a repeated local hour matches twice, like cron.
+ */
+export function getNextCronRun(
+  expr: string,
+  after: Date,
+  timeZone: string = "UTC",
+): Date {
+  const parts = parseCronExpression(expr);
+  const readClock =
+    timeZone === "UTC" ? utcWallClock : zonedWallClockReader(timeZone);
+
+  // Start from the next whole minute
   const candidate = new Date(after);
   candidate.setUTCSeconds(0, 0);
   candidate.setUTCMinutes(candidate.getUTCMinutes() + 1);
 
   const maxIterations = 366 * 24 * 60; // 1 year of minutes
   for (let i = 0; i < maxIterations; i++) {
-    const minute = candidate.getUTCMinutes();
-    const hour = candidate.getUTCHours();
-    const dom = candidate.getUTCDate();
-    const month = candidate.getUTCMonth() + 1; // JS months are 0-based
-    const dow = candidate.getUTCDay();
+    const clock = readClock(candidate);
 
     if (
-      parts.minute.includes(minute) &&
-      parts.hour.includes(hour) &&
-      parts.dayOfMonth.includes(dom) &&
-      parts.month.includes(month) &&
-      parts.dayOfWeek.includes(dow)
+      parts.minute.includes(clock.minute) &&
+      parts.hour.includes(clock.hour) &&
+      parts.dayOfMonth.includes(clock.dayOfMonth) &&
+      parts.month.includes(clock.month) &&
+      parts.dayOfWeek.includes(clock.dayOfWeek)
     ) {
       return new Date(candidate);
     }
@@ -187,7 +250,11 @@ const cronExpressionSchema = z
 export const CreateScheduleSchema = z.object({
   pipeline_definition_id: z.string().uuid("Invalid pipeline definition ID"),
   cron_expression: cronExpressionSchema,
-  timezone: z.string().max(50).default("UTC"),
+  timezone: z
+    .string()
+    .max(50)
+    .refine(isValidTimeZone, { message: "Unknown time zone" })
+    .default("UTC"),
   git_branch: z.string().trim().max(255).optional().nullable(),
 });
 
@@ -195,7 +262,11 @@ export type CreateScheduleInput = z.infer<typeof CreateScheduleSchema>;
 
 export const UpdateScheduleSchema = z.object({
   cron_expression: cronExpressionSchema.optional(),
-  timezone: z.string().max(50).optional(),
+  timezone: z
+    .string()
+    .max(50)
+    .refine(isValidTimeZone, { message: "Unknown time zone" })
+    .optional(),
   git_branch: z.string().trim().max(255).optional().nullable(),
 });
 

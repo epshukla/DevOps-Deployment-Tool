@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
 import {
   markNotificationsRead,
@@ -49,6 +50,7 @@ export function NotificationDropdown({
   initialNotifications,
   initialUnreadCount,
 }: NotificationDropdownProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { notifications, unreadCount, markAsRead, markAllRead } =
@@ -82,6 +84,12 @@ export function NotificationDropdown({
       await markNotificationsRead([notification.id]);
     }
     setOpen(false);
+
+    // Producers put an in-app link in metadata.href; only follow internal paths
+    const href = notification.metadata?.href;
+    if (typeof href === "string" && href.startsWith("/") && !href.startsWith("//")) {
+      router.push(href);
+    }
   }
 
   return (

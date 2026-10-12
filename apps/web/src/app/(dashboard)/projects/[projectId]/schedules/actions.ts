@@ -43,7 +43,11 @@ export async function createSchedule(
   // Compute the first next_run_at
   let nextRunAt: string;
   try {
-    nextRunAt = getNextCronRun(parsed.data.cron_expression, new Date()).toISOString();
+    nextRunAt = getNextCronRun(
+      parsed.data.cron_expression,
+      new Date(),
+      parsed.data.timezone,
+    ).toISOString();
   } catch {
     return { error: "Could not compute next run time from cron expression" };
   }
@@ -103,10 +107,23 @@ export async function updateSchedule(
     updated_at: new Date().toISOString(),
   };
 
-  // Recompute next_run_at if cron expression changed
-  if (parsed.data.cron_expression) {
+  // Recompute next_run_at if the cron expression or time zone changed
+  if (parsed.data.cron_expression || parsed.data.timezone) {
+    const { data: existing } = await supabase
+      .from("pipeline_schedules")
+      .select("cron_expression, timezone")
+      .eq("id", scheduleId)
+      .eq("project_id", projectId)
+      .single();
+    if (!existing) {
+      return { error: "Schedule not found" };
+    }
     try {
-      updates.next_run_at = getNextCronRun(parsed.data.cron_expression, new Date()).toISOString();
+      updates.next_run_at = getNextCronRun(
+        parsed.data.cron_expression ?? existing.cron_expression,
+        new Date(),
+        parsed.data.timezone ?? existing.timezone ?? "UTC",
+      ).toISOString();
     } catch {
       return { error: "Could not compute next run time from cron expression" };
     }
@@ -176,13 +193,17 @@ export async function toggleSchedule(
   if (isActive) {
     const { data: schedule } = await supabase
       .from("pipeline_schedules")
-      .select("cron_expression")
+      .select("cron_expression, timezone")
       .eq("id", scheduleId)
       .single();
 
     if (schedule) {
       try {
-        updates.next_run_at = getNextCronRun(schedule.cron_expression, new Date()).toISOString();
+        updates.next_run_at = getNextCronRun(
+          schedule.cron_expression,
+          new Date(),
+          schedule.timezone ?? "UTC",
+        ).toISOString();
       } catch {
         // Keep existing next_run_at
       }
