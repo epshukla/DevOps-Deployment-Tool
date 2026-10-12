@@ -39,7 +39,7 @@ export function RollingProgressCard({ healingEvents }: RollingProgressCardProps)
   const instanceCount = Math.max(totalInstances, ...updatedOrdinals.map((o) => o + 1));
 
   return (
-    <div className="bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10 overflow-hidden">
+    <div className="bg-surface-container-low rounded-lg border border-outline-variant overflow-hidden">
       <div className="px-6 py-4 border-b border-outline-variant/10">
         <div className="flex items-center gap-2">
           <span aria-hidden="true" className="material-symbols-outlined text-sm text-primary">
@@ -49,12 +49,12 @@ export function RollingProgressCard({ healingEvents }: RollingProgressCardProps)
             Rolling Update
           </h3>
           {rollbackEvent && (
-            <span className="px-2 py-0.5 bg-error/10 text-error text-[10px] font-bold rounded-full">
+            <span className="px-2 py-0.5 bg-error/10 text-error text-xs font-bold rounded-full">
               Rolled Back
             </span>
           )}
           {!rollbackEvent && updatedOrdinals.length >= instanceCount && instanceCount > 0 && (
-            <span className="px-2 py-0.5 bg-tertiary/10 text-tertiary text-[10px] font-bold rounded-full">
+            <span className="px-2 py-0.5 bg-tertiary/10 text-tertiary text-xs font-bold rounded-full">
               Complete
             </span>
           )}
@@ -65,7 +65,7 @@ export function RollingProgressCard({ healingEvents }: RollingProgressCardProps)
         {/* Progress bar */}
         {instanceCount > 0 && (
           <div className="mb-3">
-            <div className="flex items-center justify-between text-[10px] text-on-surface-variant mb-1">
+            <div className="flex items-center justify-between text-xs text-on-surface-variant mb-1">
               <span>
                 {updatedOrdinals.length}/{instanceCount} instances updated
               </span>
@@ -115,7 +115,7 @@ export function RollingProgressCard({ healingEvents }: RollingProgressCardProps)
                 <span aria-hidden="true" className={`material-symbols-outlined text-sm ${textColor}`}>
                   {icon}
                 </span>
-                <span className={`text-[10px] font-mono ${textColor}`}>
+                <span className={`text-xs font-mono ${textColor}`}>
                   inst-{i}
                 </span>
               </div>

@@ -50,7 +50,7 @@ export function BlueGreenProgressCard({ revisions, healingEvents }: BlueGreenPro
   const transitionEvents = healingEvents.filter((e) => isCutoverOrDrainEvent(e.event_type));
 
   return (
-    <div className="bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10 overflow-hidden">
+    <div className="bg-surface-container-low rounded-lg border border-outline-variant overflow-hidden">
       <div className="px-6 py-4 border-b border-outline-variant/10">
         <div className="flex items-center gap-2">
           <span aria-hidden="true" className="material-symbols-outlined text-sm text-primary">swap_horiz</span>
@@ -63,7 +63,7 @@ export function BlueGreenProgressCard({ revisions, healingEvents }: BlueGreenPro
           <div className="flex items-center gap-3 bg-surface-container-highest/40 rounded-lg p-3">
             <span className={`w-3 h-3 rounded-full shrink-0 ${COLOR_STYLE[activeColor].dot}`} />
             <div className="min-w-0">
-              <p className="text-[10px] uppercase font-bold text-on-surface-variant">
+              <p className="text-xs uppercase font-bold text-on-surface-variant">
                 Active — <span className={COLOR_STYLE[activeColor].text}>{COLOR_STYLE[activeColor].label}</span>
               </p>
               <p className="text-xs font-mono text-on-surface truncate">{active.image_tag}</p>
@@ -74,7 +74,7 @@ export function BlueGreenProgressCard({ revisions, healingEvents }: BlueGreenPro
             <div className="flex items-center gap-3 bg-surface-container-highest/15 rounded-lg p-3 opacity-80">
               <span className={`w-3 h-3 rounded-full shrink-0 ${COLOR_STYLE[previousColor].dot}`} />
               <div className="min-w-0">
-                <p className="text-[10px] uppercase font-bold text-on-surface-variant">
+                <p className="text-xs uppercase font-bold text-on-surface-variant">
                   Previous —{" "}
                   <span className={COLOR_STYLE[previousColor].text}>{COLOR_STYLE[previousColor].label}</span>
                 </p>
@@ -83,14 +83,14 @@ export function BlueGreenProgressCard({ revisions, healingEvents }: BlueGreenPro
             </div>
           ) : (
             <div className="flex items-center gap-3 bg-surface-container-highest/10 rounded-lg p-3 opacity-50">
-              <p className="text-[10px] text-on-surface-variant">No previous revision yet</p>
+              <p className="text-xs text-on-surface-variant">No previous revision yet</p>
             </div>
           )}
         </div>
 
         {transitionEvents.length > 0 && (
           <div className="space-y-2">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+            <p className="text-xs font-bold text-on-surface-variant">
               Cutover Timeline
             </p>
             {transitionEvents.map((e) => (

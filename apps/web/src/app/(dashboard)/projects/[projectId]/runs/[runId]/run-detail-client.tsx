@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useTransition } from "react";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { TopBar } from "@/components/layout/top-bar";
@@ -94,18 +95,6 @@ interface RunDetailClientProps {
   readonly currentRole: string;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; className: string; dotClass: string }> = {
-  success: { label: "Success", className: "bg-tertiary/10 text-tertiary", dotClass: "bg-tertiary" },
-  failed: { label: "Failed", className: "bg-error/10 text-error", dotClass: "bg-error" },
-  running: { label: "Running", className: "bg-primary/10 text-primary", dotClass: "bg-primary animate-pulse" },
-  queued: { label: "Queued", className: "bg-on-surface-variant/10 text-on-surface-variant", dotClass: "bg-on-surface-variant/40" },
-  created: { label: "Created", className: "bg-on-surface-variant/10 text-on-surface-variant", dotClass: "bg-on-surface-variant/40" },
-  pending: { label: "Pending", className: "bg-on-surface-variant/10 text-on-surface-variant", dotClass: "bg-on-surface-variant/40" },
-  cancelled: { label: "Cancelled", className: "bg-on-surface-variant/10 text-on-surface-variant", dotClass: "bg-on-surface-variant/40" },
-  skipped: { label: "Skipped", className: "bg-on-surface-variant/10 text-on-surface-variant", dotClass: "bg-on-surface-variant/40" },
-  timed_out: { label: "Timed Out", className: "bg-error/10 text-error", dotClass: "bg-error" },
-  awaiting_approval: { label: "Awaiting Approval", className: "bg-warning/10 text-warning", dotClass: "bg-warning animate-pulse" },
-};
 
 const LOG_LEVEL_CLASS: Record<string, string> = {
   error: "text-error",
@@ -193,8 +182,6 @@ export function RunDetailClient({
   const seenAwaitingApprovalRef = useRef<Set<string>>(
     new Set(initialTaskRuns.filter((t) => t.status === "awaiting_approval").map((t) => t.id)),
   );
-
-  const status = STATUS_CONFIG[run.status] ?? STATUS_CONFIG.created;
   const isTerminal = ["success", "failed", "cancelled", "timed_out"].includes(run.status);
 
   const filteredLogs = logs.filter((log) => {
@@ -260,13 +247,10 @@ export function RunDetailClient({
       />
 
       {/* Pipeline Summary Bar */}
-      <section className="px-8 py-4 bg-surface-container-low/50 border-b border-outline-variant/5 flex items-center justify-between shrink-0">
+      <section className="px-4 md:px-6 py-3 bg-surface-container-low border-b border-outline-variant/5 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-8">
           <SummaryField label="Status">
-            <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-xs font-bold ${status.className}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${status.dotClass}`} />
-              {status.label}
-            </span>
+            <StatusBadge status={run.status} size="md" />
           </SummaryField>
           <SummaryField label="Pipeline">
             <Link
@@ -382,7 +366,6 @@ export function RunDetailClient({
                 {activeView === "list" && (
                   <div className="p-6 space-y-3">
                     {taskRuns.map((task) => {
-                      const taskStatus = STATUS_CONFIG[task.status] ?? STATUS_CONFIG.pending;
                       const steps = stepsForTask(task.id);
                       const isSelected = selectedTaskId === task.id;
                       return (
@@ -397,11 +380,8 @@ export function RunDetailClient({
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-3">
-                                <span className={`w-2 h-2 rounded-full shrink-0 ${taskStatus.dotClass}`} />
-                                <span className="text-sm font-bold text-on-surface">{task.task_name}</span>
-                                <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm ${taskStatus.className}`}>
-                                  {taskStatus.label}
-                                </span>
+                                <span className="font-mono text-sm font-semibold text-on-surface">{task.task_name}</span>
+                                <StatusBadge status={task.status} />
                               </div>
                               <div className="flex items-center gap-4 text-xs text-on-surface-variant">
                                 <span>{steps.length} step(s)</span>
@@ -415,18 +395,14 @@ export function RunDetailClient({
                           {isSelected && steps.length > 0 && (
                             <div className="ml-9 mt-1 space-y-1">
                               {steps.map((step) => {
-                                const stepStatus = STATUS_CONFIG[step.status] ?? STATUS_CONFIG.pending;
                                 return (
                                   <div
                                     key={step.id}
                                     className="flex items-center justify-between px-4 py-2.5 rounded-md bg-surface-container-lowest"
                                   >
                                     <div className="flex items-center gap-3">
-                                      <span className={`w-1.5 h-1.5 rounded-full ${stepStatus.dotClass}`} />
                                       <span className="text-xs font-medium text-on-surface">{step.step_name}</span>
-                                      <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm ${stepStatus.className}`}>
-                                        {stepStatus.label}
-                                      </span>
+                                      <StatusBadge status={step.status} />
                                     </div>
                                     <div className="flex items-center gap-4 text-xs text-on-surface-variant">
                                       {step.exit_code !== null && (
@@ -464,7 +440,7 @@ export function RunDetailClient({
           <div className="h-10 px-6 flex items-center justify-between bg-surface-container-lowest border-b border-outline-variant/10 shrink-0">
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter">Task</span>
+                <span className="text-xs font-bold text-on-surface-variant uppercase tracking-tighter">Task</span>
                 <select
                   value={selectedTaskId ?? ""}
                   onChange={(e) => setSelectedTaskId(e.target.value || null)}
@@ -477,7 +453,7 @@ export function RunDetailClient({
                 </select>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-tighter">Level</span>
+                <span className="text-xs font-bold text-on-surface-variant uppercase tracking-tighter">Level</span>
                 <select
                   value={logLevelFilter}
                   onChange={(e) => setLogLevelFilter(e.target.value)}
@@ -503,18 +479,18 @@ export function RunDetailClient({
             </div>
             <div className="flex items-center gap-3">
               {!isTerminal && (
-                <span className="flex items-center gap-1 text-[10px] text-primary font-bold">
-                  <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                <span className="flex items-center gap-1 text-xs text-primary font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-info animate-pulse" />
                   LIVE
                 </span>
               )}
-              <span className="text-[10px] text-on-surface-variant font-mono">
+              <span className="text-xs text-on-surface-variant font-mono">
                 {filteredLogs.length} line(s)
               </span>
               <button
                 onClick={() => downloadLogsAsText(logs, taskRuns, stepRuns, run.id)}
                 disabled={logs.length === 0}
-                className="flex items-center gap-1 text-[10px] font-bold text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-40"
+                className="flex items-center gap-1 text-xs font-bold text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-40"
                 title="Download logs"
               >
                 <span aria-hidden="true" className="material-symbols-outlined text-sm">download</span>
@@ -562,7 +538,7 @@ function SummaryField({
 }) {
   return (
     <div className="flex flex-col">
-      <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider mb-1">
+      <span className="text-xs text-on-surface-variant font-bold mb-1">
         {label}
       </span>
       {children}

@@ -18,7 +18,7 @@ export function PredictionStat({
           Predicted Build Time
         </p>
         <p className="text-lg font-semibold text-on-surface-variant/40">—</p>
-        <p className="text-[10px] text-on-surface-variant/30 mt-1">
+        <p className="text-xs text-on-surface-variant/30 mt-1">
           Needs 5+ builds
         </p>
       </div>
@@ -40,7 +40,7 @@ export function PredictionStat({
       </p>
       {trend !== null && (
         <p
-          className={`text-[10px] mt-1 flex items-center gap-0.5 ${
+          className={`text-xs mt-1 flex items-center gap-0.5 ${
             trend > 5
               ? "text-error"
               : trend < -5

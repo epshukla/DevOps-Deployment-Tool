@@ -60,8 +60,8 @@ export function RollbackDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={handleClose} />
 
-      <div className="relative bg-surface-container rounded-xl shadow-2xl border border-outline-variant/10 w-full max-w-lg p-8 max-h-[85vh] overflow-y-auto">
-        <h3 className="text-xl font-extrabold text-on-surface mb-2">
+      <div className="relative bg-surface-container rounded-lg shadow-2xl border border-outline-variant/10 w-full max-w-lg p-8 max-h-[85vh] overflow-y-auto">
+        <h3 className="text-xl font-semibold text-on-surface mb-2">
           {step === "select" ? "Roll Back Deployment" : "Confirm Rollback"}
         </h3>
 
@@ -104,14 +104,14 @@ export function RollbackDialog({
                         <span className="text-sm font-bold text-on-surface">
                           #{rev.revision_number}
                         </span>
-                        <span className="text-[9px] uppercase font-bold text-on-surface-variant/60">
+                        <span className="text-[11px] uppercase font-bold text-on-surface-variant/60">
                           {rev.status}
                         </span>
                       </div>
                       <p className="text-xs font-mono text-on-surface-variant truncate">
                         {rev.image_tag}
                       </p>
-                      <p className="text-[10px] text-on-surface-variant/50">
+                      <p className="text-xs text-on-surface-variant/50">
                         {formatDate(rev.created_at)}
                       </p>
                     </div>
@@ -121,7 +121,7 @@ export function RollbackDialog({
             )}
 
             <div className="space-y-2 mb-6">
-              <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">
+              <label className="text-xs font-bold text-on-surface-variant/60">
                 Reason
               </label>
               <textarea
@@ -145,7 +145,7 @@ export function RollbackDialog({
                 type="button"
                 disabled={!canContinue}
                 onClick={() => setStep("confirm")}
-                className="px-6 py-2 bg-primary text-on-primary text-sm font-bold rounded-md hover:brightness-110 disabled:opacity-50 transition-all"
+                className="px-6 py-2 bg-primary text-on-primary text-sm font-bold rounded-md hover:bg-primary-container disabled:opacity-50 transition-all"
               >
                 Review Rollback
               </button>
@@ -162,7 +162,7 @@ export function RollbackDialog({
             </p>
 
             <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-md p-4 mb-6">
-              <p className="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest mb-1">
+              <p className="text-xs font-bold text-on-surface-variant/60 mb-1">
                 Reason
               </p>
               <p className="text-sm text-on-surface">{reason.trim()}</p>
@@ -181,7 +181,7 @@ export function RollbackDialog({
                 type="button"
                 disabled={pending}
                 onClick={handleConfirm}
-                className="flex items-center gap-2 px-6 py-2 bg-error text-on-error text-sm font-bold rounded-md hover:brightness-110 disabled:opacity-50 transition-all"
+                className="flex items-center gap-2 px-6 py-2 bg-error text-on-error text-sm font-bold rounded-md hover:bg-primary-container disabled:opacity-50 transition-all"
               >
                 {pending && (
                   <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">

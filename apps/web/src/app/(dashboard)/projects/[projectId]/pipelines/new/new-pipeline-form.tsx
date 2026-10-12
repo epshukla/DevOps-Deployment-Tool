@@ -64,7 +64,7 @@ export function NewPipelineForm({
       <section className="flex-1 flex items-start justify-center p-8">
         <div className="w-full max-w-3xl">
           <div className="mb-8">
-            <h2 className="text-2xl font-extrabold tracking-tight text-on-surface mb-2">
+            <h2 className="text-2xl font-semibold tracking-tight text-on-surface mb-2">
               Create Pipeline
             </h2>
             <p className="text-on-surface-variant text-sm">
@@ -72,7 +72,7 @@ export function NewPipelineForm({
             </p>
           </div>
 
-          <div className="bg-surface-container rounded-xl overflow-hidden shadow-2xl border border-outline-variant/10">
+          <div className="bg-surface-container rounded-lg overflow-hidden shadow-2xl border border-outline-variant/10">
             <form action={formAction} className="p-8 space-y-6">
               {state.error && (
                 <div className="bg-error/10 border border-error/30 rounded-md p-3 text-xs text-error">
@@ -81,7 +81,7 @@ export function NewPipelineForm({
               )}
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest ml-1">
+                <label className="text-xs font-bold text-on-surface-variant/60 ml-1">
                   Pipeline Name
                 </label>
                 <input
@@ -99,7 +99,7 @@ export function NewPipelineForm({
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest ml-1">
+                <label className="text-xs font-bold text-on-surface-variant/60 ml-1">
                   Pipeline YAML
                 </label>
                 <textarea
@@ -139,7 +139,7 @@ export function NewPipelineForm({
                 <button
                   type="submit"
                   disabled={pending}
-                  className="px-6 py-2.5 bg-primary text-on-primary text-sm font-bold rounded-md hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all flex items-center gap-2"
+                  className="px-6 py-2.5 bg-primary text-on-primary text-sm font-bold rounded-md hover:bg-primary-container active:scale-95 disabled:opacity-50 transition-all flex items-center gap-2"
                 >
                   {pending && (
                     <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">

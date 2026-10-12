@@ -74,7 +74,7 @@ export function AuditLogClient({
         ]}
       />
 
-      <div className="p-8 max-w-[1400px] mx-auto">
+      <div className="px-4 py-6 md:px-6 max-w-[1400px] mx-auto">
         <h2 className="text-xl font-bold text-on-surface mb-1">Audit Log</h2>
         <p className="text-sm text-on-surface-variant/60 mb-6">
           Track all actions performed in your organization
@@ -149,7 +149,7 @@ export function AuditLogClient({
                         </td>
                         <td className="px-4 py-3">
                           <span
-                            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${badge.className}`}
+                            className={`px-2 py-0.5 rounded-full text-xs font-semibold uppercase ${badge.className}`}
                           >
                             {badge.text}
                           </span>

@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 const SIZE_CLASS = {
-  xs: "w-7 h-7 text-[10px]",
+  xs: "w-7 h-7 text-xs",
   sm: "w-8 h-8 text-xs",
   lg: "w-20 h-20 text-2xl",
 } as const;

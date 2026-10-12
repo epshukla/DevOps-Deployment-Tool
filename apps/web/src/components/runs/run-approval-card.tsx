@@ -73,7 +73,7 @@ export function RunApprovalCard({ projectId, approval }: RunApprovalCardProps) {
           <h3 className="text-sm font-bold text-on-surface">
             Approval Required — {approval.task_name}
           </h3>
-          <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase ${statusBadge.className}`}>
+          <span className={`px-2 py-0.5 rounded-sm text-xs font-bold uppercase ${statusBadge.className}`}>
             {statusBadge.text}
           </span>
         </div>

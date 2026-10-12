@@ -185,7 +185,7 @@ export function GlobalSearch() {
       <span aria-hidden="true" className="material-symbols-outlined pointer-events-none absolute left-2.5 text-[18px] text-on-surface-variant">
         search
       </span>
-      <kbd className="pointer-events-none absolute right-2 rounded border border-outline-variant px-1 font-mono text-[10px] text-on-surface-variant">
+      <kbd className="pointer-events-none absolute right-2 rounded border border-outline-variant px-1 font-mono text-xs text-on-surface-variant">
         /
       </kbd>
       <input
@@ -235,7 +235,7 @@ export function GlobalSearch() {
                       <span className="block text-xs font-semibold text-on-surface truncate">
                         {r.label}
                       </span>
-                      <span className="block text-[10px] text-on-surface-variant/60 truncate">
+                      <span className="block text-xs text-on-surface-variant/60 truncate">
                         {r.kind} · {r.sublabel}
                       </span>
                     </span>

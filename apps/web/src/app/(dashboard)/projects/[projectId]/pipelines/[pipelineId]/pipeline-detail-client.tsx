@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { TopBar } from "@/components/layout/top-bar";
@@ -52,15 +53,6 @@ interface PipelineDetailClientProps {
   readonly currentRole: string;
 }
 
-const STATUS_BADGE: Record<string, { text: string; className: string }> = {
-  success: { text: "Success", className: "bg-tertiary/10 text-tertiary" },
-  failed: { text: "Failed", className: "bg-error/10 text-error" },
-  running: { text: "Running", className: "bg-primary/10 text-primary" },
-  queued: { text: "Queued", className: "bg-on-surface-variant/10 text-on-surface-variant" },
-  created: { text: "Created", className: "bg-on-surface-variant/10 text-on-surface-variant" },
-  cancelled: { text: "Cancelled", className: "bg-on-surface-variant/10 text-on-surface-variant" },
-  timed_out: { text: "Timed Out", className: "bg-error/10 text-error" },
-};
 
 export function PipelineDetailClient({
   project,
@@ -184,10 +176,10 @@ export function PipelineDetailClient({
           { label: definition.name },
         ]}
       />
-      <div className="p-8 max-w-[1400px] mx-auto">
+      <div className="px-4 py-6 md:px-6 max-w-[1400px] mx-auto">
         <div className="flex items-end justify-between mb-8">
           <div>
-            <h2 className="text-2xl font-extrabold tracking-tight text-on-surface">
+            <h2 className="text-2xl font-semibold tracking-tight text-on-surface">
               {definition.name}
             </h2>
             <p className="text-on-surface-variant text-sm mt-1">
@@ -203,7 +195,7 @@ export function PipelineDetailClient({
               <button
                 onClick={handleTrigger}
                 disabled={isTriggering || !definition.current_version_id}
-                className="px-4 py-2.5 bg-primary text-on-primary font-bold rounded-md hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all flex items-center gap-2 text-sm"
+                className="px-4 py-2.5 bg-primary text-on-primary font-bold rounded-md hover:bg-primary-container active:scale-95 disabled:opacity-50 transition-all flex items-center gap-2 text-sm"
               >
                 {isTriggering ? (
                   <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">
@@ -241,8 +233,8 @@ export function PipelineDetailClient({
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Version History Sidebar */}
           <div className="lg:col-span-3">
-            <div className="bg-surface-container-low rounded-xl p-4 ring-1 ring-outline-variant/10">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-3 px-1">
+            <div className="bg-surface-container-low rounded-lg p-4 border border-outline-variant">
+              <h3 className="text-xs font-bold text-on-surface-variant mb-3 px-1">
                 Version History
               </h3>
               {versions.length === 0 ? (
@@ -270,12 +262,12 @@ export function PipelineDetailClient({
                               v{v.version}
                             </span>
                             {isCurrent && (
-                              <span className="text-[9px] font-bold uppercase text-tertiary bg-tertiary/10 px-1.5 py-0.5 rounded-sm">
+                              <span className="text-[11px] font-bold uppercase text-tertiary bg-tertiary/10 px-1.5 py-0.5 rounded-sm">
                                 Current
                               </span>
                             )}
                           </div>
-                          <p className="text-[10px] text-on-surface-variant mt-0.5">
+                          <p className="text-xs text-on-surface-variant mt-0.5">
                             {formatDateShort(v.created_at)}
                             {v.created_by_name ? ` by ${v.created_by_name}` : ""}
                           </p>
@@ -284,7 +276,7 @@ export function PipelineDetailClient({
                           <button
                             onClick={() => handleRestore(v.id)}
                             disabled={isRestoring}
-                            className="w-full text-left px-3 py-1 text-[10px] text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
+                            className="w-full text-left px-3 py-1 text-xs text-primary hover:text-primary/80 transition-colors disabled:opacity-50"
                           >
                             Restore this version
                           </button>
@@ -299,9 +291,9 @@ export function PipelineDetailClient({
 
           {/* YAML / Editor */}
           <div className="lg:col-span-9 space-y-6">
-            <div className="bg-surface-container rounded-xl overflow-hidden shadow-xl border border-outline-variant/10">
+            <div className="bg-surface-container rounded-lg overflow-hidden shadow-xl border border-outline-variant/10">
               <div className="px-6 py-3 border-b border-outline-variant/10 flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                <h3 className="text-xs font-bold text-on-surface-variant">
                   {isEditing ? "Edit YAML — saves as a new version" : "Pipeline YAML"}
                 </h3>
                 {isEditing && (
@@ -346,7 +338,7 @@ export function PipelineDetailClient({
                     <button
                       type="submit"
                       disabled={isSaving || !yamlValid}
-                      className="px-5 py-2 bg-primary text-on-primary text-sm font-bold rounded-md hover:brightness-110 active:scale-95 disabled:opacity-50 transition-all flex items-center gap-2"
+                      className="px-5 py-2 bg-primary text-on-primary text-sm font-bold rounded-md hover:bg-primary-container active:scale-95 disabled:opacity-50 transition-all flex items-center gap-2"
                     >
                       {isSaving && (
                         <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">
@@ -365,9 +357,9 @@ export function PipelineDetailClient({
             </div>
 
             {/* Recent Runs */}
-            <div className="bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10 overflow-hidden">
+            <div className="bg-surface-container-low rounded-lg border border-outline-variant overflow-hidden">
               <div className="px-6 py-4 border-b border-outline-variant/10">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                <h3 className="text-xs font-bold text-on-surface-variant">
                   Recent Runs
                 </h3>
               </div>
@@ -378,7 +370,6 @@ export function PipelineDetailClient({
               ) : (
                 <div>
                   {recentRuns.map((run) => {
-                    const badge = STATUS_BADGE[run.status] ?? STATUS_BADGE.created;
                     return (
                       <Link
                         key={run.id}
@@ -386,11 +377,7 @@ export function PipelineDetailClient({
                         className="flex items-center justify-between px-6 py-3 border-b border-outline-variant/5 last:border-0 hover:bg-surface-container-high/50 transition-colors"
                       >
                         <div className="flex items-center gap-3">
-                          <span
-                            className={`px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase ${badge.className}`}
-                          >
-                            {badge.text}
-                          </span>
+                          <StatusBadge status={run.status} />
                           <span className="text-xs text-on-surface-variant">
                             {run.git_branch ?? "—"}
                           </span>

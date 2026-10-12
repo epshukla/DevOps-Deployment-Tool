@@ -71,7 +71,7 @@ export function ArtifactList({
           </span>
           <div className="flex-1 min-w-0">
             <p className="text-sm text-on-surface truncate">{artifact.name}</p>
-            <p className="text-[10px] text-on-surface-variant/40">
+            <p className="text-xs text-on-surface-variant/40">
               {formatBytes(artifact.size)}
             </p>
           </div>
