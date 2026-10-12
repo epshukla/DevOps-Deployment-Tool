@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { TopBar } from "@/components/layout/top-bar";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { Greeting } from "@/components/dashboard/greeting";
 import { PipelineRunsTable } from "@/components/dashboard/pipeline-runs-table";
 import { DeploymentHealthCards } from "@/components/dashboard/deployment-health-cards";
 import { requireUserWithOrg } from "@/lib/auth/session";
@@ -165,38 +166,50 @@ export default async function DashboardOverview() {
     deploymentsByWindow.previous.length,
   );
 
-  // Determine greeting based on time
-  const hour = new Date().getHours();
-  const greeting =
-    hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+  // Real fleet health instead of a hardcoded "optimal"
+  const liveDeployments = (activeDeploymentsList ?? []).filter((d) => d.status === "active");
+  const unhealthyCount = liveDeployments.filter((d) => d.health_status === "unhealthy").length;
+  const degradedCount = liveDeployments.filter((d) => d.health_status === "degraded").length;
+  const fleetHealth =
+    liveDeployments.length === 0
+      ? { label: "idle", tone: "text-on-surface-variant" }
+      : unhealthyCount > 0
+        ? { label: `needs attention (${unhealthyCount} unhealthy)`, tone: "text-error" }
+        : degradedCount > 0
+          ? { label: `degraded (${degradedCount})`, tone: "text-warning" }
+          : { label: "optimal", tone: "text-tertiary" };
 
   return (
     <>
       <TopBar breadcrumbs={[{ label: "Overview" }]} />
       <div className="px-8 pb-12 pt-4 max-w-[1600px] mx-auto">
         {/* Welcome Header */}
-        <section className="mb-10 flex items-center justify-between">
+        <section className="mb-10 flex items-end justify-between gap-6">
           <div>
-            <div className="flex items-center gap-3 mb-1">
-              <h2 className="text-2xl font-bold tracking-tight">
-                {greeting}, {displayName}
-              </h2>
-              <span className="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest rounded-sm border border-primary/20">
-                {org.name}
-              </span>
-            </div>
-            <p className="text-on-surface-variant text-sm">
-              System health is{" "}
-              <span className="text-tertiary">optimal</span>.{" "}
-              {activeDeployments ?? 0} deployment{activeDeployments !== 1 ? "s" : ""} running.
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-primary/80 mb-2">
+              {org.name} · mission control
+            </p>
+            <h2 className="text-3xl font-bold tracking-tight">
+              <Greeting name={displayName.split(" ")[0] ?? displayName} />
+            </h2>
+            <p className="text-on-surface-variant text-sm mt-1.5 flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className={`inline-block h-1.5 w-1.5 rounded-full bg-current ${fleetHealth.tone} ${
+                  fleetHealth.label === "optimal" ? "animate-pulse" : ""
+                }`}
+              />
+              Fleet is <span className={fleetHealth.tone}>{fleetHealth.label}</span>
+              <span className="text-on-surface-variant/40">·</span>
+              {liveDeployments.length} deployment{liveDeployments.length !== 1 ? "s" : ""} live
             </p>
           </div>
           <Link
-            href="/projects"
-            className="bg-primary text-on-primary px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center gap-2 shadow-lg shadow-primary/10 active:scale-95"
+            href="/projects/new"
+            className="bg-primary text-on-primary px-4 py-2.5 text-xs font-bold rounded-md transition-all flex items-center gap-2 shadow-[0_8px_24px_-8px_rgb(255_138_61/0.6)] hover:brightness-110 active:scale-95"
           >
             <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
-            New Pipeline
+            New Project
           </Link>
         </section>
 
@@ -206,28 +219,30 @@ export default async function DashboardOverview() {
             label="Total Pipelines"
             value={String(totalRuns ?? 0)}
             icon="rocket_launch"
-            accentColor="primary"
+            accent="primary"
             trend={totalRunsTrend}
           />
           <StatCard
             label="Success Rate"
             value={successRate}
             icon="check_circle"
-            accentColor="tertiary"
+            accent="tertiary"
             trend={successRateTrend}
+            goodWhen="up"
           />
           <StatCard
             label="Avg Build Time"
             value={avgBuildTime}
             icon="timer"
-            accentColor="secondary"
+            accent="secondary"
             trend={avgBuildTimeTrend}
+            goodWhen="down"
           />
           <StatCard
             label="Active Deployments"
             value={String(activeDeployments ?? 0)}
             icon="dynamic_form"
-            accentColor="primary-container"
+            accent="info"
             trend={activeDeploymentsTrend}
           />
         </section>
