@@ -21,6 +21,7 @@
     "@deployx/shared": "workspace:*",
     "commander": "^14.0.0",
     "execa": "^9.5.0",
+    "tinyglobby": "^0.2.16",
     "zod": "^3.25.0"
   },
   "devDependencies": {
