@@ -99,6 +99,7 @@ export const HealingEventType = {
   CANARY_ROLLBACK: "canary_rollback",
   ROLLING_INSTANCE_UPDATED: "rolling_instance_updated",
   ROLLING_ROLLBACK: "rolling_rollback",
+  BLUE_GREEN_CUTOVER: "blue_green_cutover",
 } as const;
 export type HealingEventType =
   (typeof HealingEventType)[keyof typeof HealingEventType];
