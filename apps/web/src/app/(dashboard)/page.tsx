@@ -5,6 +5,10 @@ import { PipelineRunsTable } from "@/components/dashboard/pipeline-runs-table";
 import { DeploymentHealthCards } from "@/components/dashboard/deployment-health-cards";
 import { requireUserWithOrg } from "@/lib/auth/session";
 import { formatDate } from "@/lib/format-date";
+import { computeTrend, splitByWindow } from "@/lib/trend";
+import { computeUptimePercent, SLA_DEFAULT_WINDOW_HOURS } from "@deployx/shared";
+
+const TREND_WINDOW_DAYS = 7;
 
 export default async function DashboardOverview() {
   const { supabase, user, org } = await requireUserWithOrg();
@@ -52,20 +56,53 @@ export default async function DashboardOverview() {
   const { data: activeDeploymentsList } = projectIds.length > 0
     ? await supabase
         .from("deployments")
-        .select("id, status, health_status, strategy, created_at, project_id, projects(name)")
+        .select("id, status, health_status, strategy, current_revision_id, created_at, project_id, projects(name)")
         .in("project_id", projectIds)
         .order("created_at", { ascending: false })
         .limit(4)
     : { data: [] };
 
+  // ── Current revision image tags + uptime for the health cards ──
+  const revisionIds = (activeDeploymentsList ?? [])
+    .map((d) => d.current_revision_id as string | null)
+    .filter((id): id is string => id != null);
+
+  const { data: revisions } = revisionIds.length > 0
+    ? await supabase
+        .from("deployment_revisions")
+        .select("id, image_tag")
+        .in("id", revisionIds)
+    : { data: [] };
+  const imageTagByRevisionId = new Map(
+    (revisions ?? []).map((r) => [r.id as string, r.image_tag as string]),
+  );
+
+  const deploymentIds = (activeDeploymentsList ?? []).map((d) => d.id as string);
+  const { data: healthChecksForUptime } = deploymentIds.length > 0
+    ? await supabase
+        .from("health_check_results")
+        .select("deployment_id, status, checked_at")
+        .in("deployment_id", deploymentIds)
+        .order("checked_at", { ascending: false })
+        .limit(1000)
+    : { data: [] };
+
+  const healthChecksByDeployment = new Map<string, { status: string; checked_at: string }[]>();
+  for (const check of healthChecksForUptime ?? []) {
+    const depId = check.deployment_id as string;
+    const existing = healthChecksByDeployment.get(depId) ?? [];
+    existing.push({ status: check.status as string, checked_at: check.checked_at as string });
+    healthChecksByDeployment.set(depId, existing);
+  }
+
   // Compute success rate and avg build time from recent runs
   const { data: metricsRuns } = projectIds.length > 0
     ? await supabase
         .from("pipeline_runs")
-        .select("status, duration_ms")
+        .select("status, duration_ms, created_at")
         .in("project_id", projectIds)
         .order("created_at", { ascending: false })
-        .limit(100)
+        .limit(500)
     : { data: [] };
 
   const allMetricsRuns = metricsRuns ?? [];
@@ -85,6 +122,48 @@ export default async function DashboardOverview() {
     successDurations.length > 0
       ? `${(successDurations.reduce((a, b) => a + b, 0) / successDurations.length / 1000).toFixed(1)}s`
       : "—";
+
+  // ── Trends: last 7 days vs. the previous 7 days ────────────────
+  const runsByWindow = splitByWindow(allMetricsRuns, TREND_WINDOW_DAYS);
+  const totalRunsTrend = computeTrend(
+    runsByWindow.current.length,
+    runsByWindow.previous.length,
+  );
+
+  const successRateFor = (runs: readonly { status: string; duration_ms: number | null }[]) => {
+    const completed = runs.filter((r) => r.status === "success" || r.status === "failed");
+    const successful = runs.filter((r) => r.status === "success");
+    return completed.length > 0 ? (successful.length / completed.length) * 100 : 0;
+  };
+  const successRateTrend = computeTrend(
+    successRateFor(runsByWindow.current),
+    successRateFor(runsByWindow.previous),
+  );
+
+  const avgDurationFor = (runs: readonly { status: string; duration_ms: number | null }[]) => {
+    const durations = runs
+      .filter((r) => r.status === "success" && r.duration_ms != null)
+      .map((r) => r.duration_ms as number);
+    return durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : 0;
+  };
+  const avgBuildTimeTrend = computeTrend(
+    avgDurationFor(runsByWindow.current),
+    avgDurationFor(runsByWindow.previous),
+  );
+
+  const { data: recentDeploymentsForTrend } = projectIds.length > 0
+    ? await supabase
+        .from("deployments")
+        .select("created_at")
+        .in("project_id", projectIds)
+        .order("created_at", { ascending: false })
+        .limit(500)
+    : { data: [] };
+  const deploymentsByWindow = splitByWindow(recentDeploymentsForTrend ?? [], TREND_WINDOW_DAYS);
+  const activeDeploymentsTrend = computeTrend(
+    deploymentsByWindow.current.length,
+    deploymentsByWindow.previous.length,
+  );
 
   // Determine greeting based on time
   const hour = new Date().getHours();
@@ -128,24 +207,28 @@ export default async function DashboardOverview() {
             value={String(totalRuns ?? 0)}
             icon="rocket_launch"
             accentColor="primary"
+            trend={totalRunsTrend}
           />
           <StatCard
             label="Success Rate"
             value={successRate}
             icon="check_circle"
             accentColor="tertiary"
+            trend={successRateTrend}
           />
           <StatCard
             label="Avg Build Time"
             value={avgBuildTime}
             icon="timer"
             accentColor="secondary"
+            trend={avgBuildTimeTrend}
           />
           <StatCard
             label="Active Deployments"
             value={String(activeDeployments ?? 0)}
             icon="dynamic_form"
             accentColor="primary-container"
+            trend={activeDeploymentsTrend}
           />
         </section>
 
@@ -167,15 +250,20 @@ export default async function DashboardOverview() {
           </div>
           <div className="lg:w-2/5">
             <DeploymentHealthCards
-              deployments={(activeDeploymentsList ?? []).map((d) => ({
-                id: d.id,
-                name: (d.projects as unknown as { name: string } | null)?.name ?? "—",
-                project_id: d.project_id,
-                status: d.status as "active" | "deploying" | "rolled_back" | "stopped",
-                health: d.health_status as "healthy" | "degraded" | "unhealthy" | "unknown",
-                image_sha: "—",
-                uptime: "—",
-              }))}
+              deployments={(activeDeploymentsList ?? []).map((d) => {
+                const revisionId = d.current_revision_id as string | null;
+                const checks = healthChecksByDeployment.get(d.id as string) ?? [];
+                const uptimePercent = computeUptimePercent(checks, SLA_DEFAULT_WINDOW_HOURS);
+                return {
+                  id: d.id,
+                  name: (d.projects as unknown as { name: string } | null)?.name ?? "—",
+                  project_id: d.project_id,
+                  status: d.status as "active" | "deploying" | "rolled_back" | "stopped",
+                  health: d.health_status as "healthy" | "degraded" | "unhealthy" | "unknown",
+                  image_sha: revisionId ? imageTagByRevisionId.get(revisionId) ?? "—" : "—",
+                  uptime: checks.length > 0 ? `${uptimePercent.toFixed(2)}%` : "—",
+                };
+              })}
             />
           </div>
         </div>

@@ -69,9 +69,10 @@ export default async function PipelinesPage({ params }: PageProps) {
         ) : (
           <div className="space-y-4">
             {pipelines.map((p) => (
-              <div
+              <Link
                 key={p.id}
-                className="bg-surface-container-low rounded-xl p-6 ring-1 ring-outline-variant/10 hover:bg-surface-container transition-colors"
+                href={`/projects/${projectId}/pipelines/${p.id}`}
+                className="block bg-surface-container-low rounded-xl p-6 ring-1 ring-outline-variant/10 hover:bg-surface-container transition-colors"
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -85,7 +86,7 @@ export default async function PipelinesPage({ params }: PageProps) {
                     {p.current_version_id ? "Active" : "Draft"}
                   </span>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}

@@ -3,6 +3,8 @@ import Link from "next/link";
 import { TopBar } from "@/components/layout/top-bar";
 import { ProjectCard } from "@/components/projects/project-card";
 import { requireUserWithOrg } from "@/lib/auth/session";
+import { formatDate } from "@/lib/format-date";
+import { formatDurationMs, type PipelineRunStatus } from "@deployx/shared";
 
 export default async function ProjectsPage() {
   const { supabase, org } = await requireUserWithOrg();
@@ -12,6 +14,50 @@ export default async function ProjectsPage() {
     .select("id, name, slug, git_repo_url, deploy_target, created_at")
     .eq("org_id", org.id)
     .order("created_at", { ascending: false });
+
+  const projectIds = (projects ?? []).map((p) => p.id as string);
+
+  // Fetch the most recent run and deployment per project in two queries
+  // (ordered descending, then reduce to the first occurrence per project).
+  const latestRunByProject = new Map<
+    string,
+    { status: string; duration_ms: number | null; git_sha: string | null }
+  >();
+  const latestDeployTimeByProject = new Map<string, string>();
+
+  if (projectIds.length > 0) {
+    const { data: recentRuns } = await supabase
+      .from("pipeline_runs")
+      .select("project_id, status, duration_ms, git_sha, created_at")
+      .in("project_id", projectIds)
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    for (const run of recentRuns ?? []) {
+      const projectId = run.project_id as string;
+      if (!latestRunByProject.has(projectId)) {
+        latestRunByProject.set(projectId, {
+          status: run.status as string,
+          duration_ms: run.duration_ms as number | null,
+          git_sha: run.git_sha as string | null,
+        });
+      }
+    }
+
+    const { data: recentDeployments } = await supabase
+      .from("deployments")
+      .select("project_id, created_at")
+      .in("project_id", projectIds)
+      .order("created_at", { ascending: false })
+      .limit(500);
+
+    for (const deployment of recentDeployments ?? []) {
+      const projectId = deployment.project_id as string;
+      if (!latestDeployTimeByProject.has(projectId)) {
+        latestDeployTimeByProject.set(projectId, deployment.created_at as string);
+      }
+    }
+  }
 
   return (
     <>
@@ -58,19 +104,27 @@ export default async function ProjectsPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {projects.map((project) => (
-              <Link key={project.id} href={`/projects/${project.id}`}>
-                <ProjectCard
-                  id={project.id}
-                  name={project.name}
-                  git_repo_url={project.git_repo_url}
-                  last_pipeline_status={null}
-                  last_deploy_time={null}
-                  last_build_duration={null}
-                  last_commit_sha={null}
-                />
-              </Link>
-            ))}
+            {projects.map((project) => {
+              const latestRun = latestRunByProject.get(project.id);
+              const latestDeployTime = latestDeployTimeByProject.get(project.id);
+              return (
+                <Link key={project.id} href={`/projects/${project.id}`}>
+                  <ProjectCard
+                    id={project.id}
+                    name={project.name}
+                    git_repo_url={project.git_repo_url}
+                    last_pipeline_status={(latestRun?.status as PipelineRunStatus) ?? null}
+                    last_deploy_time={latestDeployTime ? formatDate(latestDeployTime) : null}
+                    last_build_duration={
+                      latestRun?.duration_ms != null
+                        ? formatDurationMs(latestRun.duration_ms)
+                        : null
+                    }
+                    last_commit_sha={latestRun?.git_sha?.slice(0, 7) ?? null}
+                  />
+                </Link>
+              );
+            })}
           </div>
         )}
       </main>
