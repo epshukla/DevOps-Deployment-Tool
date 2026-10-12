@@ -1,12 +1,17 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useRouter } from "next/navigation";
+import { hasMinRole } from "@deployx/shared";
 import { TopBar } from "@/components/layout/top-bar";
 import { HealthCheckChart } from "@/components/deployment/health-check-chart";
 import { CanaryProgressCard } from "@/components/deployment/canary-progress-card";
 import { RollingProgressCard } from "@/components/deployment/rolling-progress-card";
-import { stopDeployment, submitApprovalVote } from "../actions";
+import { BlueGreenProgressCard } from "@/components/deployment/blue-green-progress-card";
+import { RollbackDialog } from "@/components/deployment/rollback-dialog";
+import { useRealtimeDeployment } from "@/hooks/use-realtime-deployment";
+import { stopDeployment, rollbackDeployment, submitApprovalVote } from "../actions";
 import { formatDate, formatTime } from "@/lib/format-date";
 
 // ── Types ───────────────────────────────────────────────────────
@@ -81,19 +86,11 @@ interface Props {
   readonly healingEvents: readonly HealingEventData[];
   readonly approval: ApprovalData | null;
   readonly approvalVotes: readonly ApprovalVoteData[];
+  readonly currentRole: string;
 }
 
 // ── Status Badges ───────────────────────────────────────────────
 
-const STATUS_BADGE: Record<string, { text: string; className: string }> = {
-  pending: { text: "Pending", className: "bg-on-surface-variant/10 text-on-surface-variant" },
-  deploying: { text: "Deploying", className: "bg-primary/10 text-primary" },
-  active: { text: "Active", className: "bg-tertiary/10 text-tertiary" },
-  draining: { text: "Draining", className: "bg-warning/10 text-warning" },
-  stopped: { text: "Stopped", className: "bg-on-surface-variant/10 text-on-surface-variant" },
-  rolled_back: { text: "Rolled Back", className: "bg-error/10 text-error" },
-  failed: { text: "Failed", className: "bg-error/10 text-error" },
-};
 
 const HEALTH_COLOR: Record<string, string> = {
   healthy: "text-tertiary",
@@ -158,17 +155,29 @@ const HEALING_EVENT_LABEL: Record<string, string> = {
 
 export function DeploymentDetailClient({
   project,
-  deployment,
-  revisions,
-  healthChecks,
-  healingEvents,
+  deployment: initialDeployment,
+  revisions: initialRevisions,
+  healthChecks: initialHealthChecks,
+  healingEvents: initialHealingEvents,
   approval,
   approvalVotes,
+  currentRole,
 }: Props) {
   const [isPending, startTransition] = useTransition();
+  const [stopError, setStopError] = useState<string | null>(null);
+  const [isRollbackOpen, setIsRollbackOpen] = useState(false);
+  const [rollbackError, setRollbackError] = useState<string | null>(null);
+  const [isRollingBack, startRollbackTransition] = useTransition();
   const router = useRouter();
 
-  const badge = STATUS_BADGE[deployment.status] ?? STATUS_BADGE.pending;
+  const { deployment, revisions, healthChecks, healingEvents } = useRealtimeDeployment({
+    deploymentId: initialDeployment.id,
+    initialDeployment,
+    initialRevisions,
+    initialHealthChecks,
+    initialHealingEvents,
+  });
+
   const healthColor = HEALTH_COLOR[deployment.health_status] ?? HEALTH_COLOR.unknown;
 
   // Compute health percentage from recent checks
@@ -182,13 +191,49 @@ export function DeploymentDetailClient({
     : circumference;
 
   const handleStop = () => {
+    setStopError(null);
     startTransition(async () => {
-      await stopDeployment(project.id, deployment.id);
-      router.refresh();
+      const result = await stopDeployment(project.id, deployment.id);
+      if (result.error) {
+        setStopError(result.error);
+      } else {
+        router.refresh();
+      }
     });
   };
 
   const isTerminal = ["stopped", "rolled_back", "failed"].includes(deployment.status);
+  const canManageDeployment = hasMinRole(currentRole, "developer");
+  const previousRevisions = revisions.filter((r) => r.id !== deployment.current_revision_id);
+  // Mirrors rollbackDeployment's own status check so the button isn't shown
+  // only to fail server-side (e.g. while still "pending" or "deploying").
+  const canRollback =
+    canManageDeployment &&
+    ["active", "draining"].includes(deployment.status) &&
+    previousRevisions.length > 0;
+
+  const handleOpenRollback = () => {
+    setRollbackError(null);
+    setIsRollbackOpen(true);
+  };
+
+  const handleCloseRollback = () => {
+    setIsRollbackOpen(false);
+    setRollbackError(null);
+  };
+
+  const handleConfirmRollback = (targetRevisionId: string, reason: string) => {
+    setRollbackError(null);
+    startRollbackTransition(async () => {
+      const result = await rollbackDeployment(project.id, deployment.id, targetRevisionId, reason);
+      if (result.error) {
+        setRollbackError(result.error);
+      } else {
+        setIsRollbackOpen(false);
+        router.refresh();
+      }
+    });
+  };
 
   return (
     <>
@@ -197,7 +242,7 @@ export function DeploymentDetailClient({
           { label: "Projects", href: "/projects" },
           { label: project.name, href: `/projects/${project.id}` },
           { label: "Deployments" },
-          { label: `#${revisions[revisions.length - 1]?.revision_number ?? 1}` },
+          { label: `#${revisions[0]?.revision_number ?? 1}` },
         ]}
       />
 
@@ -206,21 +251,19 @@ export function DeploymentDetailClient({
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 max-w-[1600px] mx-auto">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl font-bold tracking-tight text-on-surface">
+              <h1 className="font-mono text-xl font-semibold text-on-surface">
                 Deployment
               </h1>
-              <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider ${badge.className}`}>
-                {badge.text}
-              </span>
+              <StatusBadge status={deployment.status} size="md" />
             </div>
             <div className="flex items-center gap-4 text-on-surface-variant text-sm">
               <span className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-sm">strategy</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-sm">strategy</span>
                 {deployment.strategy.replace("_", " ")}
               </span>
               <span className="text-outline-variant">|</span>
               <span className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-sm">dns</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-sm">dns</span>
                 {deployment.deploy_target.replace("_", " ")}
               </span>
               <span className="text-outline-variant">|</span>
@@ -229,20 +272,41 @@ export function DeploymentDetailClient({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            {!isTerminal && (
-              <button
-                onClick={handleStop}
-                disabled={isPending}
-                className="flex items-center gap-2 px-4 py-2 border border-error/30 text-error hover:bg-error/10 transition-colors font-medium text-sm rounded-md disabled:opacity-50"
-              >
-                <span className="material-symbols-outlined text-sm">stop_circle</span>
-                {isPending ? "Stopping..." : "Stop"}
-              </button>
-            )}
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-3">
+              {canRollback && (
+                <button
+                  onClick={handleOpenRollback}
+                  className="flex items-center gap-2 px-4 py-2 border border-outline-variant/30 text-on-surface hover:bg-surface-container-high transition-colors font-medium text-sm rounded-md"
+                >
+                  <span aria-hidden="true" className="material-symbols-outlined text-sm">undo</span>
+                  Rollback
+                </button>
+              )}
+              {!isTerminal && (
+                <button
+                  onClick={handleStop}
+                  disabled={isPending}
+                  className="flex items-center gap-2 px-4 py-2 border border-error/30 text-error hover:bg-error/10 transition-colors font-medium text-sm rounded-md disabled:opacity-50"
+                >
+                  <span aria-hidden="true" className="material-symbols-outlined text-sm">stop_circle</span>
+                  {isPending ? "Stopping..." : "Stop"}
+                </button>
+              )}
+            </div>
+            {stopError && <p className="text-xs text-error">{stopError}</p>}
           </div>
         </div>
       </section>
+
+      <RollbackDialog
+        isOpen={isRollbackOpen}
+        revisions={previousRevisions}
+        pending={isRollingBack}
+        error={rollbackError}
+        onClose={handleCloseRollback}
+        onConfirm={handleConfirmRollback}
+      />
 
       {/* Approval Card */}
       {approval && (
@@ -262,7 +326,7 @@ export function DeploymentDetailClient({
           {/* Health Status Ring */}
           <div className="bg-surface-container rounded-lg p-6 flex flex-col md:flex-row gap-8 items-start">
             <div className="flex flex-col items-center gap-4 min-w-[160px]">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+              <h3 className="text-xs font-bold text-on-surface-variant">
                 Health Status
               </h3>
               <div className="relative w-32 h-32 flex items-center justify-center">
@@ -294,7 +358,7 @@ export function DeploymentDetailClient({
                   <span className={`text-2xl font-bold ${healthColor}`}>
                     {healthChecks.length > 0 ? `${healthPercent}%` : "—"}
                   </span>
-                  <span className={`text-[10px] uppercase font-bold ${healthColor}`}>
+                  <span className={`text-xs uppercase font-bold ${healthColor}`}>
                     {deployment.health_status}
                   </span>
                 </div>
@@ -302,7 +366,7 @@ export function DeploymentDetailClient({
             </div>
             <div className="flex-1 w-full">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                <h3 className="text-xs font-bold text-on-surface-variant">
                   Response Time (ms)
                 </h3>
               </div>
@@ -317,11 +381,14 @@ export function DeploymentDetailClient({
           {deployment.strategy === "rolling" && (
             <RollingProgressCard healingEvents={healingEvents} />
           )}
+          {deployment.strategy === "blue_green" && (
+            <BlueGreenProgressCard revisions={revisions} healingEvents={healingEvents} />
+          )}
 
           {/* Recent Health Checks Table */}
           <div className="bg-surface-container rounded-lg overflow-hidden">
             <div className="px-6 py-4 flex items-center justify-between border-b border-outline-variant/10">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+              <h3 className="text-xs font-bold text-on-surface-variant">
                 Recent Health Checks
               </h3>
               <span className="text-xs text-on-surface-variant/60">
@@ -331,7 +398,7 @@ export function DeploymentDetailClient({
             {healthChecks.length > 0 ? (
               <table className="w-full">
                 <thead>
-                  <tr className="text-xs text-on-surface-variant/60 uppercase tracking-widest border-b border-outline-variant/10">
+                  <tr className="text-xs text-on-surface-variant/60 border-b border-outline-variant/10">
                     <th className="text-left px-6 py-2">Status</th>
                     <th className="text-left px-6 py-2">Response</th>
                     <th className="text-left px-6 py-2">Code</th>
@@ -364,7 +431,7 @@ export function DeploymentDetailClient({
               </table>
             ) : (
               <div className="px-6 py-8 text-center">
-                <span className="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2 block">
+                <span aria-hidden="true" className="material-symbols-outlined text-3xl text-on-surface-variant/30 mb-2 block">
                   monitor_heart
                 </span>
                 <p className="text-xs text-on-surface-variant">
@@ -378,14 +445,13 @@ export function DeploymentDetailClient({
         {/* Right Column: Revision History */}
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-surface-container rounded-lg p-6">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-6">
+            <h3 className="text-xs font-bold text-on-surface-variant mb-6">
               Revision History
             </h3>
             {revisions.length > 0 ? (
               <div className="space-y-0">
                 {revisions.map((rev) => {
                   const isCurrent = rev.id === deployment.current_revision_id;
-                  const revBadge = STATUS_BADGE[rev.status] ?? STATUS_BADGE.pending;
                   return (
                     <div
                       key={rev.id}
@@ -408,21 +474,19 @@ export function DeploymentDetailClient({
                         <span className="text-sm font-bold text-on-surface">
                           #{rev.revision_number}
                         </span>
-                        <span className={`px-1.5 py-0.5 rounded-sm text-[9px] font-bold uppercase ${revBadge.className}`}>
-                          {revBadge.text}
-                        </span>
+                        <StatusBadge status={rev.status} />
                       </div>
 
                       <p className="text-xs font-mono text-on-surface-variant truncate mb-1">
                         {rev.image_tag}
                       </p>
 
-                      <p className="text-[10px] text-on-surface-variant/60">
+                      <p className="text-xs text-on-surface-variant/60">
                         {formatDate(rev.created_at)}
                       </p>
 
                       {rev.rollback_reason && (
-                        <p className="text-[10px] text-error mt-1">
+                        <p className="text-xs text-error mt-1">
                           {rev.rollback_reason}
                         </p>
                       )}
@@ -442,14 +506,14 @@ export function DeploymentDetailClient({
           {/* Image Info */}
           {revisions.length > 0 && (
             <div className="bg-surface-container rounded-lg p-6">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">
+              <h3 className="text-xs font-bold text-on-surface-variant mb-4">
                 Current Image
               </h3>
               <p className="text-xs font-mono text-on-surface break-all">
                 {revisions[0].image_tag}
               </p>
               {revisions[0].image_digest && (
-                <p className="text-[10px] font-mono text-on-surface-variant/60 mt-1 break-all">
+                <p className="text-xs font-mono text-on-surface-variant/60 mt-1 break-all">
                   {revisions[0].image_digest}
                 </p>
               )}
@@ -459,13 +523,13 @@ export function DeploymentDetailClient({
           {/* Self-Healing Events */}
           {healingEvents.length > 0 && (
             <div className="bg-surface-container rounded-lg p-6">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">
+              <h3 className="text-xs font-bold text-on-surface-variant mb-4">
                 Self-Healing Events
               </h3>
               <div className="space-y-3">
                 {healingEvents.map((event) => (
                   <div key={event.id} className="flex items-start gap-3">
-                    <span
+                    <span aria-hidden="true"
                       className={`material-symbols-outlined text-sm mt-0.5 ${
                         HEALING_EVENT_COLOR[event.event_type] ?? "text-on-surface-variant"
                       }`}
@@ -477,7 +541,7 @@ export function DeploymentDetailClient({
                         {HEALING_EVENT_LABEL[event.event_type] ?? event.event_type}
                         {event.attempt_number != null && ` #${event.attempt_number}`}
                       </p>
-                      <p className="text-[10px] text-on-surface-variant/60">
+                      <p className="text-xs text-on-surface-variant/60">
                         {formatDate(event.created_at)}
                       </p>
                     </div>
@@ -511,7 +575,7 @@ function ApprovalCard({
   const isPending = approval.status === "pending";
 
   const statusBadge = {
-    pending: { text: "Awaiting Approval", className: "bg-primary/10 text-primary" },
+    pending: { text: "Awaiting approval", className: "bg-warning/10 text-warning" },
     approved: { text: "Approved", className: "bg-tertiary/10 text-tertiary" },
     rejected: { text: "Rejected", className: "bg-error/10 text-error" },
   }[approval.status] ?? { text: approval.status, className: "bg-on-surface-variant/10 text-on-surface-variant" };
@@ -532,9 +596,9 @@ function ApprovalCard({
     <div className="bg-surface-container rounded-lg p-6 ring-1 ring-primary/20">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-primary">approval</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-primary">approval</span>
           <h3 className="text-sm font-bold text-on-surface">Deployment Approval</h3>
-          <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase ${statusBadge.className}`}>
+          <span className={`px-2 py-0.5 rounded-sm text-xs font-bold uppercase ${statusBadge.className}`}>
             {statusBadge.text}
           </span>
         </div>
@@ -548,7 +612,7 @@ function ApprovalCard({
         <div className="space-y-2 mb-4">
           {votes.map((vote) => (
             <div key={vote.id} className="flex items-center gap-3 text-xs">
-              <span className={`material-symbols-outlined text-sm ${
+              <span aria-hidden="true" className={`material-symbols-outlined text-sm ${
                 vote.decision === "approve" ? "text-tertiary" : "text-error"
               }`}>
                 {vote.decision === "approve" ? "check_circle" : "cancel"}
@@ -577,7 +641,7 @@ function ApprovalCard({
             disabled={isVoting}
             className="flex items-center gap-1.5 px-4 py-2 bg-tertiary text-on-tertiary text-xs font-bold rounded hover:bg-tertiary/90 transition-colors disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-sm">check</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">check</span>
             Approve
           </button>
           <button
@@ -585,7 +649,7 @@ function ApprovalCard({
             disabled={isVoting}
             className="flex items-center gap-1.5 px-4 py-2 border border-error/30 text-error text-xs font-bold rounded hover:bg-error/10 transition-colors disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-sm">close</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">close</span>
             Reject
           </button>
         </div>

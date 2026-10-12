@@ -9,6 +9,11 @@ interface ActionResult {
   readonly success?: boolean;
 }
 
+interface RerunResult {
+  readonly error?: string;
+  readonly run_id?: string;
+}
+
 const TERMINAL_STATUSES = new Set([
   "success",
   "failed",
@@ -102,4 +107,66 @@ export async function cancelPipelineRun(
   revalidatePath(`/projects/${projectId}`);
 
   return { success: true };
+}
+
+/**
+ * Re-run a terminal pipeline run: creates a brand-new run for the same
+ * pipeline definition/version, branch, and commit SHA.
+ */
+export async function rerunPipelineRun(
+  projectId: string,
+  runId: string,
+): Promise<RerunResult> {
+  const { supabase, user, role } = await requireUserWithOrg();
+
+  if (!hasMinRole(role, "developer")) {
+    return { error: "You don't have permission to re-run pipelines" };
+  }
+
+  const { data: sourceRun } = await supabase
+    .from("pipeline_runs")
+    .select("id, status, pipeline_definition_id, pipeline_version_id, git_branch, git_sha")
+    .eq("id", runId)
+    .eq("project_id", projectId)
+    .single();
+
+  if (!sourceRun) {
+    return { error: "Run not found" };
+  }
+
+  if (!TERMINAL_STATUSES.has(sourceRun.status)) {
+    return { error: "Run must be finished before it can be re-run" };
+  }
+
+  const { data: newRun, error: runError } = await supabase
+    .from("pipeline_runs")
+    .insert({
+      pipeline_definition_id: sourceRun.pipeline_definition_id,
+      pipeline_version_id: sourceRun.pipeline_version_id,
+      project_id: projectId,
+      status: "created",
+      trigger_type: "manual",
+      git_branch: sourceRun.git_branch,
+      git_sha: sourceRun.git_sha,
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
+
+  if (runError || !newRun) {
+    return { error: "Failed to create re-run" };
+  }
+
+  const { error: queueError } = await supabase
+    .from("pipeline_runs")
+    .update({ status: "queued", updated_at: new Date().toISOString() })
+    .eq("id", newRun.id);
+
+  if (queueError) {
+    return { error: "Failed to queue re-run" };
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+
+  return { run_id: newRun.id };
 }

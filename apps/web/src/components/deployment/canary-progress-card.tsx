@@ -36,22 +36,22 @@ export function CanaryProgressCard({ healingEvents }: CanaryProgressCardProps) {
   const stages = [10, 25, 50, 100];
 
   return (
-    <div className="bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10 overflow-hidden">
+    <div className="bg-surface-container-low rounded-lg border border-outline-variant overflow-hidden">
       <div className="px-6 py-4 border-b border-outline-variant/10">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-sm text-primary">
+          <span aria-hidden="true" className="material-symbols-outlined text-sm text-primary">
             tune
           </span>
           <h3 className="text-sm font-bold text-on-surface">
             Canary Promotion
           </h3>
           {rollbackEvent && (
-            <span className="px-2 py-0.5 bg-error/10 text-error text-[10px] font-bold rounded-full">
+            <span className="px-2 py-0.5 bg-error/10 text-error text-xs font-bold rounded-full">
               Rolled Back
             </span>
           )}
           {!rollbackEvent && completedPercentages.includes(100) && (
-            <span className="px-2 py-0.5 bg-tertiary/10 text-tertiary text-[10px] font-bold rounded-full">
+            <span className="px-2 py-0.5 bg-tertiary/10 text-tertiary text-xs font-bold rounded-full">
               Complete
             </span>
           )}
@@ -81,7 +81,7 @@ export function CanaryProgressCard({ healingEvents }: CanaryProgressCardProps) {
                   className={`w-full h-2 rounded-full ${bgColor} transition-colors`}
                 />
                 <span
-                  className={`text-[10px] font-mono ${
+                  className={`text-xs font-mono ${
                     isCompleted
                       ? "text-tertiary font-bold"
                       : isFailed

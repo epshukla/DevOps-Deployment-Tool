@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useRealtimeNotifications } from "@/hooks/use-realtime-notifications";
 import {
   markNotificationsRead,
@@ -19,6 +20,7 @@ interface NotificationData {
 
 interface NotificationDropdownProps {
   readonly userId: string;
+  readonly orgId?: string | null;
   readonly initialNotifications: readonly NotificationData[];
   readonly initialUnreadCount: number;
 }
@@ -46,14 +48,17 @@ const TYPE_ICON: Record<string, string> = {
 
 export function NotificationDropdown({
   userId,
+  orgId = null,
   initialNotifications,
   initialUnreadCount,
 }: NotificationDropdownProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { notifications, unreadCount, markAsRead, markAllRead } =
     useRealtimeNotifications({
       userId,
+      orgId,
       initialNotifications,
       initialUnreadCount,
     });
@@ -82,17 +87,25 @@ export function NotificationDropdown({
       await markNotificationsRead([notification.id]);
     }
     setOpen(false);
+
+    // Producers put an in-app link in metadata.href; only follow internal paths
+    const href = notification.metadata?.href;
+    if (typeof href === "string" && href.startsWith("/") && !href.startsWith("//")) {
+      router.push(href);
+    }
   }
 
   return (
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setOpen(!open)}
+        aria-label={unreadCount > 0 ? `Notifications (${unreadCount} unread)` : "Notifications"}
+        aria-expanded={open}
         className="hover:text-on-surface transition-all duration-200 relative"
       >
-        <span className="material-symbols-outlined">notifications</span>
+        <span aria-hidden="true" className="material-symbols-outlined">notifications</span>
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-primary rounded-full flex items-center justify-center text-[10px] font-bold text-on-primary px-1">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-primary rounded-full flex items-center justify-center text-xs font-bold text-on-primary px-1">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -117,7 +130,7 @@ export function NotificationDropdown({
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             {notifications.length === 0 ? (
               <div className="px-4 py-8 text-center text-on-surface-variant/50 text-sm">
-                <span className="material-symbols-outlined text-3xl mb-2 block">
+                <span aria-hidden="true" className="material-symbols-outlined text-3xl mb-2 block">
                   notifications_none
                 </span>
                 No notifications yet
@@ -131,7 +144,7 @@ export function NotificationDropdown({
                     !n.is_read ? "bg-primary/5" : ""
                   }`}
                 >
-                  <span className="material-symbols-outlined text-on-surface-variant/60 text-lg mt-0.5">
+                  <span aria-hidden="true" className="material-symbols-outlined text-on-surface-variant/60 text-lg mt-0.5">
                     {TYPE_ICON[n.type] ?? "info"}
                   </span>
                   <div className="flex-1 min-w-0">
@@ -146,7 +159,7 @@ export function NotificationDropdown({
                     <p className="text-xs text-on-surface-variant/60 mt-0.5 line-clamp-2">
                       {n.body}
                     </p>
-                    <span className="text-[10px] text-on-surface-variant/40 mt-1 block">
+                    <span className="text-xs text-on-surface-variant/40 mt-1 block">
                       {timeAgo(n.created_at)}
                     </span>
                   </div>

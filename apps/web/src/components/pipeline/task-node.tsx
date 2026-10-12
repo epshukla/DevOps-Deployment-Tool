@@ -14,10 +14,11 @@ interface TaskNodeData {
 const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string; ring: string }> = {
   success: { bg: "bg-tertiary/10", text: "text-tertiary", dot: "bg-tertiary", ring: "ring-tertiary/20" },
   failed: { bg: "bg-error/10", text: "text-error", dot: "bg-error", ring: "ring-error/20" },
-  running: { bg: "bg-primary/10", text: "text-primary", dot: "bg-primary animate-pulse", ring: "ring-primary/30" },
+  running: { bg: "bg-info/10", text: "text-info", dot: "bg-info animate-pulse", ring: "ring-info/30" },
   pending: { bg: "bg-on-surface-variant/10", text: "text-on-surface-variant", dot: "bg-on-surface-variant/40", ring: "ring-outline-variant/10" },
   skipped: { bg: "bg-on-surface-variant/10", text: "text-on-surface-variant", dot: "bg-on-surface-variant/40", ring: "ring-outline-variant/10" },
   cancelled: { bg: "bg-on-surface-variant/10", text: "text-on-surface-variant", dot: "bg-on-surface-variant/40", ring: "ring-outline-variant/10" },
+  awaiting_approval: { bg: "bg-warning/10", text: "text-warning", dot: "bg-warning animate-pulse", ring: "ring-warning/30" },
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -47,7 +48,7 @@ function TaskNodeComponent({ data }: NodeProps) {
       <Handle type="target" position={Position.Top} className="!bg-outline-variant/40 !w-2 !h-2 !border-0" />
       <div
         className={`px-4 py-3 rounded-lg bg-surface-container ring-1 ${colors.ring} min-w-[200px] cursor-pointer hover:bg-surface-container-high transition-colors ${
-          nodeData.status === "running" ? "shadow-md shadow-primary/10" : ""
+          nodeData.status === "running" ? "shadow-md shadow-info/10" : ""
         }`}
       >
         <div className="flex items-center justify-between gap-3">
@@ -57,9 +58,9 @@ function TaskNodeComponent({ data }: NodeProps) {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {duration && (
-              <span className="text-[10px] font-mono text-on-surface-variant">{duration}</span>
+              <span className="text-xs font-mono text-on-surface-variant">{duration}</span>
             )}
-            <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-sm ${colors.bg} ${colors.text}`}>
+            <span className={`text-[11px] font-bold uppercase px-1.5 py-0.5 rounded-sm ${colors.bg} ${colors.text}`}>
               {label}
             </span>
           </div>

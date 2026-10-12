@@ -10,7 +10,7 @@ interface SlaUptimeRingProps {
 
 const STATUS_COLOR: Record<SlaStatus, string> = {
   met: "var(--color-tertiary)",
-  at_risk: "#ffd54f",
+  at_risk: "var(--color-warning)",
   breached: "var(--color-error)",
 };
 
@@ -65,7 +65,7 @@ export function SlaUptimeRing({
         </div>
       </div>
       <span
-        className="text-xs font-semibold uppercase tracking-wider"
+        className="text-xs font-semibold"
         style={{ color }}
       >
         {STATUS_LABEL[slaStatus]}

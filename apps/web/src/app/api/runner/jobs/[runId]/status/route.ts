@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { notifyApprovalRequested, notifyRunFinished } from "@/lib/notifications";
 import { RunStatusUpdateSchema } from "@deployx/shared";
-import { authenticateRunner } from "@/lib/auth/runner";
+import { authenticateRunner, authorizeRunnerForRun } from "@/lib/auth/runner";
 import {
   assertPipelineTransition,
   assertTaskTransition,
@@ -24,19 +25,14 @@ export async function GET(request: Request, { params }: RouteParams) {
   const auth = await authenticateRunner(request);
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth;
+  const { runner, supabase } = auth;
 
-  const { data: run, error } = await supabase
-    .from("pipeline_runs")
-    .select("status")
-    .eq("id", runId)
-    .single();
+  const authz = await authorizeRunnerForRun(supabase, runner, runId, {
+    requireClaimedBy: false,
+  });
+  if (!authz.ok) return authz.response;
 
-  if (error || !run) {
-    return NextResponse.json({ error: "Run not found" }, { status: 404 });
-  }
-
-  return NextResponse.json({ status: run.status });
+  return NextResponse.json({ status: authz.value.status });
 }
 
 /**
@@ -51,6 +47,11 @@ export async function POST(request: Request, { params }: RouteParams) {
   if (!auth.ok) return auth.response;
 
   const { runner, supabase } = auth;
+
+  const authz = await authorizeRunnerForRun(supabase, runner, runId, {
+    requireClaimedBy: true,
+  });
+  if (!authz.ok) return authz.response;
 
   let body: unknown;
   try {
@@ -71,6 +72,20 @@ export async function POST(request: Request, { params }: RouteParams) {
   }
 
   const { scope, status, task_name, step_name, error_message, exit_code, started_at, finished_at } = parsed.data;
+
+  // The schema has no error column; keep the runner's reason in the run log
+  if (error_message) {
+    const { error: logError } = await supabase.from("run_logs").insert({
+      pipeline_run_id: runId,
+      level: "error",
+      message: `[${scope}${task_name ? `:${task_name}` : ""}${step_name ? `/${step_name}` : ""}] ${error_message}`,
+      timestamp: new Date().toISOString(),
+      metadata: { source: "status_report", status },
+    });
+    if (logError) {
+      console.error(`[api/runner/status] Failed to persist error_message for ${runId}: ${logError.message}`);
+    }
+  }
 
   try {
     if (scope === "pipeline") {
@@ -147,6 +162,9 @@ async function updatePipelineStatus(
       .from("runner_registrations")
       .update({ current_job_id: null, status: "online" })
       .eq("id", runner.id);
+
+    // Don't hold the runner's request open for the notification write
+    after(() => notifyRunFinished(supabase, runId, newStatus));
   }
 
   return NextResponse.json({ updated: true, status: newStatus });
@@ -188,6 +206,10 @@ async function updateTaskStatus(
 
   if (error) {
     return NextResponse.json({ error: "Failed to update task" }, { status: 500 });
+  }
+
+  if (newStatus === "awaiting_approval") {
+    after(() => notifyApprovalRequested(supabase, runId, taskName));
   }
 
   return NextResponse.json({ updated: true, task_name: taskName, status: newStatus });

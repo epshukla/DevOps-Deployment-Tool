@@ -5,7 +5,7 @@ import {
   HEALTH_THRESHOLD_HEALTHY,
   HEALTH_THRESHOLD_DEGRADED,
 } from "@deployx/shared";
-import { authenticateRunner } from "@/lib/auth/runner";
+import { authenticateRunner, authorizeRunnerForDeployment } from "@/lib/auth/runner";
 
 interface RouteParams {
   readonly params: Promise<{ runId: string; deploymentId: string }>;
@@ -21,8 +21,16 @@ export async function POST(request: Request, { params }: RouteParams) {
   const auth = await authenticateRunner(request);
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth;
-  void runId; // Used for auth context
+  const { runner, supabase } = auth;
+
+  // Deployment must belong to the run's project, in the runner's org
+  const authz = await authorizeRunnerForDeployment(
+    supabase,
+    runner,
+    runId,
+    deploymentId,
+  );
+  if (!authz.ok) return authz.response;
 
   let body: unknown;
   try {

@@ -1,7 +1,7 @@
 import type { DeployerDriver, DeployContext, DeployResult } from "./deployer-interface";
 import type { DeploymentStatus, HealthStatus } from "@deployx/shared";
 import { RailwayApiClient } from "./clients";
-import type { RailwayService } from "./clients";
+import type { RailwayEnvironment } from "./clients";
 import { waitForHealthy, checkHealth } from "./health-checker";
 
 // ── Constants ───────────────────────────────────────────────────
@@ -12,6 +12,27 @@ const HEALTH_CHECK_TIMEOUT_MS = 5_000;
 const HEALTH_CHECK_RETRIES = 5;
 const HEALTH_CHECK_INTERVAL_MS = 3_000;
 const HEALTH_CHECK_START_PERIOD_MS = 5_000;
+const DEFAULT_ENVIRONMENT_NAME = "production";
+
+// Railway DeploymentStatus values that will not change without a new action
+// (https://docs.railway.com/integrations/api/manage-deployments)
+const TERMINAL_STATUSES: ReadonlySet<string> = new Set([
+  "SUCCESS",
+  "FAILED",
+  "CRASHED",
+  "REMOVED",
+  "SKIPPED",
+]);
+
+// Statuses where a deployment is still in progress and must be cancelled
+// rather than stopped
+const IN_PROGRESS_STATUSES: ReadonlySet<string> = new Set([
+  "BUILDING",
+  "DEPLOYING",
+  "INITIALIZING",
+  "QUEUED",
+  "WAITING",
+]);
 
 // ── Railway Deployer ────────────────────────────────────────────
 
@@ -43,39 +64,26 @@ export class RailwayDeployer implements DeployerDriver {
       // Validate image looks registry-qualified
       this.validateImageTag(ctx.imageTag);
 
-      // Find or create service
-      const serviceName = `deployx-${ctx.projectSlug}`;
-      const service = await this.findOrCreateService(
-        railwayClient,
-        projectId,
-        serviceName,
+      const target = await this.prepareService(ctx, railwayClient, projectId);
+      this.cachedServiceId = target.serviceId;
+
+      // Trigger a deployment of the service instance in the target environment
+      const deploymentId = await railwayClient.deployServiceInstance(
+        target.serviceId,
+        target.environmentId,
       );
-      this.cachedServiceId = service.id;
+      this.cachedDeploymentId = deploymentId;
 
       logStreamer.push({
         level: "info",
-        message: `[railway] Using service: ${service.name} (${service.id})`,
-        task_run_id: taskRunId,
-      });
-
-      // Create deployment
-      const deployment = await railwayClient.createDeployment(
-        service.id,
-        ctx.imageTag,
-        ctx.config.env,
-      );
-      this.cachedDeploymentId = deployment.id;
-
-      logStreamer.push({
-        level: "info",
-        message: `[railway] Deployment created: ${deployment.id}`,
+        message: `[railway] Deployment created: ${deploymentId}`,
         task_run_id: taskRunId,
       });
 
       // Poll for deployment status
       const finalDeployment = await this.waitForDeployment(
         railwayClient,
-        deployment.id,
+        deploymentId,
       );
 
       if (finalDeployment.status !== "SUCCESS") {
@@ -85,42 +93,7 @@ export class RailwayDeployer implements DeployerDriver {
         };
       }
 
-      const publicUrl = finalDeployment.staticUrl
-        ? `https://${finalDeployment.staticUrl}`
-        : undefined;
-      this.cachedPublicUrl = publicUrl ?? null;
-
-      logStreamer.push({
-        level: "info",
-        message: `[railway] Deployment live${publicUrl ? ` at ${publicUrl}` : ""}`,
-        task_run_id: taskRunId,
-      });
-
-      // Health check against public URL
-      if (publicUrl) {
-        const healthPath = ctx.config.health_check?.path ?? "/health";
-        const healthUrl = `${publicUrl}${healthPath}`;
-
-        const healthResult = await waitForHealthy({
-          url: healthUrl,
-          timeoutMs: HEALTH_CHECK_TIMEOUT_MS,
-          retries: HEALTH_CHECK_RETRIES,
-          intervalMs: HEALTH_CHECK_INTERVAL_MS,
-          startPeriodMs: HEALTH_CHECK_START_PERIOD_MS,
-        });
-
-        this.reportHealthCheck(ctx, healthResult).catch(() => {});
-
-        if (!healthResult.passed) {
-          return {
-            success: false,
-            publicUrl,
-            error: `Health check failed: ${healthResult.error}`,
-          };
-        }
-      }
-
-      return { success: true, publicUrl };
+      return this.verifyDeployment(ctx, finalDeployment.staticUrl);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       logStreamer.push({
@@ -153,25 +126,33 @@ export class RailwayDeployer implements DeployerDriver {
   // ── Stop ────────────────────────────────────────────────────
 
   async stop(ctx: DeployContext): Promise<void> {
-    const railwayClient = this.cachedClient ?? this.getApiClient(ctx);
     const deploymentId = this.cachedDeploymentId;
+    if (!deploymentId) return;
 
-    if (deploymentId) {
-      try {
+    try {
+      const railwayClient = this.cachedClient ?? this.getApiClient(ctx);
+      const { status } = await railwayClient.getDeployment(deploymentId);
+
+      // In-progress deployments are cancelled; live ones are stopped
+      const inProgress = IN_PROGRESS_STATUSES.has(status);
+      if (inProgress) {
         await railwayClient.cancelDeployment(deploymentId);
-        ctx.logStreamer.push({
-          level: "info",
-          message: `[railway] Deployment ${deploymentId} cancelled`,
-          task_run_id: ctx.taskRunId,
-        });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        ctx.logStreamer.push({
-          level: "warn",
-          message: `[railway] Failed to cancel deployment: ${msg}`,
-          task_run_id: ctx.taskRunId,
-        });
+      } else {
+        await railwayClient.stopDeployment(deploymentId);
       }
+
+      ctx.logStreamer.push({
+        level: "info",
+        message: `[railway] Deployment ${deploymentId} ${inProgress ? "cancelled" : "stopped"}`,
+        task_run_id: ctx.taskRunId,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      ctx.logStreamer.push({
+        level: "warn",
+        message: `[railway] Failed to stop deployment ${deploymentId}: ${msg}`,
+        task_run_id: ctx.taskRunId,
+      });
     }
   }
 
@@ -187,7 +168,9 @@ export class RailwayDeployer implements DeployerDriver {
         this.cachedDeploymentId,
       );
       return mapRailwayStatus(deployment.status);
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[railway] Failed to get status of deployment ${this.cachedDeploymentId}: ${msg}`);
       return "unknown" as DeploymentStatus;
     }
   }
@@ -211,7 +194,9 @@ export class RailwayDeployer implements DeployerDriver {
       return result.passed
         ? ("healthy" as HealthStatus)
         : ("unhealthy" as HealthStatus);
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[railway] Health probe of ${this.cachedPublicUrl} failed: ${msg}`);
       return "unknown" as HealthStatus;
     }
   }
@@ -232,21 +217,33 @@ export class RailwayDeployer implements DeployerDriver {
         tailLines,
       );
       return logs.map((l) => `${l.timestamp} ${l.message}`);
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[railway] Failed to fetch logs for deployment ${this.cachedDeploymentId}: ${msg}`);
       return [];
     }
   }
 
   // ── Helpers ─────────────────────────────────────────────────
 
+  /**
+   * RAILWAY_API_TOKEN is an account/workspace token (Bearer auth);
+   * RAILWAY_PROJECT_TOKEN is a project token (Project-Access-Token header).
+   */
   private getApiClient(ctx: DeployContext): RailwayApiClient {
-    const token = ctx.secrets.RAILWAY_API_TOKEN;
-    if (!token) {
-      throw new Error(
-        "RAILWAY_API_TOKEN secret required. Add it in Project Settings → Secrets.",
-      );
+    const accountToken = ctx.secrets.RAILWAY_API_TOKEN;
+    if (accountToken) {
+      return new RailwayApiClient({ apiToken: accountToken, tokenType: "account" });
     }
-    return new RailwayApiClient({ apiToken: token });
+
+    const projectToken = ctx.secrets.RAILWAY_PROJECT_TOKEN;
+    if (projectToken) {
+      return new RailwayApiClient({ apiToken: projectToken, tokenType: "project" });
+    }
+
+    throw new Error(
+      "RAILWAY_API_TOKEN (or RAILWAY_PROJECT_TOKEN) secret required. Add it in Project Settings → Secrets.",
+    );
   }
 
   private getProjectId(ctx: DeployContext): string {
@@ -260,6 +257,27 @@ export class RailwayDeployer implements DeployerDriver {
     return projectId;
   }
 
+  /**
+   * Picks the Railway environment: RAILWAY_ENVIRONMENT_ID secret if set,
+   * otherwise the "production" environment, otherwise the only environment.
+   */
+  private resolveEnvironmentId(
+    ctx: DeployContext,
+    environments: readonly RailwayEnvironment[],
+  ): string {
+    const explicit = ctx.secrets.RAILWAY_ENVIRONMENT_ID;
+    if (explicit) return explicit;
+
+    const production = environments.find((e) => e.name === DEFAULT_ENVIRONMENT_NAME);
+    if (production) return production.id;
+
+    if (environments.length === 1) return environments[0].id;
+
+    throw new Error(
+      `Could not determine Railway environment (found ${environments.length}, none named "${DEFAULT_ENVIRONMENT_NAME}"). Set the RAILWAY_ENVIRONMENT_ID secret.`,
+    );
+  }
+
   private validateImageTag(imageTag: string): void {
     if (!imageTag.includes("/")) {
       throw new Error(
@@ -268,35 +286,102 @@ export class RailwayDeployer implements DeployerDriver {
     }
   }
 
-  private async findOrCreateService(
+  /**
+   * Resolves the environment, finds or creates the service pointing at the
+   * image, and applies env variables and region before a deploy is triggered.
+   */
+  private async prepareService(
+    ctx: DeployContext,
     client: RailwayApiClient,
     projectId: string,
-    serviceName: string,
-  ): Promise<RailwayService> {
-    const services = await client.listServices(projectId);
-    const existing = services.find((s) => s.name === serviceName);
+  ): Promise<{ readonly serviceId: string; readonly environmentId: string }> {
+    const project = await client.getProject(projectId);
+    const environmentId = this.resolveEnvironmentId(ctx, project.environments);
+
+    // Find or create service
+    const serviceName = `deployx-${ctx.projectSlug}`;
+    const existing = project.services.find((s) => s.name === serviceName);
+    const service = existing
+      ?? (await client.createService(projectId, serviceName, ctx.imageTag));
 
     if (existing) {
-      return existing;
+      await client.connectServiceImage(existing.id, ctx.imageTag);
     }
 
-    return client.createService(projectId, serviceName);
+    ctx.logStreamer.push({
+      level: "info",
+      message: `[railway] Using service: ${service.name} (${service.id})`,
+      task_run_id: ctx.taskRunId,
+    });
+
+    const env = ctx.config.env ?? {};
+    if (Object.keys(env).length > 0) {
+      await client.upsertVariables(
+        { projectId, environmentId, serviceId: service.id },
+        env,
+      );
+    }
+
+    const region = ctx.config.railway?.region;
+    if (region) {
+      await client.updateServiceInstance(service.id, environmentId, { region });
+    }
+
+    return { serviceId: service.id, environmentId };
+  }
+
+  /**
+   * Health-checks the deployment's public URL (when Railway assigned one).
+   */
+  private async verifyDeployment(
+    ctx: DeployContext,
+    staticUrl: string | null | undefined,
+  ): Promise<DeployResult> {
+    const publicUrl = staticUrl ? `https://${staticUrl}` : undefined;
+    this.cachedPublicUrl = publicUrl ?? null;
+
+    ctx.logStreamer.push({
+      level: "info",
+      message: `[railway] Deployment live${publicUrl ? ` at ${publicUrl}` : ""}`,
+      task_run_id: ctx.taskRunId,
+    });
+
+    if (!publicUrl) {
+      return { success: true };
+    }
+
+    const healthPath = ctx.config.health_check?.path ?? "/health";
+    const healthResult = await waitForHealthy({
+      url: `${publicUrl}${healthPath}`,
+      timeoutMs: HEALTH_CHECK_TIMEOUT_MS,
+      retries: HEALTH_CHECK_RETRIES,
+      intervalMs: HEALTH_CHECK_INTERVAL_MS,
+      startPeriodMs: HEALTH_CHECK_START_PERIOD_MS,
+    });
+
+    await this.reportHealthCheck(ctx, healthResult);
+
+    if (!healthResult.passed) {
+      return {
+        success: false,
+        publicUrl,
+        error: `Health check failed: ${healthResult.error}`,
+      };
+    }
+
+    return { success: true, publicUrl };
   }
 
   private async waitForDeployment(
     client: RailwayApiClient,
     deploymentId: string,
-  ): Promise<{ readonly status: string; readonly staticUrl?: string }> {
+  ): Promise<{ readonly status: string; readonly staticUrl?: string | null }> {
     const start = Date.now();
 
     while (Date.now() - start < DEPLOY_TIMEOUT_MS) {
       const deployment = await client.getDeployment(deploymentId);
 
-      if (
-        deployment.status === "SUCCESS" ||
-        deployment.status === "FAILED" ||
-        deployment.status === "CANCELLED"
-      ) {
+      if (TERMINAL_STATUSES.has(deployment.status)) {
         return deployment;
       }
 
@@ -324,8 +409,10 @@ export class RailwayDeployer implements DeployerDriver {
         status_code: result.statusCode ?? undefined,
         error_message: result.error,
       });
-    } catch {
-      // Fire-and-forget
+    } catch (err) {
+      // Don't fail the deployment over a reporting error
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[railway] Failed to report health check: ${msg}`);
     }
   }
 }
@@ -335,13 +422,16 @@ export class RailwayDeployer implements DeployerDriver {
 function mapRailwayStatus(status: string): DeploymentStatus {
   switch (status) {
     case "SUCCESS":
+    case "SLEEPING":
       return "active";
     case "BUILDING":
     case "DEPLOYING":
     case "INITIALIZING":
       return "deploying";
     case "FAILED":
+    case "CRASHED":
       return "failed";
+    case "REMOVED":
     case "CANCELLED":
       return "stopped";
     default:

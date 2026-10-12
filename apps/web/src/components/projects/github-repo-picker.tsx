@@ -76,7 +76,7 @@ export function GitHubRepoPicker({ username, onSelect }: GitHubRepoPickerProps) 
       {/* Connected indicator */}
       <div className="flex items-center gap-2 px-1">
         <span className="w-2 h-2 rounded-full bg-tertiary" />
-        <span className="text-[10px] text-on-surface-variant font-medium">
+        <span className="text-xs text-on-surface-variant font-medium">
           Connected as <span className="text-on-surface font-bold">@{username}</span>
         </span>
       </div>
@@ -84,7 +84,7 @@ export function GitHubRepoPicker({ username, onSelect }: GitHubRepoPickerProps) 
       {/* Search */}
       <div className="relative group">
         <div className="absolute left-3 top-1/2 -translate-y-1/2">
-          <span className="material-symbols-outlined text-on-surface-variant/40 text-lg group-focus-within:text-primary transition-colors">
+          <span aria-hidden="true" className="material-symbols-outlined text-on-surface-variant/40 text-lg group-focus-within:text-primary transition-colors">
             search
           </span>
         </div>
@@ -108,13 +108,13 @@ export function GitHubRepoPicker({ username, onSelect }: GitHubRepoPickerProps) 
       <div className="max-h-[320px] overflow-y-auto rounded-md border border-outline-variant/10 divide-y divide-outline-variant/5">
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <span className="material-symbols-outlined text-xl text-on-surface-variant/40 animate-spin">
+            <span aria-hidden="true" className="material-symbols-outlined text-xl text-on-surface-variant/40 animate-spin">
               progress_activity
             </span>
           </div>
         ) : repos.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 px-4">
-            <span className="material-symbols-outlined text-3xl text-on-surface-variant/20 mb-2">
+            <span aria-hidden="true" className="material-symbols-outlined text-3xl text-on-surface-variant/20 mb-2">
               folder_off
             </span>
             <p className="text-xs text-on-surface-variant">
@@ -136,7 +136,7 @@ export function GitHubRepoPicker({ username, onSelect }: GitHubRepoPickerProps) 
               <img
                 src={repo.owner.avatar_url}
                 alt={repo.owner.login}
-                className="w-7 h-7 rounded-full ring-1 ring-outline-variant/10 flex-shrink-0"
+                className="w-7 h-7 rounded-full border border-outline-variant flex-shrink-0"
               />
 
               {/* Repo info */}
@@ -146,7 +146,7 @@ export function GitHubRepoPicker({ username, onSelect }: GitHubRepoPickerProps) 
                     {repo.full_name}
                   </span>
                   <span
-                    className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                    className={`text-[11px] font-bold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0 ${
                       repo.private
                         ? "bg-warning-container/20 text-warning"
                         : "bg-tertiary-container/20 text-tertiary"
@@ -157,9 +157,9 @@ export function GitHubRepoPicker({ username, onSelect }: GitHubRepoPickerProps) 
                 </div>
                 <div className="flex items-center gap-3 mt-0.5">
                   {repo.language && (
-                    <span className="text-[10px] text-on-surface-variant/60">{repo.language}</span>
+                    <span className="text-xs text-on-surface-variant/60">{repo.language}</span>
                   )}
-                  <span className="text-[10px] text-on-surface-variant/40">
+                  <span className="text-xs text-on-surface-variant/40">
                     Updated {formatDate(repo.updated_at)}
                   </span>
                 </div>
@@ -167,11 +167,11 @@ export function GitHubRepoPicker({ username, onSelect }: GitHubRepoPickerProps) 
 
               {/* Loading indicator or arrow */}
               {loadingBranches && selectedId === repo.id ? (
-                <span className="material-symbols-outlined text-sm text-primary animate-spin flex-shrink-0">
+                <span aria-hidden="true" className="material-symbols-outlined text-sm text-primary animate-spin flex-shrink-0">
                   progress_activity
                 </span>
               ) : (
-                <span className="material-symbols-outlined text-sm text-on-surface-variant/30 group-hover/item:text-primary transition-colors flex-shrink-0">
+                <span aria-hidden="true" className="material-symbols-outlined text-sm text-on-surface-variant/30 group-hover/item:text-primary transition-colors flex-shrink-0">
                   arrow_forward
                 </span>
               )}

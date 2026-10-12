@@ -1,5 +1,7 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isPublicPath } from "@/lib/auth/public-paths";
+import { buildLoginPath, safeRedirectPath } from "@/lib/safe-redirect";
 
 /**
  * Supabase auth proxy — runs on every matched request.
@@ -42,18 +44,17 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Unauthenticated users: redirect to login (except auth routes)
-  if (
-    !user &&
-    !pathname.startsWith("/login") &&
-    !pathname.startsWith("/auth")
-  ) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  // Unauthenticated users: redirect to login (except public routes such as
+  // /login, /auth/callback and /invite/<token>), remembering where they were
+  if (!user && !isPublicPath(pathname)) {
+    const back = `${pathname}${request.nextUrl.search}`;
+    return NextResponse.redirect(new URL(buildLoginPath(back), request.url));
   }
 
-  // Already authenticated: redirect away from login page
+  // Already authenticated: redirect away from login page (honouring ?next=)
   if (user && pathname.startsWith("/login")) {
-    return NextResponse.redirect(new URL("/", request.url));
+    const next = safeRedirectPath(request.nextUrl.searchParams.get("next"));
+    return NextResponse.redirect(new URL(next, request.url));
   }
 
   return response;
@@ -67,7 +68,9 @@ export const config = {
      * - _next/image (image optimization)
      * - favicon.ico, sitemap.xml, robots.txt (metadata files)
      * - public assets
+     * - API routes with their own auth (runner tokens, webhook HMAC,
+     *   CRON_SECRET) — a login redirect would break machine callers
      */
-    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|api/runner|api/webhooks|api/notifications|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|api/runner|api/webhooks|api/notifications|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

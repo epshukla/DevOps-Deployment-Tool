@@ -3,6 +3,7 @@ import {
   ROLLING_DEFAULT_INSTANCES,
   ROLLING_MAX_UNAVAILABLE,
   ROLLING_OBSERVATION_SECONDS,
+  ROLLING_MAX_INSTANCES,
 } from "@deployx/shared";
 import type { DeploymentStatus, HealthStatus } from "@deployx/shared";
 import type { DeployerDriver, DeployContext, DeployResult } from "./deployer-interface";
@@ -12,22 +13,49 @@ import {
   stopContainer,
   removeContainerIfExists,
   isContainerRunning,
+  inspectContainer,
   getContainerLogs,
+  type ContainerInspection,
 } from "./container-manager";
-import { allocatePort } from "./port-allocator";
+import { allocatePort, releasePort } from "./port-allocator";
 import {
   generateWeightedNginxConfig,
   writeNginxConfig,
   reloadNginx,
 } from "./nginx-config";
 import { waitForHealthyViaDocker, checkHealthViaDocker } from "./health-checker";
+import {
+  resolvePreviousImage,
+  withPreviousImageLabel,
+  readPreviousImage,
+} from "./previous-image";
 
 // ── Types ───────────────────────────────────────────────────────
 
 interface RunningInstance {
   readonly ordinal: number;
   readonly containerName: string;
-  readonly imageTag: string;
+  readonly inspection: ContainerInspection;
+}
+
+interface HealthSettings {
+  readonly retries: number;
+  readonly timeoutS: number;
+  readonly intervalS: number;
+  readonly startPeriodS: number;
+}
+
+interface RolloutPlan {
+  readonly appPort: number;
+  readonly healthPath: string;
+  readonly health: HealthSettings;
+  readonly deployEnv: Record<string, string>;
+  readonly proxyContainerName: string;
+  readonly instanceCount: number;
+  /** Image being replaced — rollback target and previous-image label */
+  readonly previousImage: string | null;
+  /** Label the outgoing instances carried, restored if we roll back */
+  readonly outgoingPreviousImageLabel: string | null;
 }
 
 // ── DockerLocalRollingDeployer ───────────────────────────────────
@@ -39,10 +67,12 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
     const { logStreamer, config, projectSlug } = ctx;
     const appPort = config.port;
     const healthPath = config.health_check?.path ?? "/health";
-    const healthRetries = config.health_check?.retries ?? 3;
-    const healthTimeoutS = config.health_check?.timeout_seconds ?? 5;
-    const healthIntervalS = config.health_check?.interval_seconds ?? 10;
-    const startPeriodS = config.health_check?.start_period_seconds ?? 15;
+    const health: HealthSettings = {
+      retries: config.health_check?.retries ?? 3,
+      timeoutS: config.health_check?.timeout_seconds ?? 5,
+      intervalS: config.health_check?.interval_seconds ?? 10,
+      startPeriodS: config.health_check?.start_period_seconds ?? 15,
+    };
 
     const instanceCount = config.rolling?.instances ?? ROLLING_DEFAULT_INSTANCES;
     const maxUnavailable = Math.min(
@@ -60,12 +90,7 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
 
       // 3. First deploy — start all instances fresh
       if (existingInstances.length === 0) {
-        return this.firstDeploy(ctx, instanceCount, appPort, healthPath, {
-          retries: healthRetries,
-          timeoutS: healthTimeoutS,
-          intervalS: healthIntervalS,
-          startPeriodS,
-        });
+        return this.firstDeploy(ctx, instanceCount, appPort, healthPath, health);
       }
 
       logStreamer.push({
@@ -74,128 +99,32 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
         task_run_id: ctx.taskRunId,
       });
 
-      const deployEnv: Record<string, string> = {
-        ...(config.env ?? {}),
-        PORT: String(appPort),
-      };
-
       const portAllocation = allocatePort(projectSlug);
       const proxyContainerName = this.getProxyContainerName(projectSlug);
       await this.ensureProxyContainer(proxyContainerName, portAllocation.proxyPort, projectSlug);
 
-      // Track which instances have been updated
-      const updatedOrdinals: number[] = [];
-      const previousImageTag = existingInstances[0]?.imageTag ?? null;
+      const outgoing = existingInstances[0].inspection;
+      const plan: RolloutPlan = {
+        appPort,
+        healthPath,
+        health,
+        deployEnv: { ...(config.env ?? {}), PORT: String(appPort) },
+        proxyContainerName,
+        instanceCount,
+        previousImage: resolvePreviousImage(outgoing, ctx.imageTag),
+        outgoingPreviousImageLabel: readPreviousImage(outgoing),
+      };
 
       // 4. Rolling update — replace instances respecting maxUnavailable
+      const updatedOrdinals: number[] = [];
       for (let i = 0; i < instanceCount; i += maxUnavailable) {
-        const batch = [];
-        for (let j = 0; j < maxUnavailable && (i + j) < instanceCount; j++) {
-          batch.push(i + j);
-        }
-
-        // Stop old instances in this batch
-        for (const ordinal of batch) {
-          const containerName = this.getInstanceContainerName(projectSlug, ordinal);
-          if (await isContainerRunning(containerName)) {
-            await stopContainer(containerName, 10);
-            await removeContainerIfExists(containerName);
-          }
-        }
-
-        // Start new instances in this batch
-        for (const ordinal of batch) {
-          const containerName = this.getInstanceContainerName(projectSlug, ordinal);
-
-          logStreamer.push({
-            level: "info",
-            message: `[deploy:rolling] Updating instance ${ordinal} with ${ctx.imageTag}`,
-            task_run_id: ctx.taskRunId,
-          });
-
-          await runContainer({
-            name: containerName,
-            image: ctx.imageTag,
-            network: DEPLOYER_NETWORK_NAME,
-            env: deployEnv,
-            labels: this.buildLabels(ctx, ordinal, appPort, healthPath),
-            detach: true,
-            restart: "unless-stopped",
-          });
-
-          // Health check new instance (via docker exec — host can't resolve container names)
-          const healthResult = await waitForHealthyViaDocker({
-            containerName,
-            port: appPort,
-            path: healthPath,
-            timeoutMs: healthTimeoutS * 1000,
-            retries: healthRetries,
-            intervalMs: healthIntervalS * 1000,
-            startPeriodMs: startPeriodS * 1000,
-          });
-
-          await this.reportHealthCheck(ctx, healthResult.passed, {
-            statusCode: healthResult.statusCode,
-            responseTimeMs: healthResult.responseTimeMs,
-            error: healthResult.error,
-          });
-
-          if (!healthResult.passed) {
-            logStreamer.push({
-              level: "error",
-              message: `[deploy:rolling] Instance ${ordinal} unhealthy. Rolling back.`,
-              task_run_id: ctx.taskRunId,
-            });
-
-            // Rollback all updated instances to previous image
-            await this.rollbackInstances(
-              ctx,
-              [...updatedOrdinals, ordinal],
-              previousImageTag,
-              appPort,
-              healthPath,
-              deployEnv,
-            );
-
-            // Update nginx with all instances (rolled back + untouched)
-            await this.updateNginxForAllInstances(
-              proxyContainerName,
-              projectSlug,
-              instanceCount,
-              appPort,
-              healthPath,
-            );
-
-            await this.recordHealingEvent(ctx, "rolling_rollback", {
-              failed_ordinal: ordinal,
-              rolled_back_ordinals: [...updatedOrdinals, ordinal],
-              error: healthResult.error,
-            });
-
-            return {
-              success: false,
-              error: `Instance ${ordinal} unhealthy: ${healthResult.error}`,
-            };
-          }
-
-          updatedOrdinals.push(ordinal);
-
-          await this.recordHealingEvent(ctx, "rolling_instance_updated", {
-            ordinal,
-            image_tag: ctx.imageTag,
-            instances_updated: updatedOrdinals.length,
-            instances_total: instanceCount,
-          });
-        }
-
-        // Update nginx upstream with current state
-        await this.updateNginxForAllInstances(
-          proxyContainerName,
-          projectSlug,
-          instanceCount,
-          appPort,
-          healthPath,
+        const batch = Array.from(
+          { length: Math.min(maxUnavailable, instanceCount - i) },
+          (_, j) => i + j,
         );
+
+        const failure = await this.replaceBatch(ctx, plan, batch, updatedOrdinals);
+        if (failure) return failure;
 
         // Observation period
         if (i + maxUnavailable < instanceCount) {
@@ -248,11 +177,12 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
       await removeContainerIfExists(this.getInstanceContainerName(projectSlug, i));
     }
     await removeContainerIfExists(this.getProxyContainerName(projectSlug));
+    releasePort(projectSlug);
   }
 
   async getStatus(projectSlug: string): Promise<DeploymentStatus> {
     // Check if any instance is running
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < ROLLING_MAX_INSTANCES; i++) {
       const name = this.getInstanceContainerName(projectSlug, i);
       if (await isContainerRunning(name)) return "active";
     }
@@ -268,7 +198,7 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
     let total = 0;
     let healthy = 0;
 
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < ROLLING_MAX_INSTANCES; i++) {
       const name = this.getInstanceContainerName(projectSlug, i);
       if (!(await isContainerRunning(name))) continue;
       total++;
@@ -292,17 +222,127 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
 
   // ── Private Helpers ─────────────────────────────────────────
 
+  /**
+   * Replaces one batch of instances: drain them from nginx, stop the old
+   * containers, start + health-check the new ones, then reload nginx so it
+   * re-resolves the recreated containers' new IPs. Returns a failed
+   * DeployResult (after rolling back) or null on success.
+   */
+  private async replaceBatch(
+    ctx: DeployContext,
+    plan: RolloutPlan,
+    batch: readonly number[],
+    updatedOrdinals: number[],
+  ): Promise<DeployResult | null> {
+    const { projectSlug } = ctx;
+
+    // Take the batch out of rotation before stopping it
+    await this.updateNginxForRunningInstances(ctx, plan, batch);
+
+    for (const ordinal of batch) {
+      const containerName = this.getInstanceContainerName(projectSlug, ordinal);
+      if (await isContainerRunning(containerName)) {
+        await stopContainer(containerName, 10);
+        await removeContainerIfExists(containerName);
+      }
+    }
+
+    for (const ordinal of batch) {
+      const failure = await this.startAndVerifyInstance(ctx, plan, ordinal, updatedOrdinals);
+      if (failure) return failure;
+      updatedOrdinals.push(ordinal);
+
+      await this.recordHealingEvent(ctx, "rolling_instance_updated", {
+        ordinal,
+        image_tag: ctx.imageTag,
+        instances_updated: updatedOrdinals.length,
+        instances_total: plan.instanceCount,
+      });
+    }
+
+    // New instances are healthy — reload so nginx resolves their new IPs
+    await this.updateNginxForRunningInstances(ctx, plan);
+    return null;
+  }
+
+  private async startAndVerifyInstance(
+    ctx: DeployContext,
+    plan: RolloutPlan,
+    ordinal: number,
+    updatedOrdinals: readonly number[],
+  ): Promise<DeployResult | null> {
+    const { logStreamer } = ctx;
+    const containerName = this.getInstanceContainerName(ctx.projectSlug, ordinal);
+
+    logStreamer.push({
+      level: "info",
+      message: `[deploy:rolling] Updating instance ${ordinal} with ${ctx.imageTag}`,
+      task_run_id: ctx.taskRunId,
+    });
+
+    await runContainer({
+      name: containerName,
+      image: ctx.imageTag,
+      network: DEPLOYER_NETWORK_NAME,
+      env: plan.deployEnv,
+      labels: withPreviousImageLabel(
+        this.buildLabels(ctx, ordinal, plan.appPort, plan.healthPath),
+        plan.previousImage,
+      ),
+      detach: true,
+      restart: "unless-stopped",
+    });
+
+    // Health check new instance (via docker exec — host can't resolve container names)
+    const healthResult = await this.waitForInstance(containerName, plan);
+    await this.reportHealthCheck(ctx, healthResult.passed, {
+      statusCode: healthResult.statusCode,
+      responseTimeMs: healthResult.responseTimeMs,
+      error: healthResult.error,
+    });
+
+    if (healthResult.passed) return null;
+
+    logStreamer.push({
+      level: "error",
+      message: `[deploy:rolling] Instance ${ordinal} unhealthy. Rolling back.`,
+      task_run_id: ctx.taskRunId,
+    });
+
+    const rolledBack = [...updatedOrdinals, ordinal];
+    await this.rollbackInstances(ctx, plan, rolledBack);
+    await this.updateNginxForRunningInstances(ctx, plan);
+
+    await this.recordHealingEvent(ctx, "rolling_rollback", {
+      failed_ordinal: ordinal,
+      rolled_back_ordinals: rolledBack,
+      error: healthResult.error,
+    });
+
+    return {
+      success: false,
+      error: `Instance ${ordinal} unhealthy: ${healthResult.error}`,
+    };
+  }
+
+  private waitForInstance(containerName: string, plan: RolloutPlan) {
+    return waitForHealthyViaDocker({
+      containerName,
+      port: plan.appPort,
+      path: plan.healthPath,
+      timeoutMs: plan.health.timeoutS * 1000,
+      retries: plan.health.retries,
+      intervalMs: plan.health.intervalS * 1000,
+      startPeriodMs: plan.health.startPeriodS * 1000,
+    });
+  }
+
   private async firstDeploy(
     ctx: DeployContext,
     instanceCount: number,
     appPort: number,
     healthPath: string,
-    healthConfig: {
-      readonly retries: number;
-      readonly timeoutS: number;
-      readonly intervalS: number;
-      readonly startPeriodS: number;
-    },
+    healthConfig: HealthSettings,
   ): Promise<DeployResult> {
     const { logStreamer, config, projectSlug } = ctx;
 
@@ -363,10 +403,9 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
     const proxyContainerName = this.getProxyContainerName(projectSlug);
     await this.ensureProxyContainer(proxyContainerName, portAllocation.proxyPort, projectSlug);
 
-    await this.updateNginxForAllInstances(
+    await this.writeAndReloadNginx(
       proxyContainerName,
-      projectSlug,
-      instanceCount,
+      Array.from({ length: instanceCount }, (_, i) => this.getInstanceContainerName(projectSlug, i)),
       appPort,
       healthPath,
     );
@@ -380,10 +419,11 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
   ): Promise<readonly RunningInstance[]> {
     const instances: RunningInstance[] = [];
 
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < ROLLING_MAX_INSTANCES; i++) {
       const name = this.getInstanceContainerName(projectSlug, i);
-      if (await isContainerRunning(name)) {
-        instances.push({ ordinal: i, containerName: name, imageTag: "" });
+      const inspection = await inspectContainer(name);
+      if (inspection?.state === "running") {
+        instances.push({ ordinal: i, containerName: name, inspection });
       }
     }
 
@@ -392,13 +432,23 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
 
   private async rollbackInstances(
     ctx: DeployContext,
+    plan: RolloutPlan,
     ordinals: readonly number[],
-    previousImageTag: string | null,
-    appPort: number,
-    healthPath: string,
-    deployEnv: Record<string, string>,
   ): Promise<void> {
-    if (!previousImageTag) return;
+    if (!plan.previousImage) {
+      ctx.logStreamer.push({
+        level: "warn",
+        message: `[deploy:rolling] No previous image recorded — cannot roll back instance(s) ${ordinals.join(", ")}`,
+        task_run_id: ctx.taskRunId,
+      });
+      return;
+    }
+
+    ctx.logStreamer.push({
+      level: "info",
+      message: `[deploy:rolling] Rolling back instance(s) ${ordinals.join(", ")} to ${plan.previousImage}`,
+      task_run_id: ctx.taskRunId,
+    });
 
     for (const ordinal of ordinals) {
       const containerName = this.getInstanceContainerName(ctx.projectSlug, ordinal);
@@ -406,31 +456,51 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
 
       await runContainer({
         name: containerName,
-        image: previousImageTag,
+        image: plan.previousImage,
         network: DEPLOYER_NETWORK_NAME,
-        env: deployEnv,
-        labels: this.buildLabels(ctx, ordinal, appPort, healthPath),
+        env: plan.deployEnv,
+        labels: withPreviousImageLabel(
+          this.buildLabels(ctx, ordinal, plan.appPort, plan.healthPath),
+          plan.outgoingPreviousImageLabel,
+        ),
         detach: true,
         restart: "unless-stopped",
       });
     }
   }
 
-  private async updateNginxForAllInstances(
+  /**
+   * Points nginx at every instance that currently exists, minus `exclude`.
+   * nginx fails its config test on unresolvable upstream names, so instances
+   * that don't exist (yet) are left out. Skips the reload when nothing would
+   * remain (e.g. maxUnavailable == instances) rather than writing an empty
+   * upstream block.
+   */
+  private async updateNginxForRunningInstances(
+    ctx: DeployContext,
+    plan: RolloutPlan,
+    exclude: readonly number[] = [],
+  ): Promise<void> {
+    const names: string[] = [];
+    for (let i = 0; i < Math.max(plan.instanceCount, ROLLING_MAX_INSTANCES); i++) {
+      if (exclude.includes(i)) continue;
+      const name = this.getInstanceContainerName(ctx.projectSlug, i);
+      if (await isContainerRunning(name)) names.push(name);
+    }
+
+    if (names.length === 0) return;
+    await this.writeAndReloadNginx(plan.proxyContainerName, names, plan.appPort, plan.healthPath);
+  }
+
+  private async writeAndReloadNginx(
     proxyContainerName: string,
-    projectSlug: string,
-    instanceCount: number,
+    upstreamNames: readonly string[],
     appPort: number,
     healthCheckPath: string,
   ): Promise<void> {
-    const upstreams = Array.from({ length: instanceCount }, (_, i) => ({
-      name: this.getInstanceContainerName(projectSlug, i),
-      port: appPort,
-    }));
-
     const nginxConfig = generateWeightedNginxConfig({
       listenPort: 80,
-      upstreams,
+      upstreams: upstreamNames.map((name) => ({ name, port: appPort })),
       healthCheckPath,
     });
 
@@ -504,8 +574,10 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
         response_time_ms: details.responseTimeMs,
         error_message: details.error,
       });
-    } catch {
-      // Fire-and-forget
+    } catch (err) {
+      // Fire-and-forget — don't fail the rollout over an API error
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[deploy:rolling] Failed to report health check: ${msg}`);
     }
   }
 
@@ -519,8 +591,9 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
         event_type: eventType,
         details,
       });
-    } catch {
-      // Fire-and-forget
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[deploy:rolling] Failed to record ${eventType} event: ${msg}`);
     }
   }
 }

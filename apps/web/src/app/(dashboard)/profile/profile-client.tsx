@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useActionState } from "react";
-import { useRouter } from "next/navigation";
+import { Avatar } from "@/components/ui/avatar";
 import { TopBar } from "@/components/layout/top-bar";
 import { updateProfile } from "./actions";
 import { formatDate, formatDateShort } from "@/lib/format-date";
@@ -52,31 +52,27 @@ export function ProfileClient({
 }: ProfileClientProps) {
   const [editing, setEditing] = useState(false);
   const [displayName, setDisplayName] = useState(user.display_name);
-  const router = useRouter();
 
   const [state, formAction] = useActionState(updateProfile, {});
+
+  // Leave edit mode once a save succeeds. Adjusting state during render
+  // (guarded by the last handled result) avoids an extra effect pass; the
+  // action's revalidatePath already refreshes the server data.
+  const [handledState, setHandledState] = useState(state);
+  if (state !== handledState) {
+    setHandledState(state);
+    if (state.success) setEditing(false);
+  }
 
   return (
     <>
       <TopBar breadcrumbs={[{ label: "Profile" }]} />
 
-      <div className="p-8 max-w-3xl">
+      <div className="px-4 py-6 md:px-6 max-w-3xl">
         <div className="border border-outline-variant/10 rounded-lg p-6 mb-6">
           <div className="flex items-start gap-6">
             {/* Avatar */}
-            <div className="w-20 h-20 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden border border-outline-variant/30 flex-shrink-0">
-              {user.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt={user.display_name}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span className="material-symbols-outlined text-3xl text-on-surface-variant">
-                  person
-                </span>
-              )}
-            </div>
+            <Avatar name={user.display_name} url={user.avatar_url} size="lg" />
 
             <div className="flex-1">
               {editing ? (
@@ -129,7 +125,7 @@ export function ProfileClient({
                       onClick={() => setEditing(true)}
                       className="text-on-surface-variant/40 hover:text-on-surface-variant transition-colors"
                     >
-                      <span className="material-symbols-outlined text-sm">
+                      <span aria-hidden="true" className="material-symbols-outlined text-sm">
                         edit
                       </span>
                     </button>
@@ -143,20 +139,20 @@ export function ProfileClient({
               <div className="flex gap-4 mt-3 text-xs text-on-surface-variant/50">
                 {user.github_username && (
                   <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">
+                    <span aria-hidden="true" className="material-symbols-outlined text-sm">
                       code
                     </span>
                     {user.github_username}
                   </span>
                 )}
                 <span className="flex items-center gap-1">
-                  <span className="material-symbols-outlined text-sm">
+                  <span aria-hidden="true" className="material-symbols-outlined text-sm">
                     group
                   </span>
                   {org.name} ({org.role})
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="material-symbols-outlined text-sm">
+                  <span aria-hidden="true" className="material-symbols-outlined text-sm">
                     calendar_today
                   </span>
                   Joined {formatDateShort(user.created_at)}
@@ -181,7 +177,7 @@ export function ProfileClient({
                 key={activity.id}
                 className="flex items-center gap-3 py-2 text-sm"
               >
-                <span className="material-symbols-outlined text-lg text-on-surface-variant/40">
+                <span aria-hidden="true" className="material-symbols-outlined text-lg text-on-surface-variant/40">
                   {ACTION_ICON[activity.action] ?? "info"}
                 </span>
                 <span className="text-on-surface-variant/60 capitalize">

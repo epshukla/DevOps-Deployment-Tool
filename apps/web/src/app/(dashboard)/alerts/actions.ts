@@ -90,19 +90,34 @@ export async function updateAlertRule(
   const cooldown = formData.get("cooldown_minutes");
   if (cooldown !== null && cooldown !== "") raw.cooldown_minutes = Number(cooldown);
 
+  const projectRaw = formData.get("project_id");
+  if (typeof projectRaw === "string" && projectRaw !== "") {
+    raw.project_id = projectRaw;
+  }
+
   const parsed = UpdateAlertRuleSchema.safeParse(raw);
   if (!parsed.success) {
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
-  const { error } = await supabase
+  // An empty project selection means "all projects" → clear the scope
+  const update = {
+    ...parsed.data,
+    ...(projectRaw === "" ? { project_id: null } : {}),
+  };
+
+  const { data: updated, error } = await supabase
     .from("alert_rules")
-    .update(parsed.data)
+    .update(update)
     .eq("id", ruleId)
-    .eq("org_id", org.id);
+    .eq("org_id", org.id)
+    .select("id");
 
   if (error) {
     return { error: "Failed to update alert rule" };
+  }
+  if (!updated || updated.length === 0) {
+    return { error: "Alert rule not found" };
   }
 
   await recordAuditEvent(supabase, {

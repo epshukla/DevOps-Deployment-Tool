@@ -1,22 +1,26 @@
 import { requireUserWithOrg } from "@/lib/auth/session";
 import { SettingsClient } from "./settings-client";
+import { loadProfiles } from "@/lib/profiles";
+import { isInviteExpired } from "@/lib/invite-links";
+import { hasMinRole } from "@deployx/shared";
 
 export default async function SettingsPage() {
   const { supabase, org, role, user } = await requireUserWithOrg();
 
-  // Fetch org members with their profiles
+  // Fetch org members, then their profiles (no FK → can't embed)
   const { data: memberships } = await supabase
     .from("org_memberships")
-    .select("user_id, role, created_at, user_profiles(display_name, avatar_url, github_username)")
+    .select("user_id, role, created_at")
     .eq("org_id", org.id)
     .order("created_at", { ascending: true });
 
+  const profiles = await loadProfiles(
+    supabase,
+    (memberships ?? []).map((m) => m.user_id as string),
+  );
+
   const members = (memberships ?? []).map((m) => {
-    const profile = m.user_profiles as unknown as {
-      display_name: string;
-      avatar_url: string | null;
-      github_username: string | null;
-    } | null;
+    const profile = profiles.get(m.user_id as string);
     return {
       user_id: m.user_id as string,
       role: m.role as string,
@@ -27,21 +31,29 @@ export default async function SettingsPage() {
     };
   });
 
-  // Fetch pending invites
+  // Fetch pending invites (tokens only for admins — they share the links)
+  const canManageInvites = hasMinRole(role, "admin");
   const { data: inviteRows } = await supabase
     .from("org_invites")
-    .select("id, email, role, invited_by, accepted_at, expires_at, created_at")
+    .select(
+      canManageInvites
+        ? "id, email, role, invited_by, accepted_at, expires_at, created_at, token"
+        : "id, email, role, invited_by, accepted_at, expires_at, created_at",
+    )
     .eq("org_id", org.id)
     .is("accepted_at", null)
     .order("created_at", { ascending: false });
 
-  const invites = (inviteRows ?? []).map((inv) => ({
+  const now = new Date();
+  const invites = ((inviteRows ?? []) as unknown as Record<string, unknown>[]).map((inv) => ({
     id: inv.id as string,
     email: inv.email as string,
     role: inv.role as string,
     invited_by: inv.invited_by as string,
     expires_at: inv.expires_at as string,
     created_at: inv.created_at as string,
+    token: canManageInvites ? ((inv.token as string | undefined) ?? null) : null,
+    expired: isInviteExpired(inv.expires_at as string, now),
   }));
 
   // Check for invites addressed to the current user
@@ -52,6 +64,7 @@ export default async function SettingsPage() {
         .select("id, org_id, email, role, expires_at, created_at, organizations(name)")
         .eq("email", userEmail)
         .is("accepted_at", null)
+        .gt("expires_at", new Date().toISOString())
     : { data: null };
 
   const myInvites = (myInviteRows ?? []).map((inv) => {

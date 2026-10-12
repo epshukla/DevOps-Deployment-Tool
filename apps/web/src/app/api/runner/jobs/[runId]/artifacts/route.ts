@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { authenticateRunner } from "@/lib/auth/runner";
-import { createServiceClient } from "@/lib/supabase/service";
+import { authenticateRunner, authorizeRunnerForRun } from "@/lib/auth/runner";
 import { UploadArtifactSchema, ARTIFACT_MAX_SIZE_BYTES } from "@deployx/shared";
 
 /**
@@ -14,6 +13,14 @@ export async function POST(
   const auth = await authenticateRunner(request);
   if (!auth.ok) return auth.response;
   const { runId } = await params;
+  const { runner, supabase } = auth;
+
+  // Only the runner executing this run may attach artifacts to it
+  const authz = await authorizeRunnerForRun(supabase, runner, runId, {
+    requireClaimedBy: true,
+  });
+  if (!authz.ok) return authz.response;
+  const run = authz.value;
 
   const contentType = request.headers.get("content-type") ?? "";
   if (!contentType.includes("multipart/form-data")) {
@@ -35,14 +42,23 @@ export async function POST(
 
   const file = formData.get("file") as File | null;
   const filename = (formData.get("filename") as string | null) ?? file?.name;
-  const projectId = formData.get("project_id") as string | null;
+  const claimedProjectId = formData.get("project_id") as string | null;
 
-  if (!file || !filename || !projectId) {
+  if (!file || !filename) {
     return NextResponse.json(
-      { error: "file, filename, and project_id are required" },
+      { error: "file and filename are required" },
       { status: 400 },
     );
   }
+
+  // The storage path is derived from the run, never from client input
+  if (claimedProjectId && claimedProjectId !== run.project_id) {
+    return NextResponse.json(
+      { error: "project_id does not match the run's project" },
+      { status: 400 },
+    );
+  }
+  const projectId = run.project_id;
 
   if (file.size > ARTIFACT_MAX_SIZE_BYTES) {
     return NextResponse.json(
@@ -63,23 +79,7 @@ export async function POST(
     );
   }
 
-  const supabase = createServiceClient();
-
-  // Look up org_id for path
-  const { data: run } = await supabase
-    .from("pipeline_runs")
-    .select("project_id, projects(org_id)")
-    .eq("id", runId)
-    .single();
-
-  if (!run) {
-    return NextResponse.json(
-      { error: "Pipeline run not found" },
-      { status: 404 },
-    );
-  }
-
-  const orgId = (run.projects as unknown as { org_id: string })?.org_id;
+  const orgId = run.org_id;
   const storagePath = `${orgId}/${projectId}/${runId}/${filename}`;
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -111,24 +111,15 @@ export async function GET(
   const auth = await authenticateRunner(request);
   if (!auth.ok) return auth.response;
   const { runId } = await params;
+  const { runner, supabase } = auth;
 
-  const supabase = createServiceClient();
+  const authz = await authorizeRunnerForRun(supabase, runner, runId, {
+    requireClaimedBy: false,
+  });
+  if (!authz.ok) return authz.response;
+  const run = authz.value;
 
-  const { data: run } = await supabase
-    .from("pipeline_runs")
-    .select("project_id, projects(org_id)")
-    .eq("id", runId)
-    .single();
-
-  if (!run) {
-    return NextResponse.json(
-      { error: "Pipeline run not found" },
-      { status: 404 },
-    );
-  }
-
-  const orgId = (run.projects as unknown as { org_id: string })?.org_id;
-  const prefix = `${orgId}/${run.project_id}/${runId}`;
+  const prefix = `${run.org_id}/${run.project_id}/${runId}`;
 
   const { data: files, error } = await supabase.storage
     .from("build-artifacts")

@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useTransition, useActionState } from "react";
+import {
+  useState,
+  useTransition,
+  useActionState,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
 import { useRouter } from "next/navigation";
 import { CRON_PRESETS, describeCron } from "@deployx/shared";
 import type { CronPresetKey } from "@deployx/shared";
@@ -69,7 +75,7 @@ export function SchedulesSection({
   const pipelinesWithVersion = pipelineDefinitions.filter((d) => d.current_version_id);
 
   return (
-    <div className="bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10 overflow-hidden">
+    <div className="bg-surface-container-low rounded-lg border border-outline-variant overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
         <div>
           <h3 className="text-sm font-bold text-on-surface">Scheduled Triggers</h3>
@@ -80,9 +86,13 @@ export function SchedulesSection({
         {pipelinesWithVersion.length > 0 && (
           <button
             onClick={() => setShowAddForm((prev) => !prev)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded hover:bg-primary/90 transition-colors"
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded transition-colors ${
+              showAddForm
+                ? "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+                : "bg-primary text-on-primary hover:bg-primary/90"
+            }`}
           >
-            <span className="material-symbols-outlined text-sm">{showAddForm ? "close" : "add"}</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">{showAddForm ? "close" : "add"}</span>
             {showAddForm ? "Cancel" : "Add Schedule"}
           </button>
         )}
@@ -104,7 +114,7 @@ export function SchedulesSection({
 
       {schedules.length === 0 && !showAddForm ? (
         <div className="px-6 py-12 text-center">
-          <span className="material-symbols-outlined text-4xl text-on-surface-variant/20 mb-3 block">schedule</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/20 mb-3 block">schedule</span>
           <p className="text-sm text-on-surface-variant">No scheduled triggers</p>
           <p className="text-xs text-on-surface-variant/60 mt-1">
             {pipelinesWithVersion.length === 0
@@ -162,7 +172,7 @@ export function SchedulesSection({
                         onClick={() => setDeletingId(schedule.id)}
                         className="text-on-surface-variant/50 hover:text-error transition-colors"
                       >
-                        <span className="material-symbols-outlined text-lg">delete</span>
+                        <span aria-hidden="true" className="material-symbols-outlined text-lg">delete</span>
                       </button>
                     )}
                   </div>
@@ -171,15 +181,15 @@ export function SchedulesSection({
                   <span className="font-mono bg-surface-container-highest px-2 py-0.5 rounded">
                     {schedule.cron_expression}
                   </span>
-                  <span>{describeCron(schedule.cron_expression)}</span>
+                  <span>{describeCron(schedule.cron_expression, schedule.timezone)}</span>
                   {schedule.git_branch && (
                     <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-xs">account_tree</span>
+                      <span aria-hidden="true" className="material-symbols-outlined text-xs">account_tree</span>
                       {schedule.git_branch}
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-4 text-[10px] text-on-surface-variant/60 mt-2">
+                <div className="flex items-center gap-4 text-xs text-on-surface-variant/60 mt-2">
                   {schedule.next_run_at && schedule.is_active && (
                     <span>Next: {formatDate(schedule.next_run_at)}</span>
                   )}
@@ -196,6 +206,20 @@ export function SchedulesSection({
   );
 }
 
+/** The browser's time zone never changes during a session. */
+function subscribeNever(): () => void {
+  return () => {};
+}
+
+/** All IANA zones the runtime knows, always including UTC and the selection. */
+function listTimeZones(selected: string): readonly string[] {
+  const supported =
+    typeof Intl.supportedValuesOf === "function"
+      ? Intl.supportedValuesOf("timeZone")
+      : [];
+  return [...new Set(["UTC", selected, ...supported])];
+}
+
 function AddScheduleForm({
   projectId,
   pipelineDefinitions,
@@ -206,6 +230,16 @@ function AddScheduleForm({
   readonly onSuccess: () => void;
 }) {
   const [cronValue, setCronValue] = useState<string>(CRON_PRESETS.daily);
+  // Default to the browser's zone; the server snapshot is UTC so hydration
+  // matches, then the client re-renders with the real zone.
+  const browserZone = useSyncExternalStore(
+    subscribeNever,
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    () => "UTC",
+  );
+  const [chosenZone, setTimeZone] = useState<string | null>(null);
+  const timeZone = chosenZone ?? browserZone;
+  const timeZoneOptions = useMemo(() => listTimeZones(timeZone), [timeZone]);
   const [state, formAction, isPending] = useActionState(
     createSchedule.bind(null, projectId),
     {},
@@ -221,7 +255,7 @@ function AddScheduleForm({
     <form action={formAction} className="px-6 py-4 bg-surface-container/50 border-b border-outline-variant/10">
       <div className="space-y-4">
         <div>
-          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+          <label className="block text-xs font-bold text-on-surface-variant mb-1">
             Pipeline
           </label>
           <select
@@ -236,7 +270,7 @@ function AddScheduleForm({
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-bold text-on-surface-variant mb-1.5">
             Schedule
           </label>
           <div className="flex flex-wrap gap-2 mb-2">
@@ -263,13 +297,13 @@ function AddScheduleForm({
             required
             className="w-full px-3 py-2 bg-surface-container-highest rounded text-sm font-mono text-on-surface placeholder:text-on-surface-variant/30 focus:ring-1 focus:ring-primary focus:outline-none"
           />
-          <p className="text-[10px] text-on-surface-variant/60 mt-1">
-            {describeCron(cronValue)} — Format: minute hour day month weekday
+          <p className="text-xs text-on-surface-variant/60 mt-1">
+            {describeCron(cronValue, timeZone)} — Format: minute hour day month weekday
           </p>
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+          <label className="block text-xs font-bold text-on-surface-variant mb-1">
             Branch Override (optional)
           </label>
           <input
@@ -279,7 +313,30 @@ function AddScheduleForm({
           />
         </div>
 
-        <input type="hidden" name="timezone" value="UTC" />
+        <div>
+          <label
+            htmlFor="schedule-timezone"
+            className="block text-xs font-bold text-on-surface-variant mb-1"
+          >
+            Time Zone
+          </label>
+          <select
+            id="schedule-timezone"
+            name="timezone"
+            value={timeZone}
+            onChange={(e) => setTimeZone(e.target.value)}
+            className="w-full px-3 py-2 bg-surface-container-highest rounded text-sm text-on-surface focus:ring-1 focus:ring-primary focus:outline-none"
+          >
+            {timeZoneOptions.map((tz) => (
+              <option key={tz} value={tz}>
+                {tz}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-on-surface-variant/60 mt-1">
+            The cron expression is evaluated in this zone, including daylight saving.
+          </p>
+        </div>
       </div>
 
       <div className="flex justify-end mt-4">
