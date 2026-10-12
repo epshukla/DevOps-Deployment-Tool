@@ -2,11 +2,15 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { hasMinRole } from "@deployx/shared";
 import { TopBar } from "@/components/layout/top-bar";
 import { HealthCheckChart } from "@/components/deployment/health-check-chart";
 import { CanaryProgressCard } from "@/components/deployment/canary-progress-card";
 import { RollingProgressCard } from "@/components/deployment/rolling-progress-card";
-import { stopDeployment, submitApprovalVote } from "../actions";
+import { BlueGreenProgressCard } from "@/components/deployment/blue-green-progress-card";
+import { RollbackDialog } from "@/components/deployment/rollback-dialog";
+import { useRealtimeDeployment } from "@/hooks/use-realtime-deployment";
+import { stopDeployment, rollbackDeployment, submitApprovalVote } from "../actions";
 import { formatDate, formatTime } from "@/lib/format-date";
 
 // ── Types ───────────────────────────────────────────────────────
@@ -81,6 +85,7 @@ interface Props {
   readonly healingEvents: readonly HealingEventData[];
   readonly approval: ApprovalData | null;
   readonly approvalVotes: readonly ApprovalVoteData[];
+  readonly currentRole: string;
 }
 
 // ── Status Badges ───────────────────────────────────────────────
@@ -158,15 +163,28 @@ const HEALING_EVENT_LABEL: Record<string, string> = {
 
 export function DeploymentDetailClient({
   project,
-  deployment,
-  revisions,
-  healthChecks,
-  healingEvents,
+  deployment: initialDeployment,
+  revisions: initialRevisions,
+  healthChecks: initialHealthChecks,
+  healingEvents: initialHealingEvents,
   approval,
   approvalVotes,
+  currentRole,
 }: Props) {
   const [isPending, startTransition] = useTransition();
+  const [stopError, setStopError] = useState<string | null>(null);
+  const [isRollbackOpen, setIsRollbackOpen] = useState(false);
+  const [rollbackError, setRollbackError] = useState<string | null>(null);
+  const [isRollingBack, startRollbackTransition] = useTransition();
   const router = useRouter();
+
+  const { deployment, revisions, healthChecks, healingEvents } = useRealtimeDeployment({
+    deploymentId: initialDeployment.id,
+    initialDeployment,
+    initialRevisions,
+    initialHealthChecks,
+    initialHealingEvents,
+  });
 
   const badge = STATUS_BADGE[deployment.status] ?? STATUS_BADGE.pending;
   const healthColor = HEALTH_COLOR[deployment.health_status] ?? HEALTH_COLOR.unknown;
@@ -182,13 +200,49 @@ export function DeploymentDetailClient({
     : circumference;
 
   const handleStop = () => {
+    setStopError(null);
     startTransition(async () => {
-      await stopDeployment(project.id, deployment.id);
-      router.refresh();
+      const result = await stopDeployment(project.id, deployment.id);
+      if (result.error) {
+        setStopError(result.error);
+      } else {
+        router.refresh();
+      }
     });
   };
 
   const isTerminal = ["stopped", "rolled_back", "failed"].includes(deployment.status);
+  const canManageDeployment = hasMinRole(currentRole, "developer");
+  const previousRevisions = revisions.filter((r) => r.id !== deployment.current_revision_id);
+  // Mirrors rollbackDeployment's own status check so the button isn't shown
+  // only to fail server-side (e.g. while still "pending" or "deploying").
+  const canRollback =
+    canManageDeployment &&
+    ["active", "draining"].includes(deployment.status) &&
+    previousRevisions.length > 0;
+
+  const handleOpenRollback = () => {
+    setRollbackError(null);
+    setIsRollbackOpen(true);
+  };
+
+  const handleCloseRollback = () => {
+    setIsRollbackOpen(false);
+    setRollbackError(null);
+  };
+
+  const handleConfirmRollback = (targetRevisionId: string, reason: string) => {
+    setRollbackError(null);
+    startRollbackTransition(async () => {
+      const result = await rollbackDeployment(project.id, deployment.id, targetRevisionId, reason);
+      if (result.error) {
+        setRollbackError(result.error);
+      } else {
+        setIsRollbackOpen(false);
+        router.refresh();
+      }
+    });
+  };
 
   return (
     <>
@@ -197,7 +251,7 @@ export function DeploymentDetailClient({
           { label: "Projects", href: "/projects" },
           { label: project.name, href: `/projects/${project.id}` },
           { label: "Deployments" },
-          { label: `#${revisions[revisions.length - 1]?.revision_number ?? 1}` },
+          { label: `#${revisions[0]?.revision_number ?? 1}` },
         ]}
       />
 
@@ -229,20 +283,41 @@ export function DeploymentDetailClient({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            {!isTerminal && (
-              <button
-                onClick={handleStop}
-                disabled={isPending}
-                className="flex items-center gap-2 px-4 py-2 border border-error/30 text-error hover:bg-error/10 transition-colors font-medium text-sm rounded-md disabled:opacity-50"
-              >
-                <span className="material-symbols-outlined text-sm">stop_circle</span>
-                {isPending ? "Stopping..." : "Stop"}
-              </button>
-            )}
+          <div className="flex flex-col items-end gap-2">
+            <div className="flex items-center gap-3">
+              {canRollback && (
+                <button
+                  onClick={handleOpenRollback}
+                  className="flex items-center gap-2 px-4 py-2 border border-outline-variant/30 text-on-surface hover:bg-surface-container-high transition-colors font-medium text-sm rounded-md"
+                >
+                  <span className="material-symbols-outlined text-sm">undo</span>
+                  Rollback
+                </button>
+              )}
+              {!isTerminal && (
+                <button
+                  onClick={handleStop}
+                  disabled={isPending}
+                  className="flex items-center gap-2 px-4 py-2 border border-error/30 text-error hover:bg-error/10 transition-colors font-medium text-sm rounded-md disabled:opacity-50"
+                >
+                  <span className="material-symbols-outlined text-sm">stop_circle</span>
+                  {isPending ? "Stopping..." : "Stop"}
+                </button>
+              )}
+            </div>
+            {stopError && <p className="text-xs text-error">{stopError}</p>}
           </div>
         </div>
       </section>
+
+      <RollbackDialog
+        isOpen={isRollbackOpen}
+        revisions={previousRevisions}
+        pending={isRollingBack}
+        error={rollbackError}
+        onClose={handleCloseRollback}
+        onConfirm={handleConfirmRollback}
+      />
 
       {/* Approval Card */}
       {approval && (
@@ -316,6 +391,9 @@ export function DeploymentDetailClient({
           )}
           {deployment.strategy === "rolling" && (
             <RollingProgressCard healingEvents={healingEvents} />
+          )}
+          {deployment.strategy === "blue_green" && (
+            <BlueGreenProgressCard revisions={revisions} healingEvents={healingEvents} />
           )}
 
           {/* Recent Health Checks Table */}
