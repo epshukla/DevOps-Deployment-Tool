@@ -39,8 +39,8 @@ vi.spyOn(globalThis, "setTimeout").mockImplementation((fn: () => void) => {
 
 const { isContainerRunning } = await import("../container-manager");
 const { waitForHealthyViaDocker, checkHealthViaDocker } = await import("../health-checker");
-const { generateWeightedNginxConfig, calculateCanaryWeights } = await import("../nginx-config");
-const { runContainer, stopContainer, removeContainerIfExists } = await import("../container-manager");
+const { generateWeightedNginxConfig, calculateCanaryWeights, reloadNginx } = await import("../nginx-config");
+const { runContainer, stopContainer, removeContainerIfExists, inspectContainer } = await import("../container-manager");
 
 function createMockClient() {
   return {
@@ -83,6 +83,7 @@ describe("DockerLocalCanaryDeployer", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(inspectContainer).mockReset();
     deployer = new DockerLocalCanaryDeployer();
   });
 
@@ -253,6 +254,86 @@ describe("DockerLocalCanaryDeployer", () => {
       const lastStable = stableCalls[stableCalls.length - 1];
       expect((lastStable[0] as any).image).toBe("myapp:v2");
       expect((lastStable[0] as any).labels["deployx.canaryRole"]).toBe("stable");
+    });
+
+    it("final cutover keeps a healthy upstream: canary serves until the new stable is live", async () => {
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+      vi.mocked(checkHealthViaDocker).mockResolvedValue(healthyResult());
+
+      // Track which upstreams nginx serves after each reload
+      let written: string[] = [];
+      const served: string[][] = [];
+      vi.mocked(generateWeightedNginxConfig).mockImplementation((opts: any) => {
+        written = opts.upstreams.map((u: any) => u.name);
+        return "cfg";
+      });
+      vi.mocked(reloadNginx).mockImplementation(async () => {
+        served.push(written);
+      });
+      const events: string[] = [];
+      vi.mocked(stopContainer).mockImplementation(async (name: string) => {
+        events.push(`stop:${name}:serving=${served[served.length - 1]?.join("+")}`);
+      });
+      vi.mocked(runContainer).mockImplementation(async (opts: any) => {
+        events.push(`run:${opts.name}`);
+        return "id";
+      });
+
+      const result = await deployer.deploy(createCtx());
+
+      expect(result.success).toBe(true);
+      // Old stable is only stopped once nginx routes exclusively to the canary
+      expect(events).toContain("stop:deployx-myapp-stable:serving=deployx-myapp-canary");
+      // Canary is only stopped once nginx routes exclusively to the new stable
+      expect(events).toContain("stop:deployx-myapp-canary:serving=deployx-myapp-stable");
+      expect(served[served.length - 1]).toEqual(["deployx-myapp-stable"]);
+      vi.mocked(generateWeightedNginxConfig).mockReturnValue("mock-weighted-config");
+      vi.mocked(reloadNginx).mockReset();
+      vi.mocked(stopContainer).mockReset();
+      vi.mocked(runContainer).mockReset();
+    });
+
+    it("keeps routing to the canary and fails if the new stable is unhealthy", async () => {
+      vi.mocked(checkHealthViaDocker).mockResolvedValue(healthyResult());
+      vi.mocked(waitForHealthyViaDocker)
+        .mockResolvedValueOnce(healthyResult()) // canary
+        .mockResolvedValueOnce(unhealthyResult()); // new stable
+
+      const result = await deployer.deploy(createCtx());
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("New stable failed health check");
+      const lastConfig = vi.mocked(generateWeightedNginxConfig).mock.calls.slice(-1)[0][0] as any;
+      expect(lastConfig.upstreams.map((u: any) => u.name)).toEqual(["deployx-myapp-canary"]);
+      expect(vi.mocked(stopContainer)).not.toHaveBeenCalledWith("deployx-myapp-canary", expect.anything());
+      // Only the pre-deploy stale-canary cleanup — never after the canary started
+      const canaryRemovals = vi.mocked(removeContainerIfExists).mock.calls.filter(
+        (c) => c[0] === "deployx-myapp-canary",
+      );
+      expect(canaryRemovals).toHaveLength(1);
+    });
+
+    it("labels canary and new stable with the replaced stable image", async () => {
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+      vi.mocked(checkHealthViaDocker).mockResolvedValue(healthyResult());
+      vi.mocked(inspectContainer).mockImplementation(async (name: string) =>
+        name === "deployx-myapp-stable"
+          ? { id: "1", name, state: "running", image: "myapp:v1", labels: {} }
+          : null,
+      );
+
+      await deployer.deploy(createCtx());
+
+      const v2Runs = vi.mocked(runContainer).mock.calls.filter(
+        (c) => (c[0] as any).image === "myapp:v2",
+      );
+      expect(v2Runs.map((c) => (c[0] as any).name)).toEqual([
+        "deployx-myapp-canary",
+        "deployx-myapp-stable",
+      ]);
+      for (const call of v2Runs) {
+        expect((call[0] as any).labels["deployx.previousImage"]).toBe("myapp:v1");
+      }
     });
 
     it("uses custom stages from config", async () => {
