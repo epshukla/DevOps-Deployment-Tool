@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useTransition, useActionState, useEffect, useMemo } from "react";
+import {
+  useState,
+  useTransition,
+  useActionState,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
 import { useRouter } from "next/navigation";
 import { CRON_PRESETS, describeCron } from "@deployx/shared";
 import type { CronPresetKey } from "@deployx/shared";
@@ -197,6 +203,11 @@ export function SchedulesSection({
   );
 }
 
+/** The browser's time zone never changes during a session. */
+function subscribeNever(): () => void {
+  return () => {};
+}
+
 /** All IANA zones the runtime knows, always including UTC and the selection. */
 function listTimeZones(selected: string): readonly string[] {
   const supported =
@@ -216,12 +227,15 @@ function AddScheduleForm({
   readonly onSuccess: () => void;
 }) {
   const [cronValue, setCronValue] = useState<string>(CRON_PRESETS.daily);
-  // Start with UTC (matches the server render), then adopt the browser's zone
-  const [timeZone, setTimeZone] = useState("UTC");
-  useEffect(() => {
-    const browserZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (browserZone) setTimeZone(browserZone);
-  }, []);
+  // Default to the browser's zone; the server snapshot is UTC so hydration
+  // matches, then the client re-renders with the real zone.
+  const browserZone = useSyncExternalStore(
+    subscribeNever,
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+    () => "UTC",
+  );
+  const [chosenZone, setTimeZone] = useState<string | null>(null);
+  const timeZone = chosenZone ?? browserZone;
   const timeZoneOptions = useMemo(() => listTimeZones(timeZone), [timeZone]);
   const [state, formAction, isPending] = useActionState(
     createSchedule.bind(null, projectId),
