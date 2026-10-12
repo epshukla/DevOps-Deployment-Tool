@@ -1,105 +1,104 @@
 @import "tailwindcss";
 
 /*
- * DeployX Design System — "Launch Control"
+ * DeployX Design System — see design-system/deployx/MASTER.md
+ * (derived with the UI/UX Pro Max skill: Data-Dense Dashboard +
+ * Real-Time Monitoring, Dark Mode OLED, JetBrains Mono + IBM Plex Sans).
  *
- * Graphite instrument-panel surfaces, one loud accent (ignition orange) for
- * action and in-flight work, and a strict signal palette for status:
- *   ignition (primary)  → actions, running / in-flight
- *   go (tertiary)       → success, healthy
- *   abort (error)       → failed, unhealthy
- *   hold (warning)      → awaiting approval, degraded, warnings
- *   info                → neutral information
- * Token names keep the Material-3 roles so every component re-themes at once.
+ * Colour means status. UI chrome is neutral; green is reserved for "run"
+ * actions and success, red for failure, blue for running, amber for hold.
+ * Token names keep the Material-3 roles so every component re-themes.
  */
 
 @theme inline {
-  /* ─── Surface hierarchy (graphite, dark → light) ─── */
-  --color-surface-container-lowest: #07080a;
-  --color-surface-container-low: #101216;
-  --color-surface-container: #14171c;
-  --color-surface-container-high: #1b1f26;
-  --color-surface-container-highest: #252a33;
-  --color-surface: #0b0c0f;
-  --color-surface-dim: #0b0c0f;
-  --color-surface-bright: #2e343e;
-  --color-surface-variant: #252a33;
-  --color-surface-tint: #ff8a3d;
-  --color-background: #0b0c0f;
+  /* ─── Surfaces ─── */
+  --color-surface-container-lowest: #070b14;
+  --color-surface-container-low: #0f172a;
+  --color-surface-container: #131c2e;
+  --color-surface-container-high: #1b2336;
+  --color-surface-container-highest: #272f42;
+  --color-surface: #0b1120;
+  --color-surface-dim: #0b1120;
+  --color-surface-bright: #334155;
+  --color-surface-variant: #272f42;
+  --color-surface-tint: #e2e8f0;
+  --color-background: #0b1120;
 
-  /* ─── Primary — ignition orange ─── */
-  --color-primary: #ff8a3d;
-  --color-primary-container: #ff6a14;
-  --color-primary-fixed: #ffd9c2;
-  --color-primary-fixed-dim: #ffb68a;
-  --color-on-primary: #2a1000;
-  --color-on-primary-container: #1f0b00;
-  --color-on-primary-fixed: #2a1000;
-  --color-on-primary-fixed-variant: #7a3000;
-  --color-inverse-primary: #b84a00;
+  /* ─── Primary — neutral (CTA buttons, active nav, links) ─── */
+  --color-primary: #e2e8f0;
+  --color-primary-container: #cbd5e1;
+  --color-primary-fixed: #f1f5f9;
+  --color-primary-fixed-dim: #cbd5e1;
+  --color-on-primary: #0f172a;
+  --color-on-primary-container: #0f172a;
+  --color-on-primary-fixed: #0f172a;
+  --color-on-primary-fixed-variant: #334155;
+  --color-inverse-primary: #334155;
 
-  /* ─── Secondary — cool steel ─── */
-  --color-secondary: #a9b8cc;
-  --color-secondary-container: #2b3442;
-  --color-secondary-fixed: #d6e1f0;
-  --color-secondary-fixed-dim: #a9b8cc;
-  --color-on-secondary: #17202c;
-  --color-on-secondary-container: #b9c7d9;
-  --color-on-secondary-fixed: #0d1520;
-  --color-on-secondary-fixed-variant: #364254;
+  /* ─── Accent — run green (trigger / run actions only) ─── */
+  --color-accent: #22c55e;
+  --color-on-accent: #052e16;
 
-  /* ─── Tertiary — go / success ─── */
-  --color-tertiary: #3ddc84;
-  --color-tertiary-container: #1a9a55;
-  --color-tertiary-fixed: #7dffb0;
-  --color-tertiary-fixed-dim: #3ddc84;
-  --color-on-tertiary: #00391a;
-  --color-on-tertiary-container: #00210e;
-  --color-on-tertiary-fixed: #002110;
-  --color-on-tertiary-fixed-variant: #005228;
+  /* ─── Secondary ─── */
+  --color-secondary: #94a3b8;
+  --color-secondary-container: #1e293b;
+  --color-secondary-fixed: #e2e8f0;
+  --color-secondary-fixed-dim: #94a3b8;
+  --color-on-secondary: #0f172a;
+  --color-on-secondary-container: #cbd5e1;
+  --color-on-secondary-fixed: #0f172a;
+  --color-on-secondary-fixed-variant: #334155;
 
-  /* ─── Error — abort ─── */
-  --color-error: #ff6b6b;
-  --color-error-container: #5a1013;
-  --color-on-error: #3a0004;
-  --color-on-error-container: #ffd8d5;
+  /* ─── Status: go ─── */
+  --color-tertiary: #22c55e;
+  --color-tertiary-container: #14532d;
+  --color-tertiary-fixed: #86efac;
+  --color-tertiary-fixed-dim: #22c55e;
+  --color-on-tertiary: #052e16;
+  --color-on-tertiary-container: #dcfce7;
+  --color-on-tertiary-fixed: #052e16;
+  --color-on-tertiary-fixed-variant: #166534;
 
-  /* ─── Warning — hold ─── */
-  --color-warning: #f5c542;
-  --color-warning-container: #4a3a0a;
-  --color-on-warning: #2e2300;
+  /* ─── Status: fail ─── */
+  --color-error: #f87171;
+  --color-error-container: #450a0a;
+  --color-on-error: #450a0a;
+  --color-on-error-container: #fee2e2;
 
-  /* ─── Info ─── */
-  --color-info: #6cb6ff;
+  /* ─── Status: hold / running ─── */
+  --color-warning: #f59e0b;
+  --color-warning-container: #451a03;
+  --color-on-warning: #1c1003;
+  --color-info: #60a5fa;
 
   /* ─── Text ─── */
-  --color-on-surface: #e7e9ec;
-  --color-on-surface-variant: #a1a9b5;
-  --color-on-background: #e7e9ec;
-  --color-inverse-surface: #e7e9ec;
-  --color-inverse-on-surface: #1b1f26;
+  --color-on-surface: #f1f5f9;
+  --color-on-surface-variant: #94a3b8;
+  --color-on-background: #f1f5f9;
+  --color-inverse-surface: #f1f5f9;
+  --color-inverse-on-surface: #0f172a;
 
-  /* ─── Outlines ─── */
-  --color-outline: #7c8491;
-  --color-outline-variant: #2e343e;
+  /* ─── Lines ─── */
+  --color-outline: #475569;
+  --color-outline-variant: #1e293b;
 
-  /* ─── Radius (tight, engineered) ─── */
-  --radius-DEFAULT: 0.125rem;
-  --radius-sm: 0.1875rem;
-  --radius-md: 0.3125rem;
+  /* ─── Radius ─── */
+  --radius-DEFAULT: 0.25rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
+  --radius-xl: 0.625rem;
 
-  /* ─── Typography ─── */
-  --font-display: var(--font-bricolage), "Bricolage Grotesque", system-ui, sans-serif;
+  /* ─── Type ─── */
+  --font-display: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace;
   --font-headline: var(--font-display);
-  --font-body: var(--font-instrument), "Instrument Sans", system-ui, sans-serif;
+  --font-body: var(--font-plex), "IBM Plex Sans", system-ui, sans-serif;
   --font-label: var(--font-body);
   --font-sans: var(--font-body);
   --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, monospace;
 
-  /* ─── Motion ─── */
-  --animate-reveal: reveal 0.45s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  /* ─── Motion (subtle) ─── */
+  --animate-reveal: reveal 0.2s ease-out both;
 }
 
 @keyframes loading-sweep {
@@ -114,7 +113,7 @@
 @keyframes reveal {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -127,16 +126,8 @@ body {
   background-color: var(--color-background);
   color: var(--color-on-surface);
   font-family: var(--font-body);
-  font-feature-settings: "ss01", "cv11";
-  /* Atmosphere: ignition glow from the top edge, blueprint grid, film grain */
-  background-image:
-    radial-gradient(1200px 420px at 18% -8%, rgb(255 138 61 / 0.07), transparent 70%),
-    radial-gradient(900px 380px at 100% 0%, rgb(108 182 255 / 0.04), transparent 70%),
-    linear-gradient(rgb(255 255 255 / 0.018) 1px, transparent 1px),
-    linear-gradient(90deg, rgb(255 255 255 / 0.018) 1px, transparent 1px),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
-  background-size: auto, auto, 32px 32px, 32px 32px, 160px 160px;
-  background-attachment: fixed;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 h1,
@@ -144,8 +135,7 @@ h2,
 h3,
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.02em;
-  font-optical-sizing: auto;
+  letter-spacing: -0.01em;
 }
 
 /* Numbers in data views line up */
@@ -157,13 +147,13 @@ table {
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-on-surface);
   outline-offset: 2px;
   border-radius: 3px;
 }
 
 ::selection {
-  background: rgb(255 138 61 / 0.35);
+  background: rgb(96 165 250 / 0.35);
   color: var(--color-on-surface);
 }
 
@@ -171,11 +161,6 @@ table {
 .page-enter > * {
   animation: var(--animate-reveal);
 }
-.page-enter > *:nth-child(2) { animation-delay: 40ms; }
-.page-enter > *:nth-child(3) { animation-delay: 80ms; }
-.page-enter > *:nth-child(4) { animation-delay: 120ms; }
-.page-enter > *:nth-child(5) { animation-delay: 160ms; }
-.page-enter > *:nth-child(n + 6) { animation-delay: 200ms; }
 
 @media (prefers-reduced-motion: reduce) {
   .page-enter > * {
@@ -190,7 +175,7 @@ table {
 
 /* ─── Glass card (login page, overlays) ─── */
 .glass-card {
-  background: rgb(20 23 28 / 0.72);
+  background: rgb(15 23 42 / 0.85);
   backdrop-filter: blur(14px) saturate(1.1);
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 0.04) inset,
@@ -226,4 +211,13 @@ table {
     transparent 0
   );
   background-size: 24px 24px;
+}
+
+/* Clickable things look clickable (skill checklist) */
+a,
+button:not(:disabled),
+[role="button"],
+select,
+summary {
+  cursor: pointer;
 }

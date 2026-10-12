@@ -1,117 +1,122 @@
 import Link from "next/link";
-import type { PipelineRunStatus } from "@deployx/shared";
+import { Panel } from "@/components/ui/panel";
+import { StatusBadge } from "@/components/ui/status-badge";
 
-interface PipelineRunRow {
+export interface PipelineRunRow {
   readonly id: string;
   readonly name: string;
   readonly project: string;
   readonly project_id: string;
   readonly branch: string;
-  readonly status: PipelineRunStatus;
-  readonly duration: string | null;
-  readonly triggered_at: string;
+  readonly commit: string | null;
+  readonly trigger: string | null;
+  readonly status: string;
+  readonly duration: string;
+  readonly started: string;
+  readonly startedTitle: string;
 }
 
-interface PipelineRunsTableProps {
-  readonly runs: readonly PipelineRunRow[];
-}
-
-const STATUS_DOT: Record<string, string> = {
-  success: "bg-tertiary shadow-[0_0_8px_rgba(74,225,118,0.4)]",
-  failed: "bg-error shadow-[0_0_8px_rgba(255,180,171,0.4)]",
-  running: "bg-primary animate-pulse shadow-[0_0_8px_rgba(173,198,255,0.4)]",
-  queued: "bg-on-surface-variant/40",
-  created: "bg-on-surface-variant/20",
-  cancelled: "bg-on-surface-variant/30",
-  timed_out: "bg-error/60",
+const TRIGGER_ICON: Readonly<Record<string, string>> = {
+  manual: "touch_app",
+  webhook: "commit",
+  schedule: "schedule",
 };
 
-export function PipelineRunsTable({ runs }: PipelineRunsTableProps) {
+/**
+ * Recent runs as a dense table (36px rows, sticky header). Every cell links
+ * to the run, so the whole row is clickable and keyboard reachable once.
+ */
+export function PipelineRunsTable({ runs }: { readonly runs: readonly PipelineRunRow[] }) {
   return (
-    <div className="bg-surface-container-low rounded-xl overflow-hidden">
-      <div className="px-6 py-5 flex items-center justify-between bg-surface-container-high/30">
-        <h3 className="text-base font-bold flex items-center gap-2">
-          <span aria-hidden="true" className="material-symbols-outlined text-primary">
-            analytics
-          </span>
-          Recent Pipeline Runs
-        </h3>
+    <Panel
+      title="Recent runs"
+      actions={
         <Link
           href="/projects"
-          className="text-xs font-medium text-primary hover:underline"
+          className="text-xs text-on-surface-variant transition-colors hover:text-on-surface"
         >
-          View All
+          All projects →
         </Link>
-      </div>
-
+      }
+    >
       {runs.length === 0 ? (
-        <div className="px-6 py-12 text-center">
-          <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
-            rocket_launch
-          </span>
-          <p className="text-sm text-on-surface-variant">
-            No pipeline runs yet
-          </p>
-          <p className="text-xs text-on-surface-variant/60 mt-1">
-            Create a project and trigger your first pipeline
+        <div className="px-4 py-10 text-center">
+          <p className="text-sm text-on-surface">No runs yet</p>
+          <p className="mt-1 text-xs text-on-surface-variant">
+            Create a project, add a pipeline, then trigger it or push to GitHub.
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="text-[10px] font-bold uppercase tracking-[0.1em] text-on-surface-variant border-b border-outline-variant/10">
-                <th className="px-6 py-4">Status</th>
-                <th className="px-6 py-4">Pipeline</th>
-                <th className="px-6 py-4">Project</th>
-                <th className="px-6 py-4">Branch</th>
-                <th className="px-6 py-4">Duration</th>
-                <th className="px-6 py-4 text-right">Triggered</th>
+        <div className="max-h-[420px] overflow-auto">
+          <table className="w-full min-w-[720px] border-collapse text-left text-[13px]">
+            <thead className="sticky top-0 z-10 bg-surface-container-low">
+              <tr className="border-b border-outline-variant text-xs text-on-surface-variant">
+                <th scope="col" className="h-8 px-4 font-normal">Status</th>
+                <th scope="col" className="h-8 px-3 font-normal">Pipeline</th>
+                <th scope="col" className="h-8 px-3 font-normal">Project</th>
+                <th scope="col" className="h-8 px-3 font-normal">Branch</th>
+                <th scope="col" className="h-8 px-3 font-normal">Commit</th>
+                <th scope="col" className="h-8 px-3 text-right font-normal">Duration</th>
+                <th scope="col" className="h-8 px-4 text-right font-normal">Started</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-outline-variant/5">
+            <tbody>
               {runs.map((run) => {
-                // Real cells keep columns aligned with the header; every cell
-                // links to the run so the whole row stays clickable.
                 const href = `/projects/${run.project_id}/runs/${run.id}`;
-                const cell = "block px-6 py-4";
+                const cell = "flex h-9 items-center";
                 return (
                   <tr
                     key={run.id}
-                    className="group hover:bg-surface-container-highest/40 transition-colors"
+                    className="border-b border-outline-variant/60 transition-colors last:border-b-0 hover:bg-surface-container"
                   >
-                    <td className="p-0 w-[80px]">
-                      <Link href={href} className={cell} aria-label={`Run ${run.status}`}>
-                        <span
-                          className={`w-2 h-2 rounded-full inline-block ${STATUS_DOT[run.status] ?? STATUS_DOT.created}`}
-                        />
+                    <td className="p-0 pl-4">
+                      <Link href={href} className={cell}>
+                        <StatusBadge status={run.status} />
                       </Link>
                     </td>
-                    <td className="p-0">
-                      <Link href={href} className={`${cell} font-mono text-xs font-semibold`}>
-                        {run.name}
+                    <td className="p-0 px-3">
+                      <Link href={href} className={`${cell} font-mono font-medium`} tabIndex={-1}>
+                        <span className="truncate">{run.name}</span>
                       </Link>
                     </td>
-                    <td className="p-0">
-                      <Link href={href} className={`${cell} text-xs`}>
-                        {run.project}
+                    <td className="p-0 px-3">
+                      <Link href={href} className={`${cell} text-on-surface-variant`} tabIndex={-1}>
+                        <span className="truncate">{run.project}</span>
                       </Link>
                     </td>
-                    <td className="p-0">
-                      <Link href={href} className={cell} tabIndex={-1}>
-                        <span className="bg-surface-container-highest px-2 py-0.5 rounded text-[10px] font-mono">
-                          {run.branch}
-                        </span>
+                    <td className="p-0 px-3">
+                      <Link href={href} className={`${cell} gap-1 font-mono text-xs text-on-surface-variant`} tabIndex={-1}>
+                        <span aria-hidden="true" className="material-symbols-outlined text-[14px]">call_split</span>
+                        <span className="max-w-[140px] truncate">{run.branch}</span>
                       </Link>
                     </td>
-                    <td className="p-0">
-                      <Link href={href} className={`${cell} text-xs text-on-surface-variant`} tabIndex={-1}>
-                        {run.duration ?? "--"}
+                    <td className="p-0 px-3">
+                      <Link href={href} className={`${cell} gap-1.5 font-mono text-xs text-on-surface-variant`} tabIndex={-1}>
+                        {run.trigger && (
+                          <span
+                            aria-hidden="true"
+                            title={run.trigger}
+                            className="material-symbols-outlined text-[14px]"
+                          >
+                            {TRIGGER_ICON[run.trigger] ?? "bolt"}
+                          </span>
+                        )}
+                        {run.commit ?? "—"}
                       </Link>
                     </td>
-                    <td className="p-0">
-                      <Link href={href} className={`${cell} text-xs text-right text-on-surface-variant`} tabIndex={-1}>
-                        {run.triggered_at}
+                    <td className="p-0 px-3">
+                      <Link href={href} className={`${cell} justify-end font-mono text-xs tabular-nums`} tabIndex={-1}>
+                        {run.duration}
+                      </Link>
+                    </td>
+                    <td className="p-0 pr-4">
+                      <Link
+                        href={href}
+                        className={`${cell} justify-end whitespace-nowrap text-xs text-on-surface-variant`}
+                        tabIndex={-1}
+                        title={run.startedTitle}
+                      >
+                        {run.started}
                       </Link>
                     </td>
                   </tr>
@@ -121,6 +126,6 @@ export function PipelineRunsTable({ runs }: PipelineRunsTableProps) {
           </table>
         </div>
       )}
-    </div>
+    </Panel>
   );
 }

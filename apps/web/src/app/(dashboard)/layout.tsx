@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/layout/sidebar";
+import { NavProvider } from "@/components/layout/nav-context";
 import {
   UserProvider,
   type NotificationData,
@@ -70,8 +71,10 @@ export default async function DashboardLayout({
       activeOrgId={activeOrg?.id ?? null}
       pendingInviteCount={invitesResult.count ?? 0}
     >
-      <Sidebar />
-      <main className="ml-[240px] min-h-screen page-enter">{children}</main>
+      <NavProvider>
+        <Sidebar />
+        <main className="min-h-screen lg:ml-56 page-enter">{children}</main>
+      </NavProvider>
     </UserProvider>
   );
 }

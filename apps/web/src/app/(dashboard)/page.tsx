@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { TopBar } from "@/components/layout/top-bar";
-import { StatCard } from "@/components/dashboard/stat-card";
+import { KpiStrip } from "@/components/dashboard/kpi-strip";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Greeting } from "@/components/dashboard/greeting";
 import { PipelineRunsTable } from "@/components/dashboard/pipeline-runs-table";
 import { DeploymentHealthCards } from "@/components/dashboard/deployment-health-cards";
 import { requireUserWithOrg } from "@/lib/auth/session";
-import { formatDate } from "@/lib/format-date";
+import { formatDate, formatDurationShort, formatRelative } from "@/lib/format-date";
 import { computeTrend, splitByWindow } from "@/lib/trend";
 import { computeUptimePercent, SLA_DEFAULT_WINDOW_HOURS } from "@deployx/shared";
 
@@ -52,7 +53,7 @@ export default async function DashboardOverview() {
         .select("id, status, trigger_type, git_branch, git_sha, duration_ms, created_at, project_id, projects(name), pipeline_definitions(name)")
         .in("project_id", projectIds)
         .order("created_at", { ascending: false })
-        .limit(8)
+        .limit(12)
     : { data: [] };
 
   // Fetch active deployments with health
@@ -172,86 +173,80 @@ export default async function DashboardOverview() {
   const liveDeployments = activeHealthRows ?? [];
   const unhealthyCount = liveDeployments.filter((d) => d.health_status === "unhealthy").length;
   const degradedCount = liveDeployments.filter((d) => d.health_status === "degraded").length;
-  const fleetHealth =
+  const fleetStatus =
     liveDeployments.length === 0
-      ? { label: "idle", tone: "text-on-surface-variant" }
+      ? { status: "idle", label: "No live deployments" }
       : unhealthyCount > 0
-        ? { label: `needs attention (${unhealthyCount} unhealthy)`, tone: "text-error" }
+        ? { status: "unhealthy", label: `${unhealthyCount} unhealthy` }
         : degradedCount > 0
-          ? { label: `degraded (${degradedCount})`, tone: "text-warning" }
-          : { label: "optimal", tone: "text-tertiary" };
+          ? { status: "degraded", label: `${degradedCount} degraded` }
+          : { status: "healthy", label: "All healthy" };
 
   return (
     <>
       <TopBar breadcrumbs={[{ label: "Overview" }]} />
-      <div className="px-8 pb-12 pt-4 max-w-[1600px] mx-auto">
-        {/* Welcome Header */}
-        <section className="mb-10 flex items-end justify-between gap-6">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-primary/80 mb-2">
-              {org.name} · mission control
-            </p>
-            <h2 className="text-3xl font-bold tracking-tight">
-              <Greeting name={displayName.split(" ")[0] ?? displayName} />
-            </h2>
-            <p className="text-on-surface-variant text-sm mt-1.5 flex items-center gap-2">
-              <span
-                aria-hidden="true"
-                className={`inline-block h-1.5 w-1.5 rounded-full bg-current ${fleetHealth.tone} ${
-                  fleetHealth.label === "optimal" ? "animate-pulse" : ""
-                }`}
-              />
-              Fleet is <span className={fleetHealth.tone}>{fleetHealth.label}</span>
-              <span className="text-on-surface-variant/40">·</span>
-              {liveDeployments.length} deployment{liveDeployments.length !== 1 ? "s" : ""} live
+      <div className="mx-auto max-w-[1400px] space-y-5 px-4 py-6 md:px-6">
+        {/* Page header */}
+        <header className="flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="font-mono text-xl font-semibold">Overview</h1>
+            <p className="mt-1 text-[13px] text-on-surface-variant">
+              <Greeting name={displayName.split(" ")[0] ?? displayName} /> — here&apos;s{" "}
+              {org.name} right now.
             </p>
           </div>
-          <Link
-            href="/projects/new"
-            className="bg-primary text-on-primary px-4 py-2.5 text-xs font-bold rounded-md transition-all flex items-center gap-2 shadow-[0_8px_24px_-8px_rgb(255_138_61/0.6)] hover:brightness-110 active:scale-95"
-          >
-            <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
-            New Project
-          </Link>
-        </section>
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-2 rounded-md border border-outline-variant bg-surface-container-low px-2.5 py-1.5 text-xs text-on-surface-variant">
+              Fleet
+              <StatusBadge status={fleetStatus.status} label={fleetStatus.label} />
+            </span>
+            <Link
+              href="/projects/new"
+              className="flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[13px] font-medium text-on-primary transition-colors hover:bg-primary-container"
+            >
+              <span aria-hidden="true" className="material-symbols-outlined text-[18px]">add</span>
+              New project
+            </Link>
+          </div>
+        </header>
 
-        {/* Stats Row */}
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          <StatCard
-            label="Total Pipelines"
-            value={String(totalRuns ?? 0)}
-            icon="rocket_launch"
-            accent="primary"
-            trend={totalRunsTrend}
-          />
-          <StatCard
-            label="Success Rate"
-            value={successRate}
-            icon="check_circle"
-            accent="tertiary"
-            trend={successRateTrend}
-            goodWhen="up"
-          />
-          <StatCard
-            label="Avg Build Time"
-            value={avgBuildTime}
-            icon="timer"
-            accent="secondary"
-            trend={avgBuildTimeTrend}
-            goodWhen="down"
-          />
-          <StatCard
-            label="Active Deployments"
-            value={String(activeDeployments ?? 0)}
-            icon="dynamic_form"
-            accent="info"
-            trend={activeDeploymentsTrend}
-          />
-        </section>
+        {/* KPI strip */}
+        <KpiStrip
+          items={[
+            {
+              label: "Runs (all time)",
+              value: String(totalRuns ?? 0),
+              trend: totalRunsTrend,
+              goodWhen: "either",
+              hint: "Δ last 7d vs prior 7d",
+            },
+            {
+              label: "Success rate",
+              value: successRate,
+              trend: successRateTrend,
+              goodWhen: "up",
+              hint: "Finished runs, last 500",
+            },
+            {
+              label: "Avg build time",
+              value: avgBuildTime,
+              trend: avgBuildTimeTrend,
+              goodWhen: "down",
+              hint: "Successful runs",
+            },
+            {
+              label: "Live deployments",
+              value: String(activeDeployments ?? 0),
+              trend: activeDeploymentsTrend,
+              goodWhen: "either",
+              hint: "New deploys Δ 7d",
+            },
+          ]}
+        />
 
-        {/* Main Content */}
-        <div className="flex flex-col lg:flex-row gap-8">
-          <div className="lg:w-3/5">
+        {/* Runs + deployments */}
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+          <div className="min-w-0 xl:col-span-8">
             <PipelineRunsTable
               runs={(recentRuns ?? []).map((run) => ({
                 id: run.id,
@@ -261,25 +256,28 @@ export default async function DashboardOverview() {
                 project: (run.projects as unknown as { name: string } | null)?.name ?? "—",
                 project_id: run.project_id,
                 branch: run.git_branch ?? "default",
-                status: run.status as "success" | "failed" | "running" | "queued" | "created" | "cancelled" | "timed_out",
-                duration: run.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : null,
-                triggered_at: formatDate(run.created_at),
+                commit: run.git_sha ? (run.git_sha as string).slice(0, 7) : null,
+                trigger: (run.trigger_type as string | null) ?? null,
+                status: run.status as string,
+                duration: formatDurationShort(run.duration_ms as number | null),
+                started: formatRelative(run.created_at),
+                startedTitle: formatDate(run.created_at),
               }))}
             />
           </div>
-          <div className="lg:w-2/5">
+          <div className="min-w-0 xl:col-span-4">
             <DeploymentHealthCards
               deployments={(activeDeploymentsList ?? []).map((d) => {
                 const revisionId = d.current_revision_id as string | null;
                 const checks = healthChecksByDeployment.get(d.id as string) ?? [];
                 const uptimePercent = computeUptimePercent(checks, SLA_DEFAULT_WINDOW_HOURS);
                 return {
-                  id: d.id,
+                  id: d.id as string,
                   name: (d.projects as unknown as { name: string } | null)?.name ?? "—",
-                  project_id: d.project_id,
-                  status: d.status as "active" | "deploying" | "rolled_back" | "stopped",
-                  health: d.health_status as "healthy" | "degraded" | "unhealthy" | "unknown",
-                  image_sha: revisionId ? imageTagByRevisionId.get(revisionId) ?? "—" : "—",
+                  project_id: d.project_id as string,
+                  status: d.status as string,
+                  health: d.health_status as string,
+                  image: revisionId ? imageTagByRevisionId.get(revisionId) ?? "—" : "—",
                   uptime: checks.length > 0 ? `${uptimePercent.toFixed(2)}%` : "—",
                 };
               })}
