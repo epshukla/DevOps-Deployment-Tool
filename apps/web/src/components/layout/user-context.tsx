@@ -27,6 +27,7 @@ export interface UserContextValue {
   readonly unreadCount: number;
   readonly orgs: readonly OrgSummary[];
   readonly activeOrgId: string | null;
+  readonly pendingInviteCount: number;
 }
 
 const UserContext = createContext<UserContextValue>({
@@ -37,6 +38,7 @@ const UserContext = createContext<UserContextValue>({
   unreadCount: 0,
   orgs: [],
   activeOrgId: null,
+  pendingInviteCount: 0,
 });
 
 export function useUser() {

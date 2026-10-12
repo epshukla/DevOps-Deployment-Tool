@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUserWithOrg } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit";
+import { switchActiveOrg } from "@/lib/auth/org-actions";
 import {
   InviteMemberSchema,
   UpdateRoleSchema,
@@ -39,18 +40,6 @@ export async function inviteMember(
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
-  // Check if user is already a member
-  const { data: existingUser } = await supabase
-    .from("user_profiles")
-    .select("id")
-    .eq(
-      "id",
-      supabase
-        .from("org_memberships")
-        .select("user_id")
-        .eq("org_id", org.id),
-    );
-
   // Check for existing membership by looking up user by email
   const { data: authUser } = await supabase.rpc("get_user_id_by_email" as never, {
     lookup_email: parsed.data.email,
@@ -76,7 +65,7 @@ export async function inviteMember(
     org_id: org.id,
     email: parsed.data.email,
     role: parsed.data.role,
-    invited_by: (await supabase.auth.getUser()).data.user!.id,
+    invited_by: user.id,
   });
 
   if (error) {
@@ -86,7 +75,7 @@ export async function inviteMember(
     return { error: "Failed to create invite" };
   }
 
-  recordAuditEvent(supabase, {
+  await recordAuditEvent(supabase, {
     org_id: org.id,
     user_id: user.id,
     action: "create",
@@ -145,6 +134,11 @@ export async function updateMemberRole(
     return { error: "Cannot change the organization owner's role" };
   }
 
+  // Admins cannot manage other admins (mirrors removeMember)
+  if (callerRole === "admin" && targetMembership.role === "admin") {
+    return { error: "Admins cannot change another admin's role" };
+  }
+
   // Admins cannot promote to admin (only owners can)
   if (callerRole === "admin" && parsed.data.role === "admin") {
     return { error: "Only owners can promote members to admin" };
@@ -160,7 +154,7 @@ export async function updateMemberRole(
     return { error: "Failed to update member role" };
   }
 
-  recordAuditEvent(supabase, {
+  await recordAuditEvent(supabase, {
     org_id: org.id,
     user_id: user.id,
     action: "update",
@@ -223,7 +217,7 @@ export async function removeMember(
     return { error: "Failed to remove member" };
   }
 
-  recordAuditEvent(supabase, {
+  await recordAuditEvent(supabase, {
     org_id: org.id,
     user_id: user.id,
     action: "delete",
@@ -242,20 +236,34 @@ export async function removeMember(
 export async function cancelInvite(
   inviteId: string,
 ): Promise<ActionResult> {
-  const { supabase, role: callerRole } = await requireUserWithOrg();
+  const { supabase, user, org, role: callerRole } = await requireUserWithOrg();
 
   if (!hasMinRole(callerRole, "admin")) {
     return { error: "Only admins and owners can cancel invites" };
   }
 
-  const { error } = await supabase
+  const { data: deleted, error } = await supabase
     .from("org_invites")
     .delete()
-    .eq("id", inviteId);
+    .eq("id", inviteId)
+    .eq("org_id", org.id)
+    .select("id, email");
 
   if (error) {
     return { error: "Failed to cancel invite" };
   }
+  if (!deleted || deleted.length === 0) {
+    return { error: "Invite not found" };
+  }
+
+  await recordAuditEvent(supabase, {
+    org_id: org.id,
+    user_id: user.id,
+    action: "delete",
+    resource_type: "invite",
+    resource_id: inviteId,
+    details: { email: deleted[0].email },
+  });
 
   revalidatePath("/settings");
   return { success: true };
@@ -329,8 +337,19 @@ export async function acceptInvite(
     .update({ accepted_at: new Date().toISOString() })
     .eq("id", inviteId);
 
-  revalidatePath("/settings");
-  revalidatePath("/");
+  await recordAuditEvent(supabase, {
+    org_id: invite.org_id,
+    user_id: user.id,
+    action: "create",
+    resource_type: "membership",
+    resource_id: user.id,
+    details: { via: "invite", role: invite.role },
+  });
+
+  // Land the user in the org they just joined
+  await switchActiveOrg(invite.org_id);
+
+  revalidatePath("/", "layout");
   return { success: true };
 }
 
@@ -371,5 +390,102 @@ export async function declineInvite(
   }
 
   revalidatePath("/settings");
+  return { success: true };
+}
+
+const ORG_NAME_MAX_LENGTH = 100;
+
+/**
+ * Rename the active organization. Admins and owners only.
+ */
+export async function updateOrganizationName(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { supabase, user, org, role } = await requireUserWithOrg();
+
+  if (!hasMinRole(role, "admin")) {
+    return { error: "Only admins and owners can rename the organization" };
+  }
+
+  const name = (formData.get("name") as string | null)?.trim() ?? "";
+  if (name.length === 0) {
+    return { fieldErrors: { name: ["Organization name is required"] } };
+  }
+  if (name.length > ORG_NAME_MAX_LENGTH) {
+    return {
+      fieldErrors: {
+        name: [`Name must be ${ORG_NAME_MAX_LENGTH} characters or fewer`],
+      },
+    };
+  }
+  if (name === org.name) {
+    return { success: true };
+  }
+
+  const { data: updated, error } = await supabase
+    .from("organizations")
+    .update({ name, updated_at: new Date().toISOString() })
+    .eq("id", org.id)
+    .select("id");
+
+  if (error || !updated || updated.length === 0) {
+    return { error: "Failed to rename organization" };
+  }
+
+  await recordAuditEvent(supabase, {
+    org_id: org.id,
+    user_id: user.id,
+    action: "update",
+    resource_type: "organization",
+    resource_id: org.id,
+    details: { from: org.name, to: name },
+  });
+
+  revalidatePath("/", "layout");
+  return { success: true };
+}
+
+/**
+ * Permanently delete the active organization and everything it owns.
+ * Owner only, and the caller must type the org slug to confirm.
+ */
+export async function deleteOrganization(
+  _prev: ActionResult,
+  formData: FormData,
+): Promise<ActionResult> {
+  const { supabase, user, org, role } = await requireUserWithOrg();
+
+  if (role !== "owner") {
+    return { error: "Only the organization owner can delete it" };
+  }
+
+  const confirmation = (formData.get("confirm_slug") as string | null)?.trim();
+  if (confirmation !== org.slug) {
+    return {
+      fieldErrors: {
+        confirm_slug: [`Type "${org.slug}" exactly to confirm`],
+      },
+    };
+  }
+
+  const { data: deleted, error } = await supabase
+    .from("organizations")
+    .delete()
+    .eq("id", org.id)
+    .select("id");
+
+  if (error || !deleted || deleted.length === 0) {
+    return {
+      error: `Failed to delete organization${error ? `: ${error.message}` : ""}`,
+    };
+  }
+
+  // The audit log row would be cascaded with the org, so log server-side.
+  console.info(
+    `[settings] Organization ${org.id} (${org.slug}) deleted by ${user.id}`,
+  );
+
+  revalidatePath("/", "layout");
   return { success: true };
 }
