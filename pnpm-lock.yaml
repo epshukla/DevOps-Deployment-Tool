@@ -29,6 +29,9 @@ importers:
       execa:
         specifier: ^9.5.0
         version: 9.6.1
+      tinyglobby:
+        specifier: ^0.2.16
+        version: 0.2.16
       zod:
         specifier: ^3.25.0
         version: 3.25.76
