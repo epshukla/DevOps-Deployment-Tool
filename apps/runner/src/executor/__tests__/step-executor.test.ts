@@ -214,8 +214,9 @@ describe("docker step hardening", () => {
   });
 
   it("runs the step container as the invoking user when uid/gid are available", async () => {
-    vi.spyOn(process, "getuid").mockReturnValue(1234);
-    vi.spyOn(process, "getgid").mockReturnValue(5678);
+    const posixProcess = process as unknown as { getuid: () => number; getgid: () => number };
+    vi.spyOn(posixProcess, "getuid").mockReturnValue(1234);
+    vi.spyOn(posixProcess, "getgid").mockReturnValue(5678);
 
     await executeStep({
       command: "npm test",
