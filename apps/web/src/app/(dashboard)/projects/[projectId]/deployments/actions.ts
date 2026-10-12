@@ -41,16 +41,21 @@ export async function stopDeployment(
     return { error: `Deployment is already ${deployment.status}` };
   }
 
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from("deployments")
     .update({
       status: "stopped",
       updated_at: new Date().toISOString(),
     })
-    .eq("id", deploymentId);
+    .eq("id", deploymentId)
+    .select("id");
 
   if (error) {
     return { error: "Failed to stop deployment" };
+  }
+
+  if (!updatedRows || updatedRows.length === 0) {
+    return { error: "Deployment not found or not permitted" };
   }
 
   // Also update the current revision status
@@ -91,6 +96,11 @@ export async function rollbackDeployment(
     return { error: "You don't have permission to rollback deployments" };
   }
 
+  const trimmedReason = reason.trim();
+  if (!trimmedReason) {
+    return { error: "A rollback reason is required" };
+  }
+
   // Verify the deployment exists
   const { data: deployment } = await supabase
     .from("deployments")
@@ -107,28 +117,46 @@ export async function rollbackDeployment(
     return { error: `Cannot rollback deployment in ${deployment.status} state` };
   }
 
+  // Verify the target revision actually belongs to this deployment —
+  // otherwise a caller could point current_revision_id at any revision row.
+  const { data: targetRevision } = await supabase
+    .from("deployment_revisions")
+    .select("id")
+    .eq("id", targetRevisionId)
+    .eq("deployment_id", deploymentId)
+    .single();
+
+  if (!targetRevision) {
+    return { error: "Target revision not found for this deployment" };
+  }
+
   // Update current revision as rolled back
   await supabase
     .from("deployment_revisions")
     .update({
       status: "rolled_back",
-      rollback_reason: reason,
+      rollback_reason: trimmedReason,
     })
     .eq("deployment_id", deploymentId)
     .eq("status", "active");
 
   // Update the deployment to point to the target revision
-  const { error } = await supabase
+  const { data: updatedRows, error } = await supabase
     .from("deployments")
     .update({
       status: "rolled_back",
       current_revision_id: targetRevisionId,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", deploymentId);
+    .eq("id", deploymentId)
+    .select("id");
 
   if (error) {
     return { error: "Failed to rollback deployment" };
+  }
+
+  if (!updatedRows || updatedRows.length === 0) {
+    return { error: "Deployment not found or not permitted" };
   }
 
   recordAuditEvent(supabase, {
@@ -137,7 +165,7 @@ export async function rollbackDeployment(
     action: "rollback",
     resource_type: "deployment",
     resource_id: deploymentId,
-    details: { reason, targetRevisionId },
+    details: { reason: trimmedReason, targetRevisionId },
   });
 
   revalidatePath(`/projects/${projectId}/deployments/${deploymentId}`);
