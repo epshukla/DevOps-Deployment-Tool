@@ -110,6 +110,10 @@ describe("Task transitions", () => {
     expect(validateTaskTransition("running", "awaiting_approval")).toBe(false);
   });
 
+  it("rejects awaiting_approval → success (must run first)", () => {
+    expect(validateTaskTransition("awaiting_approval", "success")).toBe(false);
+  });
+
   it("rejects pending → success (must go through running)", () => {
     expect(validateTaskTransition("pending", "success")).toBe(false);
   });

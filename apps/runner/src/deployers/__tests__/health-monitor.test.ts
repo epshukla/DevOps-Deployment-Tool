@@ -153,6 +153,76 @@ describe("HealthMonitor", () => {
     monitor.stop();
   });
 
+  describe("previous image (rollback target)", () => {
+    function arrange(labels: Record<string, string>) {
+      vi.mocked(containerManager.listContainersByLabel).mockResolvedValue([
+        { id: "abc", name: "deployx-myapp-stable", status: "Up 1 minute", image: "myapp:v2" },
+      ]);
+      vi.mocked(containerManager.inspectContainer).mockResolvedValue({
+        id: "abc",
+        name: "deployx-myapp-stable",
+        state: "running",
+        image: "myapp:v2",
+        labels: {
+          "deployx.project": "myapp",
+          "deployx.role": "app",
+          "deployx.strategy": "canary",
+          "deployx.deployment": "dep-1",
+          "deployx.runId": "run-1",
+          ...labels,
+        },
+      });
+      vi.mocked(containerManager.isContainerRunning).mockResolvedValue(true);
+      vi.mocked(healthChecker.checkHealthViaDocker).mockResolvedValue({
+        passed: true,
+        statusCode: null,
+        responseTimeMs: 10,
+      });
+    }
+
+    function lastRef() {
+      const calls = vi.mocked(remediationEngine.remediate).mock.calls;
+      return calls[calls.length - 1][0];
+    }
+
+    it("reads deployx.previousImage into the remediation ref", async () => {
+      arrange({ "deployx.previousImage": "myapp:v1" });
+      const monitor = new HealthMonitor({ client: createMockClient(), intervalMs: 1000 });
+      monitor.start();
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(lastRef().previousImageTag).toBe("myapp:v1");
+      expect(lastRef().strategy).toBe("canary");
+      monitor.stop();
+    });
+
+    it("leaves previousImageTag null when the label is absent", async () => {
+      arrange({});
+      const monitor = new HealthMonitor({ client: createMockClient(), intervalMs: 1000 });
+      monitor.start();
+
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(lastRef().previousImageTag).toBeNull();
+      monitor.stop();
+    });
+
+    it("refreshes the rollback target on later ticks", async () => {
+      arrange({ "deployx.previousImage": "myapp:v1" });
+      const monitor = new HealthMonitor({ client: createMockClient(), intervalMs: 1000 });
+      monitor.start();
+      await vi.advanceTimersByTimeAsync(1000);
+
+      // e.g. after an in-place rollback the container no longer carries the label
+      arrange({});
+      await vi.advanceTimersByTimeAsync(1000);
+
+      expect(lastRef().previousImageTag).toBeNull();
+      monitor.stop();
+    });
+  });
+
   it("skips containers without required labels", async () => {
     vi.mocked(containerManager.listContainersByLabel).mockResolvedValue([
       {

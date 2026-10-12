@@ -61,16 +61,27 @@ export async function createWorkspace(
     }
   } catch (err) {
     // Clean up on failure
-    await rm(workspacePath, { recursive: true, force: true }).catch(() => {});
+    await removeWorkspace(workspacePath);
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(`Failed to create workspace: ${message}`);
   }
 
-  const cleanup = async () => {
-    await rm(workspacePath, { recursive: true, force: true }).catch(() => {});
-  };
+  const cleanup = () => removeWorkspace(workspacePath);
 
   return { path: workspacePath, cleanup };
+}
+
+/**
+ * Best-effort recursive removal. Failures (e.g. root-owned files left behind
+ * by a step container) are logged with context rather than thrown.
+ */
+async function removeWorkspace(workspacePath: string): Promise<void> {
+  try {
+    await rm(workspacePath, { recursive: true, force: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Failed to remove workspace ${workspacePath}: ${message}`);
+  }
 }
 
 /**

@@ -11,6 +11,7 @@ import type { DeploymentRef, RemediationState } from "../remediation-engine";
 vi.mock("../container-manager", () => ({
   restartContainer: vi.fn(),
   isContainerRunning: vi.fn(),
+  inspectContainer: vi.fn(),
   runContainer: vi.fn(),
   removeContainerIfExists: vi.fn(),
   stopContainer: vi.fn(),
@@ -332,6 +333,84 @@ describe("remediate", () => {
       "dep-1",
       expect.objectContaining({ status: "rolled_back" }),
     );
+  });
+
+  describe("rollback for rolling/canary deployments", () => {
+    const exhausted: RemediationState = {
+      restartCount: 3,
+      lastRestartAt: 0,
+      isRemediating: false,
+    };
+
+    async function arrangeHealthy(passed: boolean) {
+      const healthChecker = await import("../health-checker");
+      vi.mocked(healthChecker.waitForHealthyViaDocker).mockResolvedValue({
+        passed,
+        statusCode: null,
+        responseTimeMs: 50,
+        error: passed ? undefined : "connection refused",
+      });
+      vi.mocked(containerManager.inspectContainer).mockResolvedValue({
+        id: "c1",
+        name: "deployx-myapp-stable",
+        state: "running",
+        image: "myapp:v2",
+        labels: {
+          "deployx.project": "myapp",
+          "deployx.role": "app",
+          "deployx.strategy": "canary",
+          "deployx.canaryRole": "stable",
+          "deployx.previousImage": "myapp:v1",
+        },
+      });
+    }
+
+    it("replaces the broken container in place with the previous image", async () => {
+      await arrangeHealthy(true);
+      const nginx = await import("../nginx-config");
+      const ref = createRef({ containerName: "deployx-myapp-stable", strategy: "canary" });
+
+      const result = await remediate(ref, "unhealthy", exhausted, mockClient);
+
+      expect(result.action).toBe("rollback");
+      expect(result.success).toBe(true);
+      expect(containerManager.removeContainerIfExists).toHaveBeenCalledWith("deployx-myapp-stable");
+      const run = vi.mocked(containerManager.runContainer).mock.calls[0][0];
+      expect(run.name).toBe("deployx-myapp-stable");
+      expect(run.image).toBe("myapp:v1");
+      expect(run.labels).toMatchObject({
+        "deployx.strategy": "canary",
+        "deployx.canaryRole": "stable",
+        "deployx.deployment": "dep-1",
+      });
+      // Rolled-back container must not point at itself as a rollback target
+      expect(run.labels?.["deployx.previousImage"]).toBeUndefined();
+      // No blue-green slot is created; nginx re-resolves the recreated container
+      expect(containerManager.runContainer).toHaveBeenCalledTimes(1);
+      expect(nginx.generateNginxConfig).not.toHaveBeenCalled();
+      expect(nginx.reloadNginx).toHaveBeenCalledWith("deployx-proxy-myapp");
+      expect(mockClient.updateDeployment).toHaveBeenCalledWith(
+        "run-1",
+        "dep-1",
+        expect.objectContaining({ status: "rolled_back" }),
+      );
+    });
+
+    it("reports rollback_failed when the rolled-back container is unhealthy", async () => {
+      await arrangeHealthy(false);
+      const ref = createRef({ containerName: "deployx-myapp-inst-1", strategy: "rolling" });
+
+      const result = await remediate(ref, "unhealthy", exhausted, mockClient);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Rollback container unhealthy");
+      expect(mockClient.recordHealingEvent).toHaveBeenCalledWith(
+        "run-1",
+        "dep-1",
+        expect.objectContaining({ event_type: "rollback_failed" }),
+      );
+      expect(mockClient.updateDeployment).not.toHaveBeenCalled();
+    });
   });
 
   it("records rollback_failed when no previousImageTag", async () => {
