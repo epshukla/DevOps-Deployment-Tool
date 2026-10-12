@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseCronExpression,
   getNextCronRun,
+  isValidTimeZone,
   describeCron,
   CreateScheduleSchema,
   UpdateScheduleSchema,
@@ -264,5 +265,46 @@ describe("UpdateScheduleSchema", () => {
       cron_expression: "bad",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("getNextCronRun with time zones", () => {
+  it("defaults to UTC", () => {
+    const after = new Date("2026-03-01T10:30:00Z");
+    expect(getNextCronRun("0 9 * * *", after).toISOString()).toBe(
+      "2026-03-02T09:00:00.000Z",
+    );
+  });
+
+  it("matches the wall clock of the given zone (IST is UTC+5:30)", () => {
+    const after = new Date("2026-03-01T00:00:00Z"); // 05:30 IST
+    // 09:00 IST on Mar 1 = 03:30 UTC
+    expect(
+      getNextCronRun("0 9 * * *", after, "Asia/Kolkata").toISOString(),
+    ).toBe("2026-03-01T03:30:00.000Z");
+  });
+
+  it("follows daylight saving changes", () => {
+    // New York is UTC-5 in winter, UTC-4 after 2026-03-08
+    const winter = getNextCronRun("0 9 * * *", new Date("2026-03-02T00:00:00Z"), "America/New_York");
+    const summer = getNextCronRun("0 9 * * *", new Date("2026-03-10T00:00:00Z"), "America/New_York");
+    expect(winter.toISOString()).toBe("2026-03-02T14:00:00.000Z");
+    expect(summer.toISOString()).toBe("2026-03-10T13:00:00.000Z");
+  });
+
+  it("evaluates day-of-week in the target zone", () => {
+    // Sunday 23:30 UTC is already Monday 05:00 in Kolkata
+    const after = new Date("2026-03-01T23:00:00Z");
+    expect(
+      getNextCronRun("0 5 * * 1", after, "Asia/Kolkata").toISOString(),
+    ).toBe("2026-03-01T23:30:00.000Z");
+  });
+});
+
+describe("isValidTimeZone", () => {
+  it("accepts IANA zones and rejects garbage", () => {
+    expect(isValidTimeZone("UTC")).toBe(true);
+    expect(isValidTimeZone("Asia/Kolkata")).toBe(true);
+    expect(isValidTimeZone("Mars/Olympus_Mons")).toBe(false);
   });
 });

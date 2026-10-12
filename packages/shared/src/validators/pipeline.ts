@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { DeployConfigSchema } from "./deployment";
+import { MAX_REQUIRED_APPROVALS } from "../constants";
 
 // ── Step Config ─────────────────────────────────────────────────
 
@@ -24,6 +25,12 @@ export type StepConfig = z.infer<typeof StepConfigSchema>;
 export const TaskConfigSchema = z.object({
   depends_on: z.array(z.string().min(1)).optional(),
   approval_required: z.boolean().optional(),
+  required_approvals: z
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_REQUIRED_APPROVALS)
+    .optional(),
   steps: z
     .array(StepConfigSchema)
     .min(1, "Task must have at least one step")
