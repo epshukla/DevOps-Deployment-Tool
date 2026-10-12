@@ -35,13 +35,15 @@ export default async function DashboardOverview() {
         .in("project_id", projectIds)
     : { count: 0 };
 
-  const { count: activeDeployments } = projectIds.length > 0
+  // Every active deployment's health: one source for the stat and the header
+  const { data: activeHealthRows } = projectIds.length > 0
     ? await supabase
         .from("deployments")
-        .select("id", { count: "exact", head: true })
+        .select("health_status")
         .eq("status", "active")
         .in("project_id", projectIds)
-    : { count: 0 };
+    : { data: [] };
+  const activeDeployments = (activeHealthRows ?? []).length;
 
   // Fetch recent pipeline runs
   const { data: recentRuns } = projectIds.length > 0
@@ -167,7 +169,7 @@ export default async function DashboardOverview() {
   );
 
   // Real fleet health instead of a hardcoded "optimal"
-  const liveDeployments = (activeDeploymentsList ?? []).filter((d) => d.status === "active");
+  const liveDeployments = activeHealthRows ?? [];
   const unhealthyCount = liveDeployments.filter((d) => d.health_status === "unhealthy").length;
   const degradedCount = liveDeployments.filter((d) => d.health_status === "degraded").length;
   const fleetHealth =
