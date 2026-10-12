@@ -19,6 +19,30 @@ export const StepConfigSchema = z.object({
 
 export type StepConfig = z.infer<typeof StepConfigSchema>;
 
+// ── Artifacts ───────────────────────────────────────────────────
+
+const ABSOLUTE_PATH_PATTERN = /^(?:[/\\~]|[A-Za-z]:)/;
+
+/**
+ * True if an artifact path/glob stays within the workspace: relative,
+ * no ".." segments, no home-dir or negation prefix, no NUL bytes.
+ * The runner re-checks resolved realpaths before uploading.
+ */
+export function isSafeArtifactPattern(pattern: string): boolean {
+  if (pattern.includes("\0")) return false;
+  if (ABSOLUTE_PATH_PATTERN.test(pattern)) return false;
+  if (pattern.startsWith("!")) return false;
+  return !pattern.split(/[/\\]/).some((segment) => segment === "..");
+}
+
+export const ArtifactPatternSchema = z
+  .string()
+  .min(1, "Artifact path is required")
+  .max(500)
+  .refine(isSafeArtifactPattern, {
+    message: "Artifact paths must be relative to the workspace (no absolute paths or '..')",
+  });
+
 // ── Task Config ─────────────────────────────────────────────────
 
 export const TaskConfigSchema = z.object({
@@ -29,6 +53,8 @@ export const TaskConfigSchema = z.object({
     .min(1, "Task must have at least one step")
     .max(50, "Task must have at most 50 steps"),
   deploy: DeployConfigSchema.optional(),
+  /** Workspace-relative files/globs uploaded after the task's steps succeed */
+  artifacts: z.array(ArtifactPatternSchema).max(20).optional(),
 });
 
 export type TaskConfig = z.infer<typeof TaskConfigSchema>;
