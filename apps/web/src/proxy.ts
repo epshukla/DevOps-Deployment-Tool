@@ -67,7 +67,9 @@ export const config = {
      * - _next/image (image optimization)
      * - favicon.ico, sitemap.xml, robots.txt (metadata files)
      * - public assets
+     * - API routes with their own auth (runner tokens, webhook HMAC,
+     *   CRON_SECRET) — a login redirect would break machine callers
      */
-    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|api/runner|api/webhooks|api/notifications|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|api/runner|api/webhooks|api/notifications|api/cron|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
