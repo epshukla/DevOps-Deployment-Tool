@@ -20,6 +20,7 @@ interface NotificationData {
 
 interface NotificationDropdownProps {
   readonly userId: string;
+  readonly orgId?: string | null;
   readonly initialNotifications: readonly NotificationData[];
   readonly initialUnreadCount: number;
 }
@@ -47,6 +48,7 @@ const TYPE_ICON: Record<string, string> = {
 
 export function NotificationDropdown({
   userId,
+  orgId = null,
   initialNotifications,
   initialUnreadCount,
 }: NotificationDropdownProps) {
@@ -56,6 +58,7 @@ export function NotificationDropdown({
   const { notifications, unreadCount, markAsRead, markAllRead } =
     useRealtimeNotifications({
       userId,
+      orgId,
       initialNotifications,
       initialUnreadCount,
     });

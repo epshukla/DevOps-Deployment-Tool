@@ -60,7 +60,10 @@ export function TopBar({
         <div className="flex items-center gap-4 text-on-surface-variant/60">
           {effectiveUserId && (
             <NotificationDropdown
+              // Remount on org switch so state re-seeds from the new org
+              key={user.activeOrgId ?? "none"}
               userId={effectiveUserId}
+              orgId={user.activeOrgId}
               initialNotifications={initialNotifications ?? user.notifications}
               initialUnreadCount={initialUnreadCount ?? user.unreadCount}
             />
