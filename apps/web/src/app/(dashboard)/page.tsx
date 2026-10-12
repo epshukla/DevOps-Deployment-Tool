@@ -46,7 +46,7 @@ export default async function DashboardOverview() {
   const { data: recentRuns } = projectIds.length > 0
     ? await supabase
         .from("pipeline_runs")
-        .select("id, status, trigger_type, git_branch, git_sha, duration_ms, created_at, project_id, projects(name)")
+        .select("id, status, trigger_type, git_branch, git_sha, duration_ms, created_at, project_id, projects(name), pipeline_definitions(name)")
         .in("project_id", projectIds)
         .order("created_at", { ascending: false })
         .limit(8)
@@ -238,10 +238,12 @@ export default async function DashboardOverview() {
             <PipelineRunsTable
               runs={(recentRuns ?? []).map((run) => ({
                 id: run.id,
-                name: `Run`,
+                name:
+                  (run.pipeline_definitions as unknown as { name: string } | null)?.name ??
+                  "Pipeline",
                 project: (run.projects as unknown as { name: string } | null)?.name ?? "—",
                 project_id: run.project_id,
-                branch: run.git_branch ?? "main",
+                branch: run.git_branch ?? "default",
                 status: run.status as "success" | "failed" | "running" | "queued" | "created" | "cancelled" | "timed_out",
                 duration: run.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : null,
                 triggered_at: formatDate(run.created_at),
