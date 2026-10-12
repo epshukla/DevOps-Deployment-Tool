@@ -48,7 +48,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="p-6 flex items-center gap-3">
         <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary-container rounded-lg flex items-center justify-center">
-          <span
+          <span aria-hidden="true"
             className="material-symbols-outlined text-on-primary text-lg"
             style={{ fontVariationSettings: "'FILL' 1" }}
           >
@@ -104,7 +104,7 @@ export function Sidebar() {
                   : "text-on-surface-variant/60 hover:bg-surface-container-high hover:text-on-surface-variant"
               }`}
             >
-              <span className="material-symbols-outlined text-[20px]">
+              <span aria-hidden="true" className="material-symbols-outlined text-[20px]">
                 {item.icon}
               </span>
               <span className={active ? "font-semibold" : ""}>
@@ -138,7 +138,7 @@ export function Sidebar() {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <span className="material-symbols-outlined text-[18px]">
+                <span aria-hidden="true" className="material-symbols-outlined text-[18px]">
                   account_circle
                 </span>
               )}
@@ -151,7 +151,7 @@ export function Sidebar() {
             onClick={handleSignOut}
             className="flex items-center gap-3 w-full px-4 py-2.5 text-on-surface-variant/40 hover:bg-error/10 hover:text-error transition-colors rounded-lg text-sm"
           >
-            <span className="material-symbols-outlined text-[20px]">
+            <span aria-hidden="true" className="material-symbols-outlined text-[20px]">
               logout
             </span>
             <span>Sign out</span>

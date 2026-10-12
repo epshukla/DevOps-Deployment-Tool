@@ -86,9 +86,13 @@ export function SchedulesSection({
         {pipelinesWithVersion.length > 0 && (
           <button
             onClick={() => setShowAddForm((prev) => !prev)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded hover:bg-primary/90 transition-colors"
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded transition-colors ${
+              showAddForm
+                ? "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high"
+                : "bg-primary text-on-primary hover:bg-primary/90"
+            }`}
           >
-            <span className="material-symbols-outlined text-sm">{showAddForm ? "close" : "add"}</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">{showAddForm ? "close" : "add"}</span>
             {showAddForm ? "Cancel" : "Add Schedule"}
           </button>
         )}
@@ -110,7 +114,7 @@ export function SchedulesSection({
 
       {schedules.length === 0 && !showAddForm ? (
         <div className="px-6 py-12 text-center">
-          <span className="material-symbols-outlined text-4xl text-on-surface-variant/20 mb-3 block">schedule</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/20 mb-3 block">schedule</span>
           <p className="text-sm text-on-surface-variant">No scheduled triggers</p>
           <p className="text-xs text-on-surface-variant/60 mt-1">
             {pipelinesWithVersion.length === 0
@@ -168,7 +172,7 @@ export function SchedulesSection({
                         onClick={() => setDeletingId(schedule.id)}
                         className="text-on-surface-variant/50 hover:text-error transition-colors"
                       >
-                        <span className="material-symbols-outlined text-lg">delete</span>
+                        <span aria-hidden="true" className="material-symbols-outlined text-lg">delete</span>
                       </button>
                     )}
                   </div>
@@ -177,11 +181,10 @@ export function SchedulesSection({
                   <span className="font-mono bg-surface-container-highest px-2 py-0.5 rounded">
                     {schedule.cron_expression}
                   </span>
-                  <span>{describeCron(schedule.cron_expression)}</span>
-                  <span className="text-on-surface-variant/60">{schedule.timezone}</span>
+                  <span>{describeCron(schedule.cron_expression, schedule.timezone)}</span>
                   {schedule.git_branch && (
                     <span className="flex items-center gap-1">
-                      <span className="material-symbols-outlined text-xs">account_tree</span>
+                      <span aria-hidden="true" className="material-symbols-outlined text-xs">account_tree</span>
                       {schedule.git_branch}
                     </span>
                   )}
@@ -295,7 +298,7 @@ function AddScheduleForm({
             className="w-full px-3 py-2 bg-surface-container-highest rounded text-sm font-mono text-on-surface placeholder:text-on-surface-variant/30 focus:ring-1 focus:ring-primary focus:outline-none"
           />
           <p className="text-[10px] text-on-surface-variant/60 mt-1">
-            {describeCron(cronValue)} — Format: minute hour day month weekday
+            {describeCron(cronValue, timeZone)} — Format: minute hour day month weekday
           </p>
         </div>
 

@@ -273,7 +273,7 @@ export function RunDetailClient({
               href={`/projects/${project.id}/pipelines/${pipelineDefinitionId}`}
               className="flex items-center gap-1.5 text-xs text-primary hover:underline"
             >
-              <span className="material-symbols-outlined text-[14px]">account_tree</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-[14px]">account_tree</span>
               <span className="font-semibold">
                 {definitionName}
                 {pipelineVersion != null ? ` · v${pipelineVersion}` : ""}
@@ -282,7 +282,7 @@ export function RunDetailClient({
           </SummaryField>
           <SummaryField label="Branch">
             <div className="flex items-center gap-1.5 text-xs">
-              <span className="material-symbols-outlined text-[14px] text-on-surface-variant">account_tree</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-[14px] text-on-surface-variant">account_tree</span>
               <span className="font-semibold">{run.git_branch ?? "—"}</span>
             </div>
           </SummaryField>
@@ -293,7 +293,7 @@ export function RunDetailClient({
           </SummaryField>
           <SummaryField label="Trigger">
             <div className="flex items-center gap-1.5 text-xs">
-              <span className="material-symbols-outlined text-[14px] text-on-surface-variant">
+              <span aria-hidden="true" className="material-symbols-outlined text-[14px] text-on-surface-variant">
                 {run.trigger_type === "manual" ? "person" : "webhook"}
               </span>
               <span>{run.trigger_type}</span>
@@ -301,7 +301,7 @@ export function RunDetailClient({
           </SummaryField>
           <SummaryField label="Duration">
             <div className="flex items-center gap-1.5 text-xs">
-              <span className="material-symbols-outlined text-[14px] text-on-surface-variant">schedule</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-[14px] text-on-surface-variant">schedule</span>
               <span>{formatDuration(run.duration_ms)}</span>
             </div>
           </SummaryField>
@@ -314,7 +314,7 @@ export function RunDetailClient({
               onClick={handleRerun}
               className="flex items-center gap-2 px-4 py-2 border border-primary/30 text-primary text-xs font-bold rounded hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <span className={`material-symbols-outlined text-[18px] ${isRerunning ? "animate-spin" : ""}`}>
+              <span aria-hidden="true" className={`material-symbols-outlined text-[18px] ${isRerunning ? "animate-spin" : ""}`}>
                 {isRerunning ? "progress_activity" : "replay"}
               </span>
               {isRerunning ? "Re-running..." : "Re-run"}
@@ -330,7 +330,7 @@ export function RunDetailClient({
               }}
               className="flex items-center gap-2 px-4 py-2 border border-error/30 text-error text-xs font-bold rounded hover:bg-error/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <span className="material-symbols-outlined text-[18px]">cancel</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-[18px]">cancel</span>
               {isCancelling ? "Cancelling..." : "Cancel Run"}
             </button>
           )}
@@ -353,7 +353,7 @@ export function RunDetailClient({
           {taskRuns.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
-                <span className="material-symbols-outlined text-5xl text-on-surface-variant/20 mb-4 block">account_tree</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-5xl text-on-surface-variant/20 mb-4 block">account_tree</span>
                 <p className="text-sm text-on-surface-variant font-medium">
                   {run.status === "queued" || run.status === "created"
                     ? "Waiting for runner to claim this job..."
@@ -406,7 +406,7 @@ export function RunDetailClient({
                               <div className="flex items-center gap-4 text-xs text-on-surface-variant">
                                 <span>{steps.length} step(s)</span>
                                 <span className="font-mono">{formatDuration(task.duration_ms)}</span>
-                                <span className="material-symbols-outlined text-sm">
+                                <span aria-hidden="true" className="material-symbols-outlined text-sm">
                                   {isSelected ? "expand_less" : "expand_more"}
                                 </span>
                               </div>
@@ -491,7 +491,7 @@ export function RunDetailClient({
                 </select>
               </div>
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-sm text-on-surface-variant">search</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-sm text-on-surface-variant">search</span>
                 <input
                   type="text"
                   value={logSearchQuery}
@@ -517,7 +517,7 @@ export function RunDetailClient({
                 className="flex items-center gap-1 text-[10px] font-bold text-on-surface-variant hover:text-on-surface transition-colors disabled:opacity-40"
                 title="Download logs"
               >
-                <span className="material-symbols-outlined text-sm">download</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-sm">download</span>
                 Download logs
               </button>
             </div>
@@ -590,7 +590,7 @@ function ViewTab({
           : "text-on-surface-variant/60 hover:text-on-surface-variant"
       }`}
     >
-      <span className="material-symbols-outlined text-sm">{icon}</span>
+      <span aria-hidden="true" className="material-symbols-outlined text-sm">{icon}</span>
       {label}
     </button>
   );

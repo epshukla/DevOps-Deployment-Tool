@@ -21,7 +21,7 @@ export function StatCard({
         <span className="text-xs font-medium text-on-surface-variant uppercase tracking-wider">
           {label}
         </span>
-        <span
+        <span aria-hidden="true"
           className={`material-symbols-outlined text-${accentColor}/40 text-lg`}
         >
           {icon}
@@ -37,7 +37,7 @@ export function StatCard({
                 : "text-tertiary bg-tertiary/10"
             }`}
           >
-            <span className="material-symbols-outlined text-sm">
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">
               {trend.direction === "up" ? "trending_up" : "trending_down"}
             </span>
             {trend.value}

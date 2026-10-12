@@ -221,7 +221,7 @@ export function ProjectDetailClient({
                   rel="noopener noreferrer"
                   className="text-outline hover:text-primary transition-colors flex items-center gap-1 text-sm"
                 >
-                  <span className="material-symbols-outlined text-lg">link</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-lg">link</span>
                   <span className="font-mono">
                     {project.git_repo_url.replace(/^https?:\/\//, "")}
                   </span>
@@ -230,12 +230,12 @@ export function ProjectDetailClient({
             </div>
             <div className="flex items-center gap-3 text-xs text-on-surface-variant">
               <span className="flex items-center gap-1">
-                <span className="material-symbols-outlined text-xs">account_tree</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-xs">account_tree</span>
                 {project.default_branch}
               </span>
               <span className="text-outline-variant">|</span>
               <span className="flex items-center gap-1">
-                <span className="material-symbols-outlined text-xs">deployed_code</span>
+                <span aria-hidden="true" className="material-symbols-outlined text-xs">deployed_code</span>
                 {project.deploy_target.replace("_", " ")}
               </span>
             </div>
@@ -248,9 +248,9 @@ export function ProjectDetailClient({
                 className="bg-primary hover:bg-primary/90 text-on-primary px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 transition-all shadow-lg shadow-primary/10 disabled:opacity-50"
               >
                 {isPending ? (
-                  <span className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
                 ) : (
-                  <span className="material-symbols-outlined text-lg">bolt</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-lg">bolt</span>
                 )}
                 {isPending ? "Triggering..." : pipelineDefinitions.length === 0 ? "Create Pipeline" : "Trigger Pipeline"}
               </button>
@@ -274,7 +274,7 @@ export function ProjectDetailClient({
               onClick={handleSettingsClick}
               className="border border-outline-variant/30 hover:bg-surface-container-highest text-on-surface px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 transition-all"
             >
-              <span className="material-symbols-outlined text-lg">settings</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-lg">settings</span>
               Settings
             </button>
           </div>
@@ -332,7 +332,7 @@ function TabButton({ active, icon, label, onClick }: {
         active ? "text-primary border-b-2 border-primary font-semibold" : "text-on-surface-variant hover:text-on-surface"
       }`}
     >
-      <span className="material-symbols-outlined text-lg">{icon}</span>
+      <span aria-hidden="true" className="material-symbols-outlined text-lg">{icon}</span>
       {label}
     </button>
   );
@@ -427,14 +427,14 @@ function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predicted
             href={`/projects/${projectId}/pipelines`}
             className="flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-on-surface-variant hover:text-on-surface transition-colors"
           >
-            <span className="material-symbols-outlined text-sm">settings</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">settings</span>
             Manage
           </Link>
           <Link
             href={`/projects/${projectId}/pipelines/new`}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded hover:bg-primary/90 transition-colors"
           >
-            <span className="material-symbols-outlined text-sm">add</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
             New Pipeline
           </Link>
         </div>
@@ -449,9 +449,13 @@ function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predicted
       ) : (
         <div className="divide-y divide-outline-variant/5">
           {pipelineDefinitions.map((d) => (
-            <div key={d.id} className="flex items-center justify-between px-6 py-3 hover:bg-surface-container transition-colors">
+            <Link
+              key={d.id}
+              href={`/projects/${projectId}/pipelines/${d.id}`}
+              className="flex items-center justify-between px-6 py-3 hover:bg-surface-container transition-colors group"
+            >
               <div className="flex items-center gap-3">
-                <span className="material-symbols-outlined text-sm text-on-surface-variant">
+                <span aria-hidden="true" className="material-symbols-outlined text-sm text-on-surface-variant">
                   account_tree
                 </span>
                 <span className="text-sm font-bold text-on-surface">{d.name}</span>
@@ -463,7 +467,10 @@ function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predicted
                   {d.current_version_id ? "Active" : "Draft"}
                 </span>
               </div>
-            </div>
+              <span aria-hidden="true" className="material-symbols-outlined text-sm text-on-surface-variant/40 group-hover:text-primary transition-colors">
+                chevron_right
+              </span>
+            </Link>
           ))}
         </div>
       )}
@@ -476,7 +483,7 @@ function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predicted
         {definitionsSection}
         <div className="bg-surface-container-low rounded-xl overflow-hidden ring-1 ring-outline-variant/10">
           <div className="px-6 py-12 text-center">
-            <span className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">rocket_launch</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">rocket_launch</span>
             <p className="text-sm text-on-surface-variant">No pipeline runs yet</p>
             <p className="text-xs text-on-surface-variant/60 mt-1">Trigger a pipeline or push to your repository to start</p>
           </div>
@@ -592,7 +599,7 @@ function BentoStats({ metrics }: { readonly metrics: ProjectMetrics }) {
         </div>
         <Link href="/runners" className="w-full mt-4 text-xs font-bold text-primary flex items-center justify-center gap-1 hover:underline">
           Manage Runners
-          <span className="material-symbols-outlined text-sm">east</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-sm">east</span>
         </Link>
       </div>
     </div>
@@ -603,7 +610,7 @@ function DeploymentsTab({ projectId, deployments }: { readonly projectId: string
   if (deployments.length === 0) {
     return (
       <div className="bg-surface-container-low rounded-xl p-12 text-center ring-1 ring-outline-variant/10">
-        <span className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">cloud_upload</span>
+        <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">cloud_upload</span>
         <p className="text-sm text-on-surface-variant">No deployments yet</p>
         <p className="text-xs text-on-surface-variant/60 mt-1">Deployments will appear here after a pipeline completes</p>
       </div>
@@ -669,7 +676,7 @@ function SettingsTab({
             onClick={() => setShowAddForm((prev) => !prev)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded hover:bg-primary/90 transition-colors"
           >
-            <span className="material-symbols-outlined text-sm">{showAddForm ? "close" : "add"}</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">{showAddForm ? "close" : "add"}</span>
             {showAddForm ? "Cancel" : "Add Variable"}
           </button>
         </div>
@@ -683,7 +690,7 @@ function SettingsTab({
 
         {secrets.length === 0 && !showAddForm ? (
           <div className="px-6 py-12 text-center">
-            <span className="material-symbols-outlined text-4xl text-on-surface-variant/20 mb-3 block">key</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/20 mb-3 block">key</span>
             <p className="text-sm text-on-surface-variant">No environment variables configured</p>
             <p className="text-xs text-on-surface-variant/60 mt-1">Add variables to inject into your pipeline runs</p>
           </div>
@@ -695,7 +702,7 @@ function SettingsTab({
                 className="flex items-center justify-between px-6 py-3 hover:bg-surface-container transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-sm text-on-surface-variant">
+                  <span aria-hidden="true" className="material-symbols-outlined text-sm text-on-surface-variant">
                     {secret.is_secret ? "lock" : "lock_open"}
                   </span>
                   <span className="text-sm font-mono font-bold text-on-surface">{secret.key}</span>
@@ -733,7 +740,7 @@ function SettingsTab({
                       onClick={() => setDeletingId(secret.id)}
                       className="text-on-surface-variant/50 hover:text-error transition-colors"
                     >
-                      <span className="material-symbols-outlined text-lg">delete</span>
+                      <span aria-hidden="true" className="material-symbols-outlined text-lg">delete</span>
                     </button>
                   )}
                 </div>
@@ -809,7 +816,7 @@ function AddSecretForm({ projectId, onSuccess }: { readonly projectId: string; r
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="hidden" name="is_secret" value="true" />
           <span className="text-xs text-on-surface-variant">
-            <span className="material-symbols-outlined text-sm align-middle mr-1">lock</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm align-middle mr-1">lock</span>
             Value will be encrypted and masked
           </span>
         </label>
@@ -926,7 +933,7 @@ function WebhooksSection({
             disabled={isCreating}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-sm">add</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
             {isCreating ? "Setting up..." : "Enable Webhook"}
           </button>
         )}
@@ -953,7 +960,7 @@ function WebhooksSection({
 
       {!config ? (
         <div className="px-6 py-12 text-center">
-          <span className="material-symbols-outlined text-4xl text-on-surface-variant/20 mb-3 block">webhook</span>
+          <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/20 mb-3 block">webhook</span>
           <p className="text-sm text-on-surface-variant">No webhook configured</p>
           <p className="text-xs text-on-surface-variant/60 mt-1">Enable a webhook to trigger pipelines from GitHub pushes</p>
         </div>
@@ -1002,7 +1009,7 @@ function WebhooksSection({
                   onClick={() => setConfirmDelete(true)}
                   className="text-on-surface-variant/50 hover:text-error transition-colors"
                 >
-                  <span className="material-symbols-outlined text-lg">delete</span>
+                  <span aria-hidden="true" className="material-symbols-outlined text-lg">delete</span>
                 </button>
               )}
             </div>
@@ -1020,7 +1027,7 @@ function WebhooksSection({
                 className="px-2 py-2 text-on-surface-variant hover:text-primary transition-colors"
                 title="Copy URL"
               >
-                <span className="material-symbols-outlined text-sm">
+                <span aria-hidden="true" className="material-symbols-outlined text-sm">
                   {copied ? "check" : "content_copy"}
                 </span>
               </button>
@@ -1097,7 +1104,7 @@ function WebhooksSection({
                 {deliveries.map((d) => (
                   <div key={d.id} className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-3">
-                      <span className={`material-symbols-outlined text-sm ${
+                      <span aria-hidden="true" className={`material-symbols-outlined text-sm ${
                         d.status === "success" ? "text-tertiary" :
                         d.status === "rejected" ? "text-error" :
                         d.status === "error" ? "text-error" :

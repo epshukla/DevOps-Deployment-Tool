@@ -195,7 +195,7 @@ export default async function DashboardOverview() {
             href="/projects"
             className="bg-primary text-on-primary px-4 py-2 text-xs font-bold rounded-md transition-all flex items-center gap-2 shadow-lg shadow-primary/10 active:scale-95"
           >
-            <span className="material-symbols-outlined text-sm">add</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
             New Pipeline
           </Link>
         </section>

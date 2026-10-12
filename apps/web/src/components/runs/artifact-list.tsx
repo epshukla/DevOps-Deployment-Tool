@@ -51,7 +51,7 @@ export function ArtifactList({
   if (artifacts.length === 0) {
     return (
       <div className="text-center py-6 text-on-surface-variant/40 text-sm">
-        <span className="material-symbols-outlined text-2xl mb-2 block">
+        <span aria-hidden="true" className="material-symbols-outlined text-2xl mb-2 block">
           inventory_2
         </span>
         No artifacts uploaded for this run
@@ -66,7 +66,7 @@ export function ArtifactList({
           key={artifact.path}
           className="flex items-center gap-3 py-2 px-3 rounded-md hover:bg-surface-container-high/50 transition-colors"
         >
-          <span className="material-symbols-outlined text-on-surface-variant/40">
+          <span aria-hidden="true" className="material-symbols-outlined text-on-surface-variant/40">
             description
           </span>
           <div className="flex-1 min-w-0">
@@ -81,7 +81,7 @@ export function ArtifactList({
             className="p-1.5 hover:bg-primary/10 rounded-md transition-colors"
             title="Download"
           >
-            <span className="material-symbols-outlined text-sm text-primary">
+            <span aria-hidden="true" className="material-symbols-outlined text-sm text-primary">
               download
             </span>
           </button>
@@ -92,7 +92,7 @@ export function ArtifactList({
               className="p-1.5 hover:bg-error/10 rounded-md transition-colors"
               title="Delete"
             >
-              <span className="material-symbols-outlined text-sm text-error/60">
+              <span aria-hidden="true" className="material-symbols-outlined text-sm text-error/60">
                 delete
               </span>
             </button>

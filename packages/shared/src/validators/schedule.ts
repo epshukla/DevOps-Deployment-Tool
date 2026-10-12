@@ -199,7 +199,7 @@ export function getNextCronRun(
 /**
  * Returns a human-readable description of a cron expression.
  */
-export function describeCron(expr: string): string {
+export function describeCron(expr: string, timeZone: string = "UTC"): string {
   // Check presets first
   for (const [name, preset] of Object.entries(CRON_PRESETS)) {
     if (expr.trim() === preset) {
@@ -207,9 +207,9 @@ export function describeCron(expr: string): string {
         case "hourly":
           return "Every hour at minute 0";
         case "daily":
-          return "Every day at midnight UTC";
+          return `Every day at midnight ${timeZone}`;
         case "weekly":
-          return "Every Monday at midnight UTC";
+          return `Every Monday at midnight ${timeZone}`;
         case "every-6h":
           return "Every 6 hours at minute 0";
         case "every-12h":
@@ -222,7 +222,7 @@ export function describeCron(expr: string): string {
     const parts = parseCronExpression(expr);
     const minStr = parts.minute.length === 60 ? "*" : parts.minute.join(",");
     const hourStr = parts.hour.length === 24 ? "*" : parts.hour.join(",");
-    return `At minute ${minStr}, hour ${hourStr} UTC`;
+    return `At minute ${minStr}, hour ${hourStr} ${timeZone}`;
   } catch {
     return expr;
   }

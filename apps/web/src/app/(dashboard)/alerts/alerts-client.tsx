@@ -95,7 +95,7 @@ export function AlertsClient({
     <>
       <TopBar breadcrumbs={[{ label: "Alerts" }]} />
 
-      <div className="p-8 max-w-5xl">
+      <div className="p-8 max-w-[1400px] mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-bold text-on-surface">Alert Rules</h2>
@@ -108,7 +108,7 @@ export function AlertsClient({
               onClick={() => setShowCreateForm(!showCreateForm)}
               className="flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
             >
-              <span className="material-symbols-outlined text-lg">add</span>
+              <span aria-hidden="true" className="material-symbols-outlined text-lg">add</span>
               Create Rule
             </button>
           )}
@@ -130,7 +130,7 @@ export function AlertsClient({
 
         {alertRules.length === 0 ? (
           <div className="border border-outline-variant/10 rounded-lg p-12 text-center">
-            <span className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
+            <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
               notifications_active
             </span>
             <p className="text-on-surface-variant/50 text-sm">
@@ -191,7 +191,7 @@ export function AlertsClient({
                       className="p-1.5 hover:bg-surface-container-high rounded-md transition-colors"
                       title="Edit"
                     >
-                      <span className="material-symbols-outlined text-lg text-on-surface-variant/60">
+                      <span aria-hidden="true" className="material-symbols-outlined text-lg text-on-surface-variant/60">
                         edit
                       </span>
                     </button>
@@ -201,7 +201,7 @@ export function AlertsClient({
                       className="p-1.5 hover:bg-surface-container-high rounded-md transition-colors"
                       title={rule.is_active ? "Disable" : "Enable"}
                     >
-                      <span className="material-symbols-outlined text-lg text-on-surface-variant/60">
+                      <span aria-hidden="true" className="material-symbols-outlined text-lg text-on-surface-variant/60">
                         {rule.is_active ? "toggle_on" : "toggle_off"}
                       </span>
                     </button>
@@ -216,7 +216,7 @@ export function AlertsClient({
                       }`}
                       title={confirmDeleteId === rule.id ? "Click again to delete" : "Delete"}
                     >
-                      <span className="material-symbols-outlined text-lg text-error/60">
+                      <span aria-hidden="true" className="material-symbols-outlined text-lg text-error/60">
                         delete
                       </span>
                       {confirmDeleteId === rule.id && (

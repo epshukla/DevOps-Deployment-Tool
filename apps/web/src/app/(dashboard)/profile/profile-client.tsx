@@ -79,7 +79,7 @@ export function ProfileClient({
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <span className="material-symbols-outlined text-3xl text-on-surface-variant">
+                <span aria-hidden="true" className="material-symbols-outlined text-3xl text-on-surface-variant">
                   person
                 </span>
               )}
@@ -136,7 +136,7 @@ export function ProfileClient({
                       onClick={() => setEditing(true)}
                       className="text-on-surface-variant/40 hover:text-on-surface-variant transition-colors"
                     >
-                      <span className="material-symbols-outlined text-sm">
+                      <span aria-hidden="true" className="material-symbols-outlined text-sm">
                         edit
                       </span>
                     </button>
@@ -150,20 +150,20 @@ export function ProfileClient({
               <div className="flex gap-4 mt-3 text-xs text-on-surface-variant/50">
                 {user.github_username && (
                   <span className="flex items-center gap-1">
-                    <span className="material-symbols-outlined text-sm">
+                    <span aria-hidden="true" className="material-symbols-outlined text-sm">
                       code
                     </span>
                     {user.github_username}
                   </span>
                 )}
                 <span className="flex items-center gap-1">
-                  <span className="material-symbols-outlined text-sm">
+                  <span aria-hidden="true" className="material-symbols-outlined text-sm">
                     group
                   </span>
                   {org.name} ({org.role})
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="material-symbols-outlined text-sm">
+                  <span aria-hidden="true" className="material-symbols-outlined text-sm">
                     calendar_today
                   </span>
                   Joined {formatDateShort(user.created_at)}
@@ -188,7 +188,7 @@ export function ProfileClient({
                 key={activity.id}
                 className="flex items-center gap-3 py-2 text-sm"
               >
-                <span className="material-symbols-outlined text-lg text-on-surface-variant/40">
+                <span aria-hidden="true" className="material-symbols-outlined text-lg text-on-surface-variant/40">
                   {ACTION_ICON[activity.action] ?? "info"}
                 </span>
                 <span className="text-on-surface-variant/60 capitalize">

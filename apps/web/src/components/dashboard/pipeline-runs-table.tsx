@@ -31,7 +31,7 @@ export function PipelineRunsTable({ runs }: PipelineRunsTableProps) {
     <div className="bg-surface-container-low rounded-xl overflow-hidden">
       <div className="px-6 py-5 flex items-center justify-between bg-surface-container-high/30">
         <h3 className="text-base font-bold flex items-center gap-2">
-          <span className="material-symbols-outlined text-primary">
+          <span aria-hidden="true" className="material-symbols-outlined text-primary">
             analytics
           </span>
           Recent Pipeline Runs
@@ -46,7 +46,7 @@ export function PipelineRunsTable({ runs }: PipelineRunsTableProps) {
 
       {runs.length === 0 ? (
         <div className="px-6 py-12 text-center">
-          <span className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
+          <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
             rocket_launch
           </span>
           <p className="text-sm text-on-surface-variant">

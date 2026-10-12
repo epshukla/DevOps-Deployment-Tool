@@ -42,7 +42,7 @@ export function RollingProgressCard({ healingEvents }: RollingProgressCardProps)
     <div className="bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10 overflow-hidden">
       <div className="px-6 py-4 border-b border-outline-variant/10">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-sm text-primary">
+          <span aria-hidden="true" className="material-symbols-outlined text-sm text-primary">
             autorenew
           </span>
           <h3 className="text-sm font-bold text-on-surface">
@@ -112,7 +112,7 @@ export function RollingProgressCard({ healingEvents }: RollingProgressCardProps)
                 key={i}
                 className={`${bgColor} rounded-lg p-2 flex flex-col items-center gap-1`}
               >
-                <span className={`material-symbols-outlined text-sm ${textColor}`}>
+                <span aria-hidden="true" className={`material-symbols-outlined text-sm ${textColor}`}>
                   {icon}
                 </span>
                 <span className={`text-[10px] font-mono ${textColor}`}>

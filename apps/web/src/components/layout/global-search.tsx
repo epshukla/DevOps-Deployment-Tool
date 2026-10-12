@@ -182,7 +182,7 @@ export function GlobalSearch() {
 
   return (
     <div ref={containerRef} className="relative flex items-center group">
-      <span className="material-symbols-outlined absolute left-3 text-outline text-lg">
+      <span aria-hidden="true" className="material-symbols-outlined absolute left-3 text-outline text-lg">
         search
       </span>
       <input
@@ -225,7 +225,7 @@ export function GlobalSearch() {
                         : "hover:bg-surface-container-highest"
                     }`}
                   >
-                    <span className="material-symbols-outlined text-[18px] text-primary">
+                    <span aria-hidden="true" className="material-symbols-outlined text-[18px] text-primary">
                       {KIND_ICON[r.kind]}
                     </span>
                     <span className="flex-1 min-w-0">

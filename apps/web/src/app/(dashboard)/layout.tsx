@@ -71,7 +71,7 @@ export default async function DashboardLayout({
       pendingInviteCount={invitesResult.count ?? 0}
     >
       <Sidebar />
-      <main className="ml-[240px] min-h-screen">{children}</main>
+      <main className="ml-[240px] min-h-screen page-enter">{children}</main>
     </UserProvider>
   );
 }

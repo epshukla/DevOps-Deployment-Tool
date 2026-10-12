@@ -213,7 +213,7 @@ function InviteBanner({ invites }: { readonly invites: readonly MyInviteData[] }
           className="bg-primary/5 border border-primary/20 rounded-lg p-4 flex items-center justify-between"
         >
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-primary">mail</span>
+            <span aria-hidden="true" className="material-symbols-outlined text-primary">mail</span>
             <div>
               <p className="text-sm font-medium text-on-surface">
                 You&apos;ve been invited to join <strong>{inv.org_name}</strong> as{" "}
@@ -378,7 +378,7 @@ function MembersTab({
             onClick={() => setShowInviteForm(!showInviteForm)}
             className="bg-primary hover:bg-primary-container text-on-primary font-bold py-2.5 px-5 rounded-md flex items-center gap-2 transition-all shadow-lg shadow-primary/10"
           >
-            <span className="material-symbols-outlined text-[20px]">
+            <span aria-hidden="true" className="material-symbols-outlined text-[20px]">
               person_add
             </span>
             <span className="text-sm">Invite Member</span>
@@ -468,7 +468,7 @@ function MembersTab({
       <div className="mt-12 p-6 bg-surface-container-lowest rounded-lg border border-outline-variant/15 flex items-center justify-between">
         <div className="flex items-center gap-6">
           <div className="w-12 h-12 flex items-center justify-center rounded-lg bg-tertiary-container/20">
-            <span className="material-symbols-outlined text-tertiary">
+            <span aria-hidden="true" className="material-symbols-outlined text-tertiary">
               shield_with_heart
             </span>
           </div>
@@ -728,7 +728,7 @@ function InviteRow({
     <tr className="hover:bg-surface-container-high/30 transition-colors">
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-on-surface-variant/40 text-[20px]">
+          <span aria-hidden="true" className="material-symbols-outlined text-on-surface-variant/40 text-[20px]">
             mail
           </span>
           <span className="text-sm text-on-surface">{invite.email}</span>
