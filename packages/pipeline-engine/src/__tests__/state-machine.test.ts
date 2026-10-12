@@ -98,6 +98,18 @@ describe("Task transitions", () => {
     expect(validateTaskTransition("awaiting_approval", "cancelled")).toBe(true);
   });
 
+  it("allows pending → awaiting_approval (approval gate)", () => {
+    expect(validateTaskTransition("pending", "awaiting_approval")).toBe(true);
+  });
+
+  it("allows awaiting_approval → failed (rejected by reviewer)", () => {
+    expect(validateTaskTransition("awaiting_approval", "failed")).toBe(true);
+  });
+
+  it("rejects awaiting_approval → success (must run first)", () => {
+    expect(validateTaskTransition("awaiting_approval", "success")).toBe(false);
+  });
+
   it("rejects pending → success (must go through running)", () => {
     expect(validateTaskTransition("pending", "success")).toBe(false);
   });
