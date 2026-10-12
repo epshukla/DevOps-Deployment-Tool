@@ -18,6 +18,7 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string; rin
   pending: { bg: "bg-on-surface-variant/10", text: "text-on-surface-variant", dot: "bg-on-surface-variant/40", ring: "ring-outline-variant/10" },
   skipped: { bg: "bg-on-surface-variant/10", text: "text-on-surface-variant", dot: "bg-on-surface-variant/40", ring: "ring-outline-variant/10" },
   cancelled: { bg: "bg-on-surface-variant/10", text: "text-on-surface-variant", dot: "bg-on-surface-variant/40", ring: "ring-outline-variant/10" },
+  awaiting_approval: { bg: "bg-[#f59e0b]/10", text: "text-[#f59e0b]", dot: "bg-[#f59e0b] animate-pulse", ring: "ring-[#f59e0b]/30" },
 };
 
 const STATUS_LABELS: Record<string, string> = {

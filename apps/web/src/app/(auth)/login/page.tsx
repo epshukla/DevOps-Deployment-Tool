@@ -106,15 +106,14 @@ export default function LoginPage() {
             Free and open source
           </p>
           <div className="flex gap-6">
-            <span className="text-[10px] text-on-surface-variant/40">
-              Privacy Policy
-            </span>
-            <span className="text-[10px] text-on-surface-variant/40">
-              Terms of Service
-            </span>
-            <span className="text-[10px] text-on-surface-variant/40">
+            <a
+              href="https://github.com/epshukla"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[10px] text-on-surface-variant/40 hover:text-on-surface-variant transition-colors"
+            >
               Documentation
-            </span>
+            </a>
           </div>
         </div>
       </main>

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition, useActionState } from "react";
+import { useState, useRef, useTransition, useActionState } from "react";
 import { useRouter } from "next/navigation";
 
 import { TopBar } from "@/components/layout/top-bar";
@@ -159,6 +159,12 @@ export function ProjectDetailClient({
   const [showTriggerMenu, setShowTriggerMenu] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const tabContentRef = useRef<HTMLDivElement>(null);
+
+  const handleSettingsClick = () => {
+    setActiveTab("settings");
+    tabContentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const handleTrigger = (definitionId: string) => {
     setTriggerError(null);
@@ -264,7 +270,10 @@ export function ProjectDetailClient({
                 </div>
               )}
             </div>
-            <button className="border border-outline-variant/30 hover:bg-surface-container-highest text-on-surface px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 transition-all">
+            <button
+              onClick={handleSettingsClick}
+              className="border border-outline-variant/30 hover:bg-surface-container-highest text-on-surface px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 transition-all"
+            >
               <span className="material-symbols-outlined text-lg">settings</span>
               Settings
             </button>
@@ -280,7 +289,7 @@ export function ProjectDetailClient({
         </div>
       </div>
 
-      <div className="p-8 max-w-[1600px] mx-auto">
+      <div ref={tabContentRef} className="p-8 max-w-[1600px] mx-auto">
         {activeTab === "pipelines" && (
           <PipelinesTab
             projectId={project.id}
