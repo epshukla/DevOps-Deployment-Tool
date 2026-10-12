@@ -107,7 +107,7 @@ export default function LoginPage() {
           </p>
           <div className="flex gap-6">
             <a
-              href="https://github.com/epshukla"
+              href="https://github.com/epshukla/DevOps-Deployment-Tool#readme"
               target="_blank"
               rel="noopener noreferrer"
               className="text-[10px] text-on-surface-variant/40 hover:text-on-surface-variant transition-colors"
