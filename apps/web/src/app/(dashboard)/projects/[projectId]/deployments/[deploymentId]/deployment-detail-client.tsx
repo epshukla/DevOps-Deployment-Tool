@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useRouter } from "next/navigation";
 import { hasMinRole } from "@deployx/shared";
 import { TopBar } from "@/components/layout/top-bar";
@@ -90,15 +91,6 @@ interface Props {
 
 // ── Status Badges ───────────────────────────────────────────────
 
-const STATUS_BADGE: Record<string, { text: string; className: string }> = {
-  pending: { text: "Pending", className: "bg-on-surface-variant/10 text-on-surface-variant" },
-  deploying: { text: "Deploying", className: "bg-primary/10 text-primary" },
-  active: { text: "Active", className: "bg-tertiary/10 text-tertiary" },
-  draining: { text: "Draining", className: "bg-warning/10 text-warning" },
-  stopped: { text: "Stopped", className: "bg-on-surface-variant/10 text-on-surface-variant" },
-  rolled_back: { text: "Rolled Back", className: "bg-error/10 text-error" },
-  failed: { text: "Failed", className: "bg-error/10 text-error" },
-};
 
 const HEALTH_COLOR: Record<string, string> = {
   healthy: "text-tertiary",
@@ -186,7 +178,6 @@ export function DeploymentDetailClient({
     initialHealingEvents,
   });
 
-  const badge = STATUS_BADGE[deployment.status] ?? STATUS_BADGE.pending;
   const healthColor = HEALTH_COLOR[deployment.health_status] ?? HEALTH_COLOR.unknown;
 
   // Compute health percentage from recent checks
@@ -260,12 +251,10 @@ export function DeploymentDetailClient({
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 max-w-[1600px] mx-auto">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-2xl font-bold tracking-tight text-on-surface">
+              <h1 className="font-mono text-xl font-semibold text-on-surface">
                 Deployment
               </h1>
-              <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase tracking-wider ${badge.className}`}>
-                {badge.text}
-              </span>
+              <StatusBadge status={deployment.status} size="md" />
             </div>
             <div className="flex items-center gap-4 text-on-surface-variant text-sm">
               <span className="flex items-center gap-1.5">
@@ -337,7 +326,7 @@ export function DeploymentDetailClient({
           {/* Health Status Ring */}
           <div className="bg-surface-container rounded-lg p-6 flex flex-col md:flex-row gap-8 items-start">
             <div className="flex flex-col items-center gap-4 min-w-[160px]">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+              <h3 className="text-xs font-bold text-on-surface-variant">
                 Health Status
               </h3>
               <div className="relative w-32 h-32 flex items-center justify-center">
@@ -369,7 +358,7 @@ export function DeploymentDetailClient({
                   <span className={`text-2xl font-bold ${healthColor}`}>
                     {healthChecks.length > 0 ? `${healthPercent}%` : "—"}
                   </span>
-                  <span className={`text-[10px] uppercase font-bold ${healthColor}`}>
+                  <span className={`text-xs uppercase font-bold ${healthColor}`}>
                     {deployment.health_status}
                   </span>
                 </div>
@@ -377,7 +366,7 @@ export function DeploymentDetailClient({
             </div>
             <div className="flex-1 w-full">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+                <h3 className="text-xs font-bold text-on-surface-variant">
                   Response Time (ms)
                 </h3>
               </div>
@@ -399,7 +388,7 @@ export function DeploymentDetailClient({
           {/* Recent Health Checks Table */}
           <div className="bg-surface-container rounded-lg overflow-hidden">
             <div className="px-6 py-4 flex items-center justify-between border-b border-outline-variant/10">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant">
+              <h3 className="text-xs font-bold text-on-surface-variant">
                 Recent Health Checks
               </h3>
               <span className="text-xs text-on-surface-variant/60">
@@ -409,7 +398,7 @@ export function DeploymentDetailClient({
             {healthChecks.length > 0 ? (
               <table className="w-full">
                 <thead>
-                  <tr className="text-xs text-on-surface-variant/60 uppercase tracking-widest border-b border-outline-variant/10">
+                  <tr className="text-xs text-on-surface-variant/60 border-b border-outline-variant/10">
                     <th className="text-left px-6 py-2">Status</th>
                     <th className="text-left px-6 py-2">Response</th>
                     <th className="text-left px-6 py-2">Code</th>
@@ -456,14 +445,13 @@ export function DeploymentDetailClient({
         {/* Right Column: Revision History */}
         <div className="lg:col-span-4 space-y-6">
           <div className="bg-surface-container rounded-lg p-6">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-6">
+            <h3 className="text-xs font-bold text-on-surface-variant mb-6">
               Revision History
             </h3>
             {revisions.length > 0 ? (
               <div className="space-y-0">
                 {revisions.map((rev) => {
                   const isCurrent = rev.id === deployment.current_revision_id;
-                  const revBadge = STATUS_BADGE[rev.status] ?? STATUS_BADGE.pending;
                   return (
                     <div
                       key={rev.id}
@@ -486,21 +474,19 @@ export function DeploymentDetailClient({
                         <span className="text-sm font-bold text-on-surface">
                           #{rev.revision_number}
                         </span>
-                        <span className={`px-1.5 py-0.5 rounded-sm text-[9px] font-bold uppercase ${revBadge.className}`}>
-                          {revBadge.text}
-                        </span>
+                        <StatusBadge status={rev.status} />
                       </div>
 
                       <p className="text-xs font-mono text-on-surface-variant truncate mb-1">
                         {rev.image_tag}
                       </p>
 
-                      <p className="text-[10px] text-on-surface-variant/60">
+                      <p className="text-xs text-on-surface-variant/60">
                         {formatDate(rev.created_at)}
                       </p>
 
                       {rev.rollback_reason && (
-                        <p className="text-[10px] text-error mt-1">
+                        <p className="text-xs text-error mt-1">
                           {rev.rollback_reason}
                         </p>
                       )}
@@ -520,14 +506,14 @@ export function DeploymentDetailClient({
           {/* Image Info */}
           {revisions.length > 0 && (
             <div className="bg-surface-container rounded-lg p-6">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">
+              <h3 className="text-xs font-bold text-on-surface-variant mb-4">
                 Current Image
               </h3>
               <p className="text-xs font-mono text-on-surface break-all">
                 {revisions[0].image_tag}
               </p>
               {revisions[0].image_digest && (
-                <p className="text-[10px] font-mono text-on-surface-variant/60 mt-1 break-all">
+                <p className="text-xs font-mono text-on-surface-variant/60 mt-1 break-all">
                   {revisions[0].image_digest}
                 </p>
               )}
@@ -537,7 +523,7 @@ export function DeploymentDetailClient({
           {/* Self-Healing Events */}
           {healingEvents.length > 0 && (
             <div className="bg-surface-container rounded-lg p-6">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-4">
+              <h3 className="text-xs font-bold text-on-surface-variant mb-4">
                 Self-Healing Events
               </h3>
               <div className="space-y-3">
@@ -555,7 +541,7 @@ export function DeploymentDetailClient({
                         {HEALING_EVENT_LABEL[event.event_type] ?? event.event_type}
                         {event.attempt_number != null && ` #${event.attempt_number}`}
                       </p>
-                      <p className="text-[10px] text-on-surface-variant/60">
+                      <p className="text-xs text-on-surface-variant/60">
                         {formatDate(event.created_at)}
                       </p>
                     </div>
@@ -589,7 +575,7 @@ function ApprovalCard({
   const isPending = approval.status === "pending";
 
   const statusBadge = {
-    pending: { text: "Awaiting Approval", className: "bg-primary/10 text-primary" },
+    pending: { text: "Awaiting approval", className: "bg-warning/10 text-warning" },
     approved: { text: "Approved", className: "bg-tertiary/10 text-tertiary" },
     rejected: { text: "Rejected", className: "bg-error/10 text-error" },
   }[approval.status] ?? { text: approval.status, className: "bg-on-surface-variant/10 text-on-surface-variant" };
@@ -612,7 +598,7 @@ function ApprovalCard({
         <div className="flex items-center gap-3">
           <span aria-hidden="true" className="material-symbols-outlined text-primary">approval</span>
           <h3 className="text-sm font-bold text-on-surface">Deployment Approval</h3>
-          <span className={`px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase ${statusBadge.className}`}>
+          <span className={`px-2 py-0.5 rounded-sm text-xs font-bold uppercase ${statusBadge.className}`}>
             {statusBadge.text}
           </span>
         </div>

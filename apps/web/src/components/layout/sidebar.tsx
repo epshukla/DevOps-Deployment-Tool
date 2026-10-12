@@ -132,7 +132,7 @@ export function Sidebar() {
                 <span className="flex-1">{item.label}</span>
                 {item.href === "/settings" && pendingInviteCount > 0 && (
                   <span
-                    className="grid h-4 min-w-4 place-items-center rounded-full bg-warning px-1 font-mono text-[10px] font-semibold text-on-warning"
+                    className="grid h-4 min-w-4 place-items-center rounded-full bg-warning px-1 font-mono text-xs font-semibold text-on-warning"
                     title={`${pendingInviteCount} pending invite(s)`}
                   >
                     {pendingInviteCount}

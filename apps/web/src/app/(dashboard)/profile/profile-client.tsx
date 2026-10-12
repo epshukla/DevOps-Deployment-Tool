@@ -68,7 +68,7 @@ export function ProfileClient({
     <>
       <TopBar breadcrumbs={[{ label: "Profile" }]} />
 
-      <div className="p-8 max-w-3xl">
+      <div className="px-4 py-6 md:px-6 max-w-3xl">
         <div className="border border-outline-variant/10 rounded-lg p-6 mb-6">
           <div className="flex items-start gap-6">
             {/* Avatar */}

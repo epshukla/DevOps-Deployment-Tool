@@ -24,7 +24,7 @@ interface RunHistoryChartProps {
 const STATUS_COLORS: Record<string, string> = {
   success: "var(--color-tertiary, #4ade80)",
   failed: "var(--color-error, #f87171)",
-  running: "var(--color-primary, #60a5fa)",
+  running: "var(--color-info)",
   cancelled: "var(--color-outline-variant, #94a3b8)",
   timed_out: "var(--color-error, #f87171)",
 };
@@ -48,8 +48,8 @@ export function RunHistoryChart({ runs }: RunHistoryChartProps) {
   if (chartData.length === 0) return null;
 
   return (
-    <div className="mt-8 p-6 bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10">
-      <p className="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-6">
+    <div className="mt-8 p-6 bg-surface-container-low rounded-lg border border-outline-variant">
+      <p className="text-on-surface-variant text-xs font-bold mb-6">
         Run Duration History
       </p>
       <ResponsiveContainer width="100%" height={160}>

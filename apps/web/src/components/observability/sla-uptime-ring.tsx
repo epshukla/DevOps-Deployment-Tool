@@ -65,7 +65,7 @@ export function SlaUptimeRing({
         </div>
       </div>
       <span
-        className="text-xs font-semibold uppercase tracking-wider"
+        className="text-xs font-semibold"
         style={{ color }}
       >
         {STATUS_LABEL[slaStatus]}

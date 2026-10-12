@@ -75,7 +75,7 @@ export function SchedulesSection({
   const pipelinesWithVersion = pipelineDefinitions.filter((d) => d.current_version_id);
 
   return (
-    <div className="bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10 overflow-hidden">
+    <div className="bg-surface-container-low rounded-lg border border-outline-variant overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
         <div>
           <h3 className="text-sm font-bold text-on-surface">Scheduled Triggers</h3>
@@ -189,7 +189,7 @@ export function SchedulesSection({
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-4 text-[10px] text-on-surface-variant/60 mt-2">
+                <div className="flex items-center gap-4 text-xs text-on-surface-variant/60 mt-2">
                   {schedule.next_run_at && schedule.is_active && (
                     <span>Next: {formatDate(schedule.next_run_at)}</span>
                   )}
@@ -255,7 +255,7 @@ function AddScheduleForm({
     <form action={formAction} className="px-6 py-4 bg-surface-container/50 border-b border-outline-variant/10">
       <div className="space-y-4">
         <div>
-          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+          <label className="block text-xs font-bold text-on-surface-variant mb-1">
             Pipeline
           </label>
           <select
@@ -270,7 +270,7 @@ function AddScheduleForm({
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-bold text-on-surface-variant mb-1.5">
             Schedule
           </label>
           <div className="flex flex-wrap gap-2 mb-2">
@@ -297,13 +297,13 @@ function AddScheduleForm({
             required
             className="w-full px-3 py-2 bg-surface-container-highest rounded text-sm font-mono text-on-surface placeholder:text-on-surface-variant/30 focus:ring-1 focus:ring-primary focus:outline-none"
           />
-          <p className="text-[10px] text-on-surface-variant/60 mt-1">
+          <p className="text-xs text-on-surface-variant/60 mt-1">
             {describeCron(cronValue, timeZone)} — Format: minute hour day month weekday
           </p>
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+          <label className="block text-xs font-bold text-on-surface-variant mb-1">
             Branch Override (optional)
           </label>
           <input
@@ -316,7 +316,7 @@ function AddScheduleForm({
         <div>
           <label
             htmlFor="schedule-timezone"
-            className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1"
+            className="block text-xs font-bold text-on-surface-variant mb-1"
           >
             Time Zone
           </label>
@@ -333,7 +333,7 @@ function AddScheduleForm({
               </option>
             ))}
           </select>
-          <p className="text-[10px] text-on-surface-variant/60 mt-1">
+          <p className="text-xs text-on-surface-variant/60 mt-1">
             The cron expression is evaluated in this zone, including daylight saving.
           </p>
         </div>

@@ -40,11 +40,11 @@ export default async function RunnersPage() {
   return (
     <>
       <TopBar breadcrumbs={[{ label: "Runners" }]} />
-      <div className="p-8 max-w-[1400px] mx-auto">
+      <div className="px-4 py-6 md:px-6 max-w-[1400px] mx-auto">
         {/* Header */}
         <div className="flex items-end justify-between mb-8">
           <div>
-            <h2 className="text-3xl font-extrabold tracking-tight text-on-surface">
+            <h2 className="font-mono text-xl font-semibold text-on-surface">
               Runners
             </h2>
             <p className="text-on-surface-variant text-sm mt-1">
@@ -69,7 +69,7 @@ export default async function RunnersPage() {
             </div>
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-4">
-                <span className="px-2 py-0.5 bg-tertiary-container text-[10px] font-bold text-on-tertiary-container uppercase tracking-wider rounded-sm">
+                <span className="px-2 py-0.5 bg-tertiary-container text-xs font-bold text-on-tertiary-container rounded-sm">
                   Setup Command
                 </span>
                 <span className="text-on-surface-variant text-xs font-medium">
@@ -90,7 +90,7 @@ export default async function RunnersPage() {
                   </span>
                 </div>
               </div>
-              <p className="text-[10px] text-on-surface-variant/50 mt-2 ml-1">
+              <p className="text-xs text-on-surface-variant/50 mt-2 ml-1">
                 Run from the <code className="font-mono text-primary">deployx/</code> repo root directory.
               </p>
             </div>
@@ -100,28 +100,28 @@ export default async function RunnersPage() {
         {/* Stats Grid */}
         <div className="grid grid-cols-4 gap-6 mb-10">
           <div className="bg-surface-container p-5 rounded-lg border-l-4 border-tertiary/40">
-            <p className="text-xs text-on-surface-variant uppercase tracking-widest font-bold mb-1">
+            <p className="text-xs text-on-surface-variant font-bold mb-1">
               Total Fleet
             </p>
-            <p className="text-2xl font-extrabold text-on-surface">{total}</p>
+            <p className="text-2xl font-semibold text-on-surface">{total}</p>
           </div>
           <div className="bg-surface-container p-5 rounded-lg border-l-4 border-tertiary">
-            <p className="text-xs text-on-surface-variant uppercase tracking-widest font-bold mb-1">
+            <p className="text-xs text-on-surface-variant font-bold mb-1">
               Online
             </p>
-            <p className="text-2xl font-extrabold text-on-surface">{online}</p>
+            <p className="text-2xl font-semibold text-on-surface">{online}</p>
           </div>
           <div className="bg-surface-container p-5 rounded-lg border-l-4 border-primary/60">
-            <p className="text-xs text-on-surface-variant uppercase tracking-widest font-bold mb-1">
+            <p className="text-xs text-on-surface-variant font-bold mb-1">
               Busy Jobs
             </p>
-            <p className="text-2xl font-extrabold text-on-surface">{busy}</p>
+            <p className="text-2xl font-semibold text-on-surface">{busy}</p>
           </div>
           <div className="bg-surface-container p-5 rounded-lg border-l-4 border-error/40">
-            <p className="text-xs text-on-surface-variant uppercase tracking-widest font-bold mb-1">
+            <p className="text-xs text-on-surface-variant font-bold mb-1">
               Offline
             </p>
-            <p className="text-2xl font-extrabold text-on-surface">{offline}</p>
+            <p className="text-2xl font-semibold text-on-surface">{offline}</p>
           </div>
         </div>
 

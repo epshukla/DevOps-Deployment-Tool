@@ -66,7 +66,7 @@ export default async function ProjectsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h2 className="text-3xl font-extrabold tracking-tight text-on-surface">
+            <h2 className="font-mono text-xl font-semibold text-on-surface">
               Projects
             </h2>
             <p className="text-on-surface-variant text-sm mt-1">
@@ -75,7 +75,7 @@ export default async function ProjectsPage() {
           </div>
           <Link
             href="/projects/new"
-            className="flex items-center gap-2 bg-primary-container text-on-primary-container px-4 py-2.5 rounded-md font-semibold text-sm hover:opacity-90 transition-all shadow-lg shadow-primary/10"
+            className="flex items-center gap-2 bg-primary-container text-on-primary-container px-4 py-2.5 rounded-md font-semibold text-sm hover:opacity-90 transition-all"
           >
             <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
             New Project
@@ -84,7 +84,7 @@ export default async function ProjectsPage() {
 
         {/* Projects Grid */}
         {!projects || projects.length === 0 ? (
-          <div className="bg-surface-container rounded-xl p-16 text-center">
+          <div className="bg-surface-container rounded-lg p-16 text-center">
             <span aria-hidden="true" className="material-symbols-outlined text-5xl text-on-surface-variant/30 mb-4 block">
               account_tree
             </span>
@@ -103,7 +103,7 @@ export default async function ProjectsPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {projects.map((project) => {
               const latestRun = latestRunByProject.get(project.id);
               const latestDeployTime = latestDeployTimeByProject.get(project.id);

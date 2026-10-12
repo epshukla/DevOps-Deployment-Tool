@@ -105,7 +105,7 @@ export function NotificationDropdown({
       >
         <span aria-hidden="true" className="material-symbols-outlined">notifications</span>
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-primary rounded-full flex items-center justify-center text-[10px] font-bold text-on-primary px-1">
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-primary rounded-full flex items-center justify-center text-xs font-bold text-on-primary px-1">
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
@@ -159,7 +159,7 @@ export function NotificationDropdown({
                     <p className="text-xs text-on-surface-variant/60 mt-0.5 line-clamp-2">
                       {n.body}
                     </p>
-                    <span className="text-[10px] text-on-surface-variant/40 mt-1 block">
+                    <span className="text-xs text-on-surface-variant/40 mt-1 block">
                       {timeAgo(n.created_at)}
                     </span>
                   </div>

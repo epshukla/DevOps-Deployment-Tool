@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useRouter } from "next/navigation";
 import { hasMinRole } from "@deployx/shared";
 import { formatDateShort } from "@/lib/format-date";
@@ -23,11 +24,6 @@ interface RunnersTableProps {
   readonly currentRole: string;
 }
 
-const STATUS_BADGE: Record<string, { label: string; dotClass: string; badgeClass: string }> = {
-  online: { label: "Online", dotClass: "bg-tertiary", badgeClass: "bg-tertiary/10 text-tertiary" },
-  busy: { label: "Busy", dotClass: "bg-primary animate-pulse", badgeClass: "bg-primary/10 text-primary" },
-  offline: { label: "Offline", dotClass: "bg-on-surface-variant/40", badgeClass: "bg-on-surface-variant/10 text-on-surface-variant" },
-};
 
 // Recompute derived status/last-seen periodically so the table doesn't
 // silently go stale between page loads.
@@ -80,7 +76,7 @@ export function RunnersTable({ runners, currentRole }: RunnersTableProps) {
 
   if (runners.length === 0) {
     return (
-      <div className="bg-surface-container-low rounded-xl overflow-hidden">
+      <div className="bg-surface-container-low rounded-lg overflow-hidden">
         <div className="px-6 py-12 text-center">
           <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">
             memory
@@ -96,11 +92,11 @@ export function RunnersTable({ runners, currentRole }: RunnersTableProps) {
 
   return (
     <>
-      <div className="bg-surface-container-low rounded-xl overflow-hidden">
+      <div className="bg-surface-container-low rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-surface-container text-on-surface-variant uppercase text-[10px] font-bold tracking-widest">
+              <tr className="bg-surface-container text-on-surface-variant uppercase text-xs font-bold tracking-widest">
                 <th className="px-6 py-4">Name</th>
                 <th className="px-6 py-4 text-center">Status</th>
                 <th className="px-6 py-4">Last Heartbeat</th>
@@ -117,17 +113,11 @@ export function RunnersTable({ runners, currentRole }: RunnersTableProps) {
                   runner.last_heartbeat_at,
                   now,
                 );
-                const badge = STATUS_BADGE[displayStatus];
                 return (
                   <tr key={runner.id} className="hover:bg-surface-container transition-colors">
                     <td className="px-6 py-4 font-semibold text-on-surface">{runner.name}</td>
                     <td className="px-6 py-4 text-center">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase ${badge.badgeClass}`}
-                      >
-                        <span className={`w-1.5 h-1.5 rounded-full ${badge.dotClass}`} />
-                        {badge.label}
-                      </span>
+                      <StatusBadge status={displayStatus} />
                     </td>
                     <td className="px-6 py-4 text-xs text-on-surface-variant font-mono">
                       {formatLastSeen(runner.last_heartbeat_at, now)}
@@ -143,7 +133,7 @@ export function RunnersTable({ runners, currentRole }: RunnersTableProps) {
                           {runner.capabilities.map((cap) => (
                             <span
                               key={cap}
-                              className="px-1.5 py-0.5 rounded-sm text-[9px] font-mono bg-surface-container-highest text-on-surface-variant"
+                              className="px-1.5 py-0.5 rounded-sm text-[11px] font-mono bg-surface-container-highest text-on-surface-variant"
                             >
                               {cap}
                             </span>
@@ -184,8 +174,8 @@ export function RunnersTable({ runners, currentRole }: RunnersTableProps) {
       {revokeTarget && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={closeRevoke} />
-          <div className="relative bg-surface-container rounded-xl shadow-2xl border border-outline-variant/10 w-full max-w-md p-8">
-            <h3 className="text-xl font-extrabold text-on-surface mb-2">Revoke Runner</h3>
+          <div className="relative bg-surface-container rounded-lg shadow-2xl border border-outline-variant/10 w-full max-w-md p-8">
+            <h3 className="text-xl font-semibold text-on-surface mb-2">Revoke Runner</h3>
 
             {error && (
               <div className="bg-error/10 border border-error/30 rounded-md p-3 text-xs text-error mb-4">
@@ -222,7 +212,7 @@ export function RunnersTable({ runners, currentRole }: RunnersTableProps) {
                 type="button"
                 disabled={isPending}
                 onClick={() => handleRevoke(needsForce)}
-                className="flex items-center gap-2 px-6 py-2 bg-error text-on-error text-sm font-bold rounded-md hover:brightness-110 disabled:opacity-50 transition-all"
+                className="flex items-center gap-2 px-6 py-2 bg-error text-on-error text-sm font-bold rounded-md hover:bg-primary-container disabled:opacity-50 transition-all"
               >
                 {isPending && (
                   <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">

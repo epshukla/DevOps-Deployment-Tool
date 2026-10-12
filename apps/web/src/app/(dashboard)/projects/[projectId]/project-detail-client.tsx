@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { useState, useRef, useTransition, useActionState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -130,15 +131,6 @@ interface ProjectDetailClientProps {
   readonly failureRisk?: FailureRiskResult;
 }
 
-const RUN_STATUS_BADGE: Record<string, { text: string; className: string }> = {
-  success: { text: "Success", className: "bg-tertiary/10 text-tertiary" },
-  failed: { text: "Failed", className: "bg-error/10 text-error" },
-  running: { text: "Running", className: "bg-primary/10 text-primary" },
-  queued: { text: "Queued", className: "bg-on-surface-variant/10 text-on-surface-variant" },
-  created: { text: "Created", className: "bg-on-surface-variant/10 text-on-surface-variant" },
-  cancelled: { text: "Cancelled", className: "bg-on-surface-variant/10 text-on-surface-variant" },
-  timed_out: { text: "Timed Out", className: "bg-error/10 text-error" },
-};
 
 export function ProjectDetailClient({
   project,
@@ -211,7 +203,7 @@ export function ProjectDetailClient({
         <div className="flex justify-between items-start mb-8">
           <div>
             <div className="flex items-center gap-4 mb-2">
-              <h1 className="text-3xl font-extrabold tracking-tight text-on-surface">
+              <h1 className="font-mono text-xl font-semibold text-on-surface">
                 {project.name}
               </h1>
               {project.git_repo_url && (
@@ -245,7 +237,7 @@ export function ProjectDetailClient({
               <button
                 onClick={handleTriggerClick}
                 disabled={isPending}
-                className="bg-primary hover:bg-primary/90 text-on-primary px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 transition-all shadow-lg shadow-primary/10 disabled:opacity-50"
+                className="bg-primary hover:bg-primary/90 text-on-primary px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 transition-all disabled:opacity-50"
               >
                 {isPending ? (
                   <span aria-hidden="true" className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
@@ -289,7 +281,7 @@ export function ProjectDetailClient({
         </div>
       </div>
 
-      <div ref={tabContentRef} className="p-8 max-w-[1600px] mx-auto">
+      <div ref={tabContentRef} className="px-4 py-6 md:px-6 max-w-[1600px] mx-auto">
         {activeTab === "pipelines" && (
           <PipelinesTab
             projectId={project.id}
@@ -414,7 +406,7 @@ function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predicted
   const nameMap = new Map(pipelineDefinitions.map((d) => [d.id, d.name]));
 
   const definitionsSection = (
-    <div className="bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10 overflow-hidden mb-6">
+    <div className="bg-surface-container-low rounded-lg border border-outline-variant overflow-hidden mb-6">
       <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
         <div>
           <h3 className="text-sm font-bold text-on-surface">Pipeline Definitions</h3>
@@ -459,7 +451,7 @@ function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predicted
                   account_tree
                 </span>
                 <span className="text-sm font-bold text-on-surface">{d.name}</span>
-                <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm ${
+                <span className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded-sm ${
                   d.current_version_id
                     ? "bg-tertiary/10 text-tertiary"
                     : "bg-on-surface-variant/10 text-on-surface-variant"
@@ -481,7 +473,7 @@ function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predicted
     return (
       <>
         {definitionsSection}
-        <div className="bg-surface-container-low rounded-xl overflow-hidden ring-1 ring-outline-variant/10">
+        <div className="bg-surface-container-low rounded-lg overflow-hidden border border-outline-variant">
           <div className="px-6 py-12 text-center">
             <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">rocket_launch</span>
             <p className="text-sm text-on-surface-variant">No pipeline runs yet</p>
@@ -496,10 +488,10 @@ function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predicted
   return (
     <>
       {definitionsSection}
-      <div className="bg-surface-container-low rounded-xl overflow-hidden ring-1 ring-outline-variant/10">
+      <div className="bg-surface-container-low rounded-lg overflow-hidden border border-outline-variant">
         <table className="w-full">
           <thead>
-            <tr className="text-xs font-bold text-on-surface-variant uppercase tracking-widest border-b border-outline-variant/10">
+            <tr className="text-xs font-bold text-on-surface-variant border-b border-outline-variant/10">
               <th className="text-left px-6 py-3">Status</th>
               {showPipelineColumn && <th className="text-left px-6 py-3">Pipeline</th>}
               <th className="text-left px-6 py-3">Branch</th>
@@ -511,14 +503,11 @@ function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predicted
           </thead>
           <tbody>
             {runs.map((run) => {
-              const badge = RUN_STATUS_BADGE[run.status] ?? RUN_STATUS_BADGE.created;
               return (
                 <tr key={run.id} className="border-b border-outline-variant/5 hover:bg-surface-container transition-colors">
                   <td className="px-6 py-3">
                     <Link href={`/projects/${projectId}/runs/${run.id}`}>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-sm text-[10px] font-bold uppercase ${badge.className}`}>
-                        {badge.text}
-                      </span>
+                      <StatusBadge status={run.status} />
                     </Link>
                   </td>
                   {showPipelineColumn && (
@@ -573,9 +562,9 @@ function BentoStats({ metrics }: { readonly metrics: ProjectMetrics }) {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-      <div className="p-6 bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10">
-        <p className="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-4">Success Rate</p>
-        <span className="text-4xl font-extrabold text-on-surface leading-none">{rateDisplay}</span>
+      <div className="p-6 bg-surface-container-low rounded-lg border border-outline-variant">
+        <p className="text-on-surface-variant text-xs font-bold mb-4">Success Rate</p>
+        <span className="text-4xl font-semibold text-on-surface leading-none">{rateDisplay}</span>
         <div className="mt-4 h-1.5 w-full bg-surface-container-highest rounded-full overflow-hidden">
           <div
             className="h-full bg-tertiary-container transition-all duration-500"
@@ -583,19 +572,19 @@ function BentoStats({ metrics }: { readonly metrics: ProjectMetrics }) {
           />
         </div>
       </div>
-      <div className="p-6 bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10">
-        <p className="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-4">Avg Duration</p>
-        <span className="text-4xl font-extrabold text-on-surface leading-none">
+      <div className="p-6 bg-surface-container-low rounded-lg border border-outline-variant">
+        <p className="text-on-surface-variant text-xs font-bold mb-4">Avg Duration</p>
+        <span className="text-4xl font-semibold text-on-surface leading-none">
           {formatMetricDuration(metrics.avgDurationMs)}
         </span>
         <p className="text-xs text-on-surface-variant mt-4 font-mono opacity-60">
           P95: {formatMetricDuration(metrics.p95DurationMs)}
         </p>
       </div>
-      <div className="p-6 bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10 flex flex-col justify-between">
+      <div className="p-6 bg-surface-container-low rounded-lg border border-outline-variant flex flex-col justify-between">
         <div>
-          <p className="text-on-surface-variant text-xs font-bold uppercase tracking-widest mb-2">Active Runners</p>
-          <p className="text-2xl font-extrabold text-on-surface">{metrics.activeRunners}</p>
+          <p className="text-on-surface-variant text-xs font-bold mb-2">Active Runners</p>
+          <p className="text-2xl font-semibold text-on-surface">{metrics.activeRunners}</p>
         </div>
         <Link href="/runners" className="w-full mt-4 text-xs font-bold text-primary flex items-center justify-center gap-1 hover:underline">
           Manage Runners
@@ -609,7 +598,7 @@ function BentoStats({ metrics }: { readonly metrics: ProjectMetrics }) {
 function DeploymentsTab({ projectId, deployments }: { readonly projectId: string; readonly deployments: readonly DeploymentData[] }) {
   if (deployments.length === 0) {
     return (
-      <div className="bg-surface-container-low rounded-xl p-12 text-center ring-1 ring-outline-variant/10">
+      <div className="bg-surface-container-low rounded-lg p-12 text-center border border-outline-variant">
         <span aria-hidden="true" className="material-symbols-outlined text-4xl text-on-surface-variant/30 mb-3 block">cloud_upload</span>
         <p className="text-sm text-on-surface-variant">No deployments yet</p>
         <p className="text-xs text-on-surface-variant/60 mt-1">Deployments will appear here after a pipeline completes</p>
@@ -620,7 +609,7 @@ function DeploymentsTab({ projectId, deployments }: { readonly projectId: string
   return (
     <div className="space-y-4">
       {deployments.map((d) => (
-        <Link key={d.id} href={`/projects/${projectId}/deployments/${d.id}`} className="block bg-surface-container-low rounded-xl p-6 ring-1 ring-outline-variant/10 hover:bg-surface-container transition-colors">
+        <Link key={d.id} href={`/projects/${projectId}/deployments/${d.id}`} className="block bg-surface-container-low rounded-lg p-6 border border-outline-variant hover:bg-surface-container transition-colors">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <span className={`w-2 h-2 rounded-full ${d.status === "active" ? "bg-tertiary" : d.status === "failed" ? "bg-error" : "bg-on-surface-variant/40"}`} />
@@ -664,7 +653,7 @@ function SettingsTab({
   return (
     <div className="space-y-6">
       {/* Environment Variables Section */}
-      <div className="bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10 overflow-hidden">
+      <div className="bg-surface-container-low rounded-lg border border-outline-variant overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
           <div>
             <h3 className="text-sm font-bold text-on-surface">Environment Variables</h3>
@@ -706,7 +695,7 @@ function SettingsTab({
                     {secret.is_secret ? "lock" : "lock_open"}
                   </span>
                   <span className="text-sm font-mono font-bold text-on-surface">{secret.key}</span>
-                  <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-sm ${
+                  <span className={`text-xs font-bold uppercase px-1.5 py-0.5 rounded-sm ${
                     secret.is_secret
                       ? "bg-error/10 text-error"
                       : "bg-on-surface-variant/10 text-on-surface-variant"
@@ -783,7 +772,7 @@ function AddSecretForm({ projectId, onSuccess }: { readonly projectId: string; r
     <form action={formAction} className="px-6 py-4 bg-surface-container/50 border-b border-outline-variant/10">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+          <label className="block text-xs font-bold text-on-surface-variant mb-1">
             Key
           </label>
           <input
@@ -797,7 +786,7 @@ function AddSecretForm({ projectId, onSuccess }: { readonly projectId: string; r
           )}
         </div>
         <div>
-          <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+          <label className="block text-xs font-bold text-on-surface-variant mb-1">
             Value
           </label>
           <input
@@ -919,7 +908,7 @@ function WebhooksSection({
   };
 
   return (
-    <div className="bg-surface-container-low rounded-xl ring-1 ring-outline-variant/10 overflow-hidden">
+    <div className="bg-surface-container-low rounded-lg border border-outline-variant overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
         <div>
           <h3 className="text-sm font-bold text-on-surface">GitHub Webhooks</h3>
@@ -1017,7 +1006,7 @@ function WebhooksSection({
 
           {/* Webhook URL */}
           <div className="px-6 py-4">
-            <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1.5">Payload URL</p>
+            <p className="text-xs font-bold text-on-surface-variant mb-1.5">Payload URL</p>
             <div className="flex items-center gap-2">
               <code className="flex-1 text-xs font-mono text-on-surface bg-surface-container-highest px-3 py-2 rounded truncate">
                 {webhookUrl}
@@ -1037,7 +1026,7 @@ function WebhooksSection({
           {/* Secret */}
           <div className="px-6 py-4 flex items-center justify-between">
             <div>
-              <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">Secret</p>
+              <p className="text-xs font-bold text-on-surface-variant mb-1">Secret</p>
               <span className="text-xs font-mono text-on-surface-variant">{"*".repeat(32)}</span>
             </div>
             <button
@@ -1059,7 +1048,7 @@ function WebhooksSection({
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-on-surface-variant mb-1">
                   Branch Filter
                 </label>
                 <input
@@ -1070,7 +1059,7 @@ function WebhooksSection({
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-1">
+                <label className="block text-xs font-bold text-on-surface-variant mb-1">
                   Pipeline
                 </label>
                 <select
@@ -1099,7 +1088,7 @@ function WebhooksSection({
           {/* Delivery History */}
           {deliveries.length > 0 && (
             <div className="px-6 py-4">
-              <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-3">Recent Deliveries</p>
+              <p className="text-xs font-bold text-on-surface-variant mb-3">Recent Deliveries</p>
               <div className="space-y-2">
                 {deliveries.map((d) => (
                   <div key={d.id} className="flex items-center justify-between text-xs">

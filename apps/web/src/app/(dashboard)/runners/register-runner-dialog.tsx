@@ -50,7 +50,7 @@ export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps)
           <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
           Register Runner
         </button>
-        <p className="text-[10px] text-on-surface-variant/50 mt-1 text-right">
+        <p className="text-xs text-on-surface-variant/50 mt-1 text-right">
           Admin permissions required
         </p>
       </div>
@@ -61,7 +61,7 @@ export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps)
     <>
       <button
         onClick={handleOpen}
-        className="px-5 py-2.5 bg-primary text-on-primary font-bold rounded-md hover:brightness-110 active:scale-95 transition-all flex items-center gap-2"
+        className="px-5 py-2.5 bg-primary text-on-primary font-bold rounded-md hover:bg-primary-container active:scale-95 transition-all flex items-center gap-2"
       >
         <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
         Register Runner
@@ -76,8 +76,8 @@ export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps)
           />
 
           {/* Dialog */}
-          <div className="relative bg-surface-container rounded-xl shadow-2xl border border-outline-variant/10 w-full max-w-lg p-8">
-            <h3 className="text-xl font-extrabold text-on-surface mb-2">
+          <div className="relative bg-surface-container rounded-lg shadow-2xl border border-outline-variant/10 w-full max-w-lg p-8">
+            <h3 className="text-xl font-semibold text-on-surface mb-2">
               Register New Runner
             </h3>
 
@@ -96,7 +96,7 @@ export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps)
 
                 <form action={formAction}>
                   <div className="space-y-2 mb-6">
-                    <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">
+                    <label className="text-xs font-bold text-on-surface-variant/60">
                       Runner Name
                     </label>
                     <input
@@ -120,7 +120,7 @@ export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps)
                     <button
                       type="submit"
                       disabled={pending}
-                      className="px-6 py-2 bg-primary text-on-primary text-sm font-bold rounded-md hover:brightness-110 disabled:opacity-50 transition-all flex items-center gap-2"
+                      className="px-6 py-2 bg-primary text-on-primary text-sm font-bold rounded-md hover:bg-primary-container disabled:opacity-50 transition-all flex items-center gap-2"
                     >
                       {pending && (
                         <span aria-hidden="true" className="material-symbols-outlined text-sm animate-spin">
@@ -143,7 +143,7 @@ export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps)
 
                 {/* Step 1: Register */}
                 <div className="mb-3">
-                  <p className="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest mb-1.5 ml-1">
+                  <p className="text-xs font-bold text-on-surface-variant/60 mb-1.5 ml-1">
                     Step 1 — Register
                   </p>
                   <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-md p-4">
@@ -166,7 +166,7 @@ export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps)
 
                 {/* Step 2: Start */}
                 <div className="mb-6">
-                  <p className="text-[10px] font-bold text-on-surface-variant/60 uppercase tracking-widest mb-1.5 ml-1">
+                  <p className="text-xs font-bold text-on-surface-variant/60 mb-1.5 ml-1">
                     Step 2 — Start polling for jobs
                   </p>
                   <div className="bg-surface-container-lowest border border-outline-variant/20 rounded-md p-4">
@@ -190,7 +190,7 @@ export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps)
                 <div className="flex justify-end">
                   <button
                     onClick={handleClose}
-                    className="px-6 py-2 bg-primary text-on-primary text-sm font-bold rounded-md hover:brightness-110 transition-all"
+                    className="px-6 py-2 bg-primary text-on-primary text-sm font-bold rounded-md hover:bg-primary-container transition-all"
                   >
                     Done
                   </button>

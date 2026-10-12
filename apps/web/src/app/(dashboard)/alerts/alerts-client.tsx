@@ -38,7 +38,7 @@ interface AlertsClientProps {
 }
 
 const SEVERITY_BADGE: Record<string, string> = {
-  info: "bg-primary/10 text-primary",
+  info: "bg-info/10 text-info",
   warning: "bg-warning/10 text-warning",
   critical: "bg-error/10 text-error",
 };
@@ -95,7 +95,7 @@ export function AlertsClient({
     <>
       <TopBar breadcrumbs={[{ label: "Alerts" }]} />
 
-      <div className="p-8 max-w-[1400px] mx-auto">
+      <div className="px-4 py-6 md:px-6 max-w-[1400px] mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl font-bold text-on-surface">Alert Rules</h2>
@@ -155,7 +155,7 @@ export function AlertsClient({
                       {rule.name}
                     </span>
                     <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${
+                      className={`px-2 py-0.5 rounded-full text-xs font-semibold uppercase ${
                         SEVERITY_BADGE[rule.severity] ?? SEVERITY_BADGE.info
                       }`}
                     >

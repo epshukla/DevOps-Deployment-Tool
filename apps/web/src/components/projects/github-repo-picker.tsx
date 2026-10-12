@@ -76,7 +76,7 @@ export function GitHubRepoPicker({ username, onSelect }: GitHubRepoPickerProps) 
       {/* Connected indicator */}
       <div className="flex items-center gap-2 px-1">
         <span className="w-2 h-2 rounded-full bg-tertiary" />
-        <span className="text-[10px] text-on-surface-variant font-medium">
+        <span className="text-xs text-on-surface-variant font-medium">
           Connected as <span className="text-on-surface font-bold">@{username}</span>
         </span>
       </div>
@@ -136,7 +136,7 @@ export function GitHubRepoPicker({ username, onSelect }: GitHubRepoPickerProps) 
               <img
                 src={repo.owner.avatar_url}
                 alt={repo.owner.login}
-                className="w-7 h-7 rounded-full ring-1 ring-outline-variant/10 flex-shrink-0"
+                className="w-7 h-7 rounded-full border border-outline-variant flex-shrink-0"
               />
 
               {/* Repo info */}
@@ -146,7 +146,7 @@ export function GitHubRepoPicker({ username, onSelect }: GitHubRepoPickerProps) 
                     {repo.full_name}
                   </span>
                   <span
-                    className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                    className={`text-[11px] font-bold uppercase px-1.5 py-0.5 rounded-full flex-shrink-0 ${
                       repo.private
                         ? "bg-warning-container/20 text-warning"
                         : "bg-tertiary-container/20 text-tertiary"
@@ -157,9 +157,9 @@ export function GitHubRepoPicker({ username, onSelect }: GitHubRepoPickerProps) 
                 </div>
                 <div className="flex items-center gap-3 mt-0.5">
                   {repo.language && (
-                    <span className="text-[10px] text-on-surface-variant/60">{repo.language}</span>
+                    <span className="text-xs text-on-surface-variant/60">{repo.language}</span>
                   )}
-                  <span className="text-[10px] text-on-surface-variant/40">
+                  <span className="text-xs text-on-surface-variant/40">
                     Updated {formatDate(repo.updated_at)}
                   </span>
                 </div>
