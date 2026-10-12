@@ -50,7 +50,7 @@ describe("recordAuditEvent", () => {
     const dbError = new Error("connection refused");
     const { client } = createMockSupabase();
     // Override insert to throw
-    (client as any).from = vi.fn().mockReturnValue({
+    (client as unknown as { from: unknown }).from = vi.fn().mockReturnValue({
       insert: vi.fn().mockRejectedValue(dbError),
     });
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});

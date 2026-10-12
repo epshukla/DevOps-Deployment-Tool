@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authenticateRunner } from "@/lib/auth/runner";
+import { authenticateRunner, authorizeRunnerForRun } from "@/lib/auth/runner";
 import { decryptSecret } from "@deployx/shared";
 
 interface RouteParams {
@@ -17,18 +17,14 @@ export async function GET(request: Request, { params }: RouteParams) {
   const auth = await authenticateRunner(request);
   if (!auth.ok) return auth.response;
 
-  const { supabase } = auth;
+  const { runner, supabase } = auth;
 
-  // Get the project_id for this run
-  const { data: run } = await supabase
-    .from("pipeline_runs")
-    .select("project_id")
-    .eq("id", runId)
-    .single();
-
-  if (!run) {
-    return NextResponse.json({ error: "Run not found" }, { status: 404 });
-  }
+  // Secrets are only released to the runner that claimed this run
+  const authz = await authorizeRunnerForRun(supabase, runner, runId, {
+    requireClaimedBy: true,
+  });
+  if (!authz.ok) return authz.response;
+  const run = authz.value;
 
   // Fetch all secrets for the project
   const { data: secrets, error } = await supabase
