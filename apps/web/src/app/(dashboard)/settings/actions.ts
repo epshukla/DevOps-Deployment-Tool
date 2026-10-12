@@ -1,19 +1,83 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUserWithOrg } from "@/lib/auth/session";
+import { requireUser, requireUserWithOrg } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit";
 import { switchActiveOrg } from "@/lib/auth/org-actions";
+import { inviteErrorMessage, sendInviteEmail } from "@/lib/invites";
 import {
   InviteMemberSchema,
   UpdateRoleSchema,
   hasMinRole,
 } from "@deployx/shared";
 
+/** A freshly created invite, so the admin can copy its link right away. */
+export interface CreatedInvite {
+  readonly id: string;
+  readonly email: string;
+  readonly role: string;
+  readonly token: string;
+  readonly expires_at: string;
+}
+
 interface ActionResult {
   readonly error?: string;
   readonly fieldErrors?: Readonly<Record<string, readonly string[]>>;
   readonly success?: boolean;
+  readonly invite?: CreatedInvite;
+}
+
+type ServerClient = Awaited<ReturnType<typeof requireUserWithOrg>>["supabase"];
+
+/**
+ * Insert an invite row; the database generates the token and expiry.
+ * Returns the row, or the raw insert error code ("23505" = duplicate).
+ */
+async function insertInvite(
+  supabase: ServerClient,
+  values: {
+    readonly orgId: string;
+    readonly email: string;
+    readonly role: string;
+    readonly invitedBy: string;
+  },
+): Promise<{ readonly invite?: CreatedInvite; readonly errorCode?: string }> {
+  const { data, error } = await supabase
+    .from("org_invites")
+    .insert({
+      org_id: values.orgId,
+      email: values.email,
+      role: values.role,
+      invited_by: values.invitedBy,
+    })
+    .select("id, email, role, token, expires_at")
+    .single();
+
+  if (error || !data) {
+    return { errorCode: error?.code ?? "no_row" };
+  }
+  return { invite: data as CreatedInvite };
+}
+
+/**
+ * Hand the invite to the email seam. Never fails the action: the admin
+ * always gets the link to share by hand.
+ */
+async function notifyInvitee(invite: CreatedInvite, orgName: string) {
+  try {
+    const result = await sendInviteEmail({
+      email: invite.email,
+      orgName,
+      role: invite.role,
+      token: invite.token,
+      expiresAt: invite.expires_at,
+    });
+    if (!result.sent && result.reason !== "email not configured") {
+      console.error("[settings] Invite email not sent:", result.reason);
+    }
+  } catch (err) {
+    console.error("[settings] Invite email failed:", err);
+  }
 }
 
 /**
@@ -40,6 +104,11 @@ export async function inviteMember(
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
+  // Mirrors updateMemberRole: only owners can create admins
+  if (role === "admin" && parsed.data.role === "admin") {
+    return { error: "Only owners can invite admins" };
+  }
+
   // Check for existing membership by looking up user by email
   const { data: authUser } = await supabase.rpc("get_user_id_by_email" as never, {
     lookup_email: parsed.data.email,
@@ -60,17 +129,19 @@ export async function inviteMember(
     }
   }
 
-  // Create invite
-  const { error } = await supabase.from("org_invites").insert({
-    org_id: org.id,
+  const { invite, errorCode } = await insertInvite(supabase, {
+    orgId: org.id,
     email: parsed.data.email,
     role: parsed.data.role,
-    invited_by: user.id,
+    invitedBy: user.id,
   });
 
-  if (error) {
-    if (error.code === "23505") {
-      return { error: "An invite for this email already exists" };
+  if (!invite) {
+    if (errorCode === "23505") {
+      return {
+        error:
+          "An invite for this email already exists — copy its link or resend it below",
+      };
     }
     return { error: "Failed to create invite" };
   }
@@ -80,12 +151,85 @@ export async function inviteMember(
     user_id: user.id,
     action: "create",
     resource_type: "invite",
-    resource_id: org.id,
-    details: { email: parsed.data.email, role: parsed.data.role },
+    resource_id: invite.id,
+    details: { email: invite.email, role: invite.role },
   });
 
+  await notifyInvitee(invite, org.name);
+
   revalidatePath("/settings");
-  return { success: true };
+  return { success: true, invite };
+}
+
+/**
+ * Replace a pending (typically expired) invite with a fresh one for the same
+ * email and role: new token, new expiry. The old link stops working.
+ * Only admins and owners; admins cannot re-issue admin invites.
+ */
+export async function resendInvite(inviteId: string): Promise<ActionResult> {
+  const { supabase, user, org, role } = await requireUserWithOrg();
+
+  if (!hasMinRole(role, "admin")) {
+    return { error: "Only admins and owners can resend invites" };
+  }
+
+  const { data: old } = await supabase
+    .from("org_invites")
+    .select("id, email, role, accepted_at")
+    .eq("id", inviteId)
+    .eq("org_id", org.id)
+    .maybeSingle();
+
+  if (!old) {
+    return { error: "Invite not found" };
+  }
+  if (old.accepted_at) {
+    return { error: "This invite has already been accepted" };
+  }
+  if (role === "admin" && old.role === "admin") {
+    return { error: "Only owners can invite admins" };
+  }
+
+  // Delete first: (org_id, email) may be unique among invites
+  const { data: deleted, error: deleteError } = await supabase
+    .from("org_invites")
+    .delete()
+    .eq("id", inviteId)
+    .eq("org_id", org.id)
+    .is("accepted_at", null)
+    .select("id");
+
+  if (deleteError || !deleted || deleted.length === 0) {
+    return { error: "Failed to replace invite — it may have just been accepted" };
+  }
+
+  const { invite } = await insertInvite(supabase, {
+    orgId: org.id,
+    email: old.email as string,
+    role: old.role as string,
+    invitedBy: user.id,
+  });
+
+  if (!invite) {
+    revalidatePath("/settings");
+    return {
+      error: `The old invite was removed but a new one could not be created. Invite ${old.email as string} again.`,
+    };
+  }
+
+  await recordAuditEvent(supabase, {
+    org_id: org.id,
+    user_id: user.id,
+    action: "create",
+    resource_type: "invite",
+    resource_id: invite.id,
+    details: { email: invite.email, role: invite.role, replaces: inviteId },
+  });
+
+  await notifyInvitee(invite, org.name);
+
+  revalidatePath("/settings");
+  return { success: true, invite };
 }
 
 /**
@@ -269,124 +413,57 @@ export async function cancelInvite(
   return { success: true };
 }
 
-/**
- * Accept a pending invite addressed to the current user.
- * Creates an org_membership and marks the invite as accepted.
+/*
+ * In-app banner path (Settings shows invites addressed to your email).
+ *
+ * The banner has no token, so these call the *_by_id SECURITY DEFINER RPCs,
+ * which authorise by matching the caller's auth email to the invite email.
+ * They must be SECURITY DEFINER: org_memberships RLS only lets admins insert,
+ * so the invitee's own session could never create its membership directly.
+ * The RPCs share one locked code path with the link flow, so expiry,
+ * single-use and audit logging behave identically in both.
  */
-export async function acceptInvite(
-  inviteId: string,
-): Promise<ActionResult> {
-  const { supabase, user } = await requireUserWithOrg();
 
-  const userEmail = user.email;
-  if (!userEmail) {
-    return { error: "Cannot determine your email address" };
+/**
+ * Accept a pending invite addressed to the current user's email.
+ */
+export async function acceptInvite(inviteId: string): Promise<ActionResult> {
+  const { supabase } = await requireUser();
+
+  const { data: orgId, error } = await supabase.rpc(
+    "accept_org_invite_by_id" as never,
+    { p_invite_id: inviteId } as never,
+  );
+
+  if (error || typeof orgId !== "string") {
+    console.error("[settings] accept_org_invite_by_id failed:", error?.message ?? "no org id");
+    return { error: inviteErrorMessage(error) };
   }
-
-  // Fetch the invite
-  const { data: invite } = await supabase
-    .from("org_invites")
-    .select("id, org_id, email, role, accepted_at, expires_at")
-    .eq("id", inviteId)
-    .single();
-
-  if (!invite) {
-    return { error: "Invite not found" };
-  }
-
-  if (invite.email !== userEmail.toLowerCase()) {
-    return { error: "This invite is not addressed to you" };
-  }
-
-  if (invite.accepted_at) {
-    return { error: "This invite has already been accepted" };
-  }
-
-  if (new Date(invite.expires_at) < new Date()) {
-    return { error: "This invite has expired" };
-  }
-
-  // Check if already a member
-  const { data: existingMembership } = await supabase
-    .from("org_memberships")
-    .select("id")
-    .eq("org_id", invite.org_id)
-    .eq("user_id", user.id)
-    .maybeSingle();
-
-  if (existingMembership) {
-    return { error: "You are already a member of this organization" };
-  }
-
-  // Create membership
-  const { error: memberError } = await supabase
-    .from("org_memberships")
-    .insert({
-      org_id: invite.org_id,
-      user_id: user.id,
-      role: invite.role,
-    });
-
-  if (memberError) {
-    return { error: "Failed to join organization" };
-  }
-
-  // Mark invite as accepted
-  await supabase
-    .from("org_invites")
-    .update({ accepted_at: new Date().toISOString() })
-    .eq("id", inviteId);
-
-  await recordAuditEvent(supabase, {
-    org_id: invite.org_id,
-    user_id: user.id,
-    action: "create",
-    resource_type: "membership",
-    resource_id: user.id,
-    details: { via: "invite", role: invite.role },
-  });
 
   // Land the user in the org they just joined
-  await switchActiveOrg(invite.org_id);
+  const switched = await switchActiveOrg(orgId);
+  if (switched.error) {
+    console.error("[settings] switchActiveOrg failed:", switched.error);
+  }
 
   revalidatePath("/", "layout");
   return { success: true };
 }
 
 /**
- * Decline a pending invite addressed to the current user.
+ * Decline a pending invite addressed to the current user's email.
  */
-export async function declineInvite(
-  inviteId: string,
-): Promise<ActionResult> {
-  const { supabase, user } = await requireUserWithOrg();
+export async function declineInvite(inviteId: string): Promise<ActionResult> {
+  const { supabase } = await requireUser();
 
-  const userEmail = user.email;
-  if (!userEmail) {
-    return { error: "Cannot determine your email address" };
-  }
-
-  const { data: invite } = await supabase
-    .from("org_invites")
-    .select("id, email")
-    .eq("id", inviteId)
-    .single();
-
-  if (!invite) {
-    return { error: "Invite not found" };
-  }
-
-  if (invite.email !== userEmail.toLowerCase()) {
-    return { error: "This invite is not addressed to you" };
-  }
-
-  const { error } = await supabase
-    .from("org_invites")
-    .delete()
-    .eq("id", inviteId);
+  const { error } = await supabase.rpc(
+    "decline_org_invite_by_id" as never,
+    { p_invite_id: inviteId } as never,
+  );
 
   if (error) {
-    return { error: "Failed to decline invite" };
+    console.error("[settings] decline_org_invite_by_id failed:", error.message);
+    return { error: inviteErrorMessage(error) };
   }
 
   revalidatePath("/settings");

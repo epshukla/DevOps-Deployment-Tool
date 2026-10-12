@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
+import { signInWithGitHub } from "@/lib/auth/github-oauth";
 import { useState } from "react";
 
 export default function LoginPage() {
@@ -11,17 +11,13 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "github",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        scopes: "repo",
-      },
-    });
+    // `?next=` (set by the auth proxy or an invite link) is sanitized
+    // inside signInWithGitHub before it reaches the OAuth redirect.
+    const next = new URLSearchParams(window.location.search).get("next");
+    const { error } = await signInWithGitHub(next);
 
     if (error) {
-      setError(error.message);
+      setError(error);
       setLoading(false);
     }
   }
@@ -37,12 +33,12 @@ export default function LoginPage() {
       <main className="w-full max-w-md">
         {/* Brand */}
         <div className="flex flex-col items-center mb-10 text-center">
-          <div className="w-16 h-16 mb-6 flex items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary-container shadow-2xl shadow-primary/20">
+          <div className="w-16 h-16 mb-6 flex items-center justify-center rounded-lg bg-gradient-to-br from-primary to-primary-container shadow-2xl shadow-primary/20">
             <span aria-hidden="true" className="material-symbols-outlined text-on-primary text-4xl">
               rocket_launch
             </span>
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tighter text-on-surface mb-2">
+          <h1 className="text-3xl font-semibold tracking-tighter text-on-surface mb-2">
             DeployX
           </h1>
           <p className="text-on-surface-variant font-medium tracking-tight">
@@ -51,7 +47,7 @@ export default function LoginPage() {
         </div>
 
         {/* Login Card */}
-        <div className="glass-card border border-outline-variant/30 rounded-xl p-8 shadow-2xl relative">
+        <div className="glass-card border border-outline-variant/30 rounded-lg p-8 shadow-2xl relative">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-1/3 h-[2px] bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
 
           <div className="space-y-6">
@@ -91,7 +87,7 @@ export default function LoginPage() {
             {/* Divider */}
             <div className="flex items-center gap-4 py-2">
               <div className="h-[1px] flex-1 bg-outline-variant/30" />
-              <span className="text-[10px] uppercase tracking-widest text-on-surface-variant/50 font-bold">
+              <span className="text-xs text-on-surface-variant/50 font-bold">
                 Secure Access
               </span>
               <div className="h-[1px] flex-1 bg-outline-variant/30" />
@@ -110,7 +106,7 @@ export default function LoginPage() {
               href="https://github.com/epshukla/DevOps-Deployment-Tool#readme"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[10px] text-on-surface-variant/40 hover:text-on-surface-variant transition-colors"
+              className="text-xs text-on-surface-variant/40 hover:text-on-surface-variant transition-colors"
             >
               Documentation
             </a>
@@ -120,7 +116,7 @@ export default function LoginPage() {
 
       {/* Decorative terminal snippet */}
       <div className="fixed bottom-10 right-10 opacity-10 pointer-events-none hidden lg:block">
-        <div className="bg-surface-container-lowest border border-outline-variant/30 p-4 rounded-lg font-mono text-[10px] text-tertiary leading-relaxed">
+        <div className="bg-surface-container-lowest border border-outline-variant/30 p-4 rounded-lg font-mono text-xs text-tertiary leading-relaxed">
           <p>&gt; initializing cluster manager...</p>
           <p>&gt; checking node status: HEALTHY</p>
           <p>&gt; deploying version: 2.4.0</p>
