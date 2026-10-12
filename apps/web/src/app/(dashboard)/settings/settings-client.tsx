@@ -10,11 +10,20 @@ import {
   updateMemberRole,
   removeMember,
   cancelInvite,
+  resendInvite,
   acceptInvite,
   declineInvite,
   updateOrganizationName,
   deleteOrganization,
 } from "./actions";
+import { InviteLinkField } from "./invite-link-field";
+import {
+  ROLE_BADGE,
+  ROLE_OPTIONS,
+  formatDate,
+  type InviteData,
+  type MyInviteData,
+} from "./settings-shared";
 
 // ── Data interfaces ──
 
@@ -25,24 +34,6 @@ interface MemberData {
   readonly display_name: string;
   readonly avatar_url: string | null;
   readonly github_username: string | null;
-}
-
-interface InviteData {
-  readonly id: string;
-  readonly email: string;
-  readonly role: string;
-  readonly invited_by: string;
-  readonly expires_at: string;
-  readonly created_at: string;
-}
-
-interface MyInviteData {
-  readonly id: string;
-  readonly org_id: string;
-  readonly org_name: string;
-  readonly role: string;
-  readonly expires_at: string;
-  readonly created_at: string;
 }
 
 interface SettingsClientProps {
@@ -58,26 +49,8 @@ interface SettingsClientProps {
 
 type SettingsTab = "general" | "members" | "danger";
 
-const ROLE_BADGE: Record<string, string> = {
-  owner: "bg-tertiary/10 text-tertiary border-tertiary/20",
-  admin: "bg-primary/10 text-primary border-primary/20",
-  developer: "bg-outline/10 text-on-surface-variant border-outline/20",
-  viewer: "bg-outline/10 text-on-surface-variant/60 border-outline/10",
-};
 
-const ROLE_OPTIONS = [
-  { value: "viewer", label: "Viewer" },
-  { value: "developer", label: "Developer" },
-  { value: "admin", label: "Admin" },
-] as const;
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
 
 // ── Main Component ──
 
@@ -95,7 +68,7 @@ export function SettingsClient({
   return (
     <>
       <TopBar breadcrumbs={[{ label: "Settings" }]} />
-      <div className="px-8 py-8 max-w-6xl mx-auto">
+      <div className="px-4 py-6 md:px-6 max-w-6xl mx-auto">
         {/* Pending invites banner for current user */}
         {myInvites.length > 0 && (
           <InviteBanner invites={myInvites} />
@@ -270,7 +243,7 @@ function GeneralTab({
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight mb-1">
+        <h2 className="font-mono text-xl font-semibold mb-1">
           Organization Details
         </h2>
         <p className="text-on-surface-variant text-sm">
@@ -284,7 +257,7 @@ function GeneralTab({
         <div className="space-y-2">
           <label
             htmlFor="org-name"
-            className="block text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest"
+            className="block text-xs font-bold text-on-surface-variant/60"
           >
             Organization Name
           </label>
@@ -309,7 +282,7 @@ function GeneralTab({
           )}
         </div>
         <div className="space-y-2">
-          <label className="block text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">
+          <label className="block text-xs font-bold text-on-surface-variant/60">
             Slug
           </label>
           <input
@@ -361,12 +334,13 @@ function MembersTab({
   readonly canManage: boolean;
 }) {
   const [showInviteForm, setShowInviteForm] = useState(false);
+  const [inviteFormKey, setInviteFormKey] = useState(0);
 
   return (
     <>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight mb-1">
+          <h2 className="font-mono text-xl font-semibold mb-1">
             Organization Members
           </h2>
           <p className="text-on-surface-variant text-sm">
@@ -377,7 +351,7 @@ function MembersTab({
         {canManage && (
           <button
             onClick={() => setShowInviteForm(!showInviteForm)}
-            className="bg-primary hover:bg-primary-container text-on-primary font-bold py-2.5 px-5 rounded-md flex items-center gap-2 transition-all shadow-lg shadow-primary/10"
+            className="bg-primary hover:bg-primary-container text-on-primary font-bold py-2.5 px-5 rounded-md flex items-center gap-2 transition-all"
           >
             <span aria-hidden="true" className="material-symbols-outlined text-[20px]">
               person_add
@@ -389,7 +363,11 @@ function MembersTab({
 
       {/* Invite Form */}
       {showInviteForm && canManage && (
-        <InviteForm onClose={() => setShowInviteForm(false)} />
+        <InviteForm
+          key={inviteFormKey}
+          onClose={() => setShowInviteForm(false)}
+          onInviteAnother={() => setInviteFormKey((k) => k + 1)}
+        />
       )}
 
       {/* Members Table */}
@@ -397,17 +375,17 @@ function MembersTab({
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-surface-container text-on-surface-variant">
-              <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">
+              <th className="px-4 py-2.5 text-xs font-bold">
                 Member
               </th>
-              <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">
+              <th className="px-4 py-2.5 text-xs font-bold">
                 Role
               </th>
-              <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">
+              <th className="px-4 py-2.5 text-xs font-bold">
                 Joined
               </th>
               {canManage && (
-                <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-right">
+                <th className="px-4 py-2.5 text-xs font-bold text-right">
                   Actions
                 </th>
               )}
@@ -435,17 +413,17 @@ function MembersTab({
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-surface-container text-on-surface-variant">
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">
+                  <th className="px-4 py-2.5 text-xs font-bold">
                     Email
                   </th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">
+                  <th className="px-4 py-2.5 text-xs font-bold">
                     Role
                   </th>
-                  <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest">
+                  <th className="px-4 py-2.5 text-xs font-bold">
                     Expires
                   </th>
                   {canManage && (
-                    <th className="px-6 py-4 text-xs font-bold uppercase tracking-widest text-right">
+                    <th className="px-4 py-2.5 text-xs font-bold text-right">
                       Actions
                     </th>
                   )}
@@ -468,7 +446,7 @@ function MembersTab({
       {/* Security Panel */}
       <div className="mt-12 p-6 bg-surface-container-lowest rounded-lg border border-outline-variant/15 flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <div className="w-12 h-12 flex items-center justify-center rounded-lg bg-tertiary-container/20">
+          <div className="w-9 h-9 flex items-center justify-center rounded-md bg-surface-container-high">
             <span aria-hidden="true" className="material-symbols-outlined text-tertiary">
               shield_with_heart
             </span>
@@ -490,40 +468,85 @@ function MembersTab({
 
 // ── Invite Form ──
 
-function InviteForm({ onClose }: { readonly onClose: () => void }) {
+function InviteForm({
+  onClose,
+  onInviteAnother,
+}: {
+  readonly onClose: () => void;
+  readonly onInviteAnother: () => void;
+}) {
   const [state, formAction, isPending] = useActionState(inviteMember, {});
+  const created = state.success ? state.invite : undefined;
 
-  if (state.success) {
-    onClose();
+  if (created) {
+    return (
+      <div className="mb-6 rounded-lg border border-tertiary/30 bg-surface-container-low p-5">
+        <div className="mb-3 flex items-start gap-2.5">
+          <span aria-hidden="true" className="material-symbols-outlined text-[20px] text-tertiary">
+            check_circle
+          </span>
+          <div>
+            <h3 className="font-mono text-sm font-semibold">Invite created for {created.email}</h3>
+            <p className="mt-0.5 text-[13px] text-on-surface-variant">
+              Send them this link. It works once and expires {formatDate(created.expires_at)}.
+              They&apos;ll sign in with GitHub and join as <strong>{created.role}</strong>.
+            </p>
+          </div>
+        </div>
+        <InviteLinkField token={created.token} />
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={onInviteAnother}
+            className="h-8 rounded-md border border-outline-variant px-3 text-[13px] text-on-surface transition-colors hover:bg-surface-container"
+          >
+            Invite another
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-8 rounded-md px-3 text-[13px] text-on-surface-variant transition-colors hover:text-on-surface"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="mb-6 bg-surface-container-low rounded-lg p-6 border border-primary/20">
-      <h3 className="font-bold text-on-surface mb-4">Invite a New Member</h3>
-      <form action={formAction} className="flex items-end gap-4">
+    <div className="mb-6 rounded-lg border border-outline-variant bg-surface-container-low p-5">
+      <h3 className="mb-1 font-mono text-sm font-semibold">Invite a member</h3>
+      <p className="mb-4 text-[13px] text-on-surface-variant">
+        You&apos;ll get a single-use link to send them. Email delivery isn&apos;t set up yet.
+      </p>
+      <form action={formAction} className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="flex-1 space-y-1.5">
-          <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">
-            Email Address
+          <label htmlFor="invite-email" className="block text-xs text-on-surface-variant">
+            Email
           </label>
           <input
+            id="invite-email"
             name="email"
             type="email"
             required
+            autoComplete="off"
             placeholder="colleague@company.com"
-            className="w-full bg-surface-container-lowest border-none rounded-md px-4 py-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary transition-all"
+            className="h-9 w-full rounded-md border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface"
           />
           {state.fieldErrors?.email && (
             <p className="text-xs text-error">{state.fieldErrors.email[0]}</p>
           )}
         </div>
-        <div className="w-40 space-y-1.5">
-          <label className="text-xs font-bold text-on-surface-variant/60 uppercase tracking-widest">
+        <div className="space-y-1.5 sm:w-40">
+          <label htmlFor="invite-role" className="block text-xs text-on-surface-variant">
             Role
           </label>
           <select
+            id="invite-role"
             name="role"
             defaultValue="developer"
-            className="w-full bg-surface-container-lowest border-none rounded-md px-4 py-2.5 text-sm text-on-surface focus:ring-2 focus:ring-primary transition-all"
+            className="h-9 w-full rounded-md border border-outline-variant bg-surface-container-lowest px-2 text-sm text-on-surface"
           >
             {ROLE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -535,24 +558,24 @@ function InviteForm({ onClose }: { readonly onClose: () => void }) {
             <p className="text-xs text-error">{state.fieldErrors.role[0]}</p>
           )}
         </div>
-        <button
-          type="submit"
-          disabled={isPending}
-          className="bg-primary text-on-primary font-bold py-2.5 px-5 rounded-md text-sm hover:opacity-90 transition-all disabled:opacity-50"
-        >
-          {isPending ? "Sending..." : "Send Invite"}
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-on-surface-variant hover:text-on-surface py-2.5 px-3 rounded-md text-sm transition-all"
-        >
-          Cancel
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="submit"
+            disabled={isPending}
+            className="h-9 rounded-md bg-primary px-4 text-[13px] font-medium text-on-primary transition-colors hover:bg-primary-container disabled:opacity-50"
+          >
+            {isPending ? "Creating…" : "Create invite link"}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-9 rounded-md px-3 text-[13px] text-on-surface-variant transition-colors hover:text-on-surface"
+          >
+            Cancel
+          </button>
+        </div>
       </form>
-      {state.error && (
-        <p className="text-sm text-error mt-3">{state.error}</p>
-      )}
+      {state.error && <p className="mt-3 text-[13px] text-error">{state.error}</p>}
     </div>
   );
 }
@@ -582,7 +605,7 @@ function MemberRow({
 
   return (
     <tr className="hover:bg-surface-container-high/30 transition-colors">
-      <td className="px-6 py-4">
+      <td className="px-4 py-2.5">
         <div className="flex items-center gap-3">
           <Avatar name={member.display_name} url={member.avatar_url} size="sm" decorative />
           <div>
@@ -602,7 +625,7 @@ function MemberRow({
           </div>
         </div>
       </td>
-      <td className="px-6 py-4">
+      <td className="px-4 py-2.5">
         {editingRole && canEdit ? (
           <form
             onSubmit={(e) => {
@@ -649,11 +672,11 @@ function MemberRow({
           </span>
         )}
       </td>
-      <td className="px-6 py-4 text-sm text-on-surface-variant">
+      <td className="px-4 py-2.5 text-sm text-on-surface-variant">
         {formatDate(member.created_at)}
       </td>
       {canManage && (
-        <td className="px-6 py-4 text-right">
+        <td className="px-4 py-2.5 text-right">
           {canEdit && !confirmRemove && (
             <div className="flex items-center justify-end gap-2">
               <button
@@ -710,46 +733,64 @@ function InviteRow({
   readonly invite: InviteData;
   readonly canManage: boolean;
 }) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const isExpired = new Date(invite.expires_at) < new Date();
+  const [error, setError] = useState<string | null>(null);
+
+  function run(action: (id: string) => Promise<{ error?: string }>) {
+    setError(null);
+    startTransition(async () => {
+      const result = await action(invite.id);
+      if (result.error) setError(result.error);
+      router.refresh();
+    });
+  }
 
   return (
-    <tr className="hover:bg-surface-container-high/30 transition-colors">
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-3">
-          <span aria-hidden="true" className="material-symbols-outlined text-on-surface-variant/40 text-[20px]">
-            mail
-          </span>
-          <span className="text-sm text-on-surface">{invite.email}</span>
-        </div>
+    <tr className="transition-colors hover:bg-surface-container">
+      <td className="px-4 py-2.5">
+        <span className="text-[13px] text-on-surface">{invite.email}</span>
+        {error && <p className="mt-0.5 text-xs text-error">{error}</p>}
       </td>
-      <td className="px-6 py-4">
+      <td className="px-4 py-2.5">
         <span
-          className={`inline-block px-2.5 py-1 rounded text-xs font-bold border ${ROLE_BADGE[invite.role] ?? ROLE_BADGE.viewer}`}
+          className={`inline-block rounded border px-2 py-0.5 text-xs font-medium ${ROLE_BADGE[invite.role] ?? ROLE_BADGE.viewer}`}
         >
           {invite.role}
         </span>
       </td>
-      <td className="px-6 py-4 text-sm text-on-surface-variant">
-        {isExpired ? (
-          <span className="text-error">Expired</span>
+      <td className="px-4 py-2.5 text-[13px] text-on-surface-variant">
+        {invite.expired ? (
+          <span className="inline-flex items-center gap-1 text-warning">
+            <span aria-hidden="true" className="material-symbols-outlined text-[15px]">timer_off</span>
+            Expired
+          </span>
         ) : (
           formatDate(invite.expires_at)
         )}
       </td>
       {canManage && (
-        <td className="px-6 py-4 text-right">
-          <button
-            disabled={isPending}
-            onClick={() =>
-              startTransition(async () => {
-                await cancelInvite(invite.id);
-              })
-            }
-            className="text-on-surface-variant/60 hover:text-error text-xs font-medium transition-colors disabled:opacity-50"
-          >
-            {isPending ? "Cancelling..." : "Cancel Invite"}
-          </button>
+        <td className="px-4 py-2.5">
+          <div className="flex items-center justify-end gap-1">
+            {invite.token && !invite.expired && <InviteLinkField token={invite.token} compact />}
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => run(resendInvite)}
+              className="h-7 rounded-md px-2 text-xs text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface disabled:opacity-50"
+              title="Replace with a fresh link and expiry"
+            >
+              {invite.expired ? "Renew" : "New link"}
+            </button>
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => run(cancelInvite)}
+              className="h-7 rounded-md px-2 text-xs text-on-surface-variant transition-colors hover:bg-error/10 hover:text-error disabled:opacity-50"
+            >
+              Revoke
+            </button>
+          </div>
         </td>
       )}
     </tr>
@@ -780,7 +821,7 @@ function DangerTab({
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight mb-1 text-error">
+        <h2 className="font-mono text-xl font-semibold mb-1 text-error">
           Danger Zone
         </h2>
         <p className="text-on-surface-variant text-sm">

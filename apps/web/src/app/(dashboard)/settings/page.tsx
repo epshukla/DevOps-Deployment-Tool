@@ -1,6 +1,8 @@
 import { requireUserWithOrg } from "@/lib/auth/session";
 import { SettingsClient } from "./settings-client";
 import { loadProfiles } from "@/lib/profiles";
+import { isInviteExpired } from "@/lib/invite-links";
+import { hasMinRole } from "@deployx/shared";
 
 export default async function SettingsPage() {
   const { supabase, org, role, user } = await requireUserWithOrg();
@@ -29,21 +31,29 @@ export default async function SettingsPage() {
     };
   });
 
-  // Fetch pending invites
+  // Fetch pending invites (tokens only for admins — they share the links)
+  const canManageInvites = hasMinRole(role, "admin");
   const { data: inviteRows } = await supabase
     .from("org_invites")
-    .select("id, email, role, invited_by, accepted_at, expires_at, created_at")
+    .select(
+      canManageInvites
+        ? "id, email, role, invited_by, accepted_at, expires_at, created_at, token"
+        : "id, email, role, invited_by, accepted_at, expires_at, created_at",
+    )
     .eq("org_id", org.id)
     .is("accepted_at", null)
     .order("created_at", { ascending: false });
 
-  const invites = (inviteRows ?? []).map((inv) => ({
+  const now = new Date();
+  const invites = ((inviteRows ?? []) as unknown as Record<string, unknown>[]).map((inv) => ({
     id: inv.id as string,
     email: inv.email as string,
     role: inv.role as string,
     invited_by: inv.invited_by as string,
     expires_at: inv.expires_at as string,
     created_at: inv.created_at as string,
+    token: canManageInvites ? ((inv.token as string | undefined) ?? null) : null,
+    expired: isInviteExpired(inv.expires_at as string, now),
   }));
 
   // Check for invites addressed to the current user
