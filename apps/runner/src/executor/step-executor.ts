@@ -1,4 +1,5 @@
-import { execa, type ResultPromise } from "execa";
+import { execa } from "execa";
+import { randomUUID } from "node:crypto";
 import type { LogStreamer } from "../logging/log-streamer";
 import type { Readable } from "node:stream";
 
@@ -48,8 +49,24 @@ export async function executeStep(
     stepRunId,
   } = options;
 
+  if (image !== undefined && !isValidImageRef(image)) {
+    logStreamer.push({
+      level: "error",
+      message: `Invalid Docker image reference ${JSON.stringify(image)} — refusing to run step`,
+      task_run_id: taskRunId,
+      step_run_id: stepRunId,
+    });
+    return { exitCode: 1, timedOut: false };
+  }
+
   const resolvedCommand = image
-    ? buildDockerCommand(image, cwd, command)
+    ? buildDockerCommand({
+        image,
+        cwd,
+        command,
+        containerName: `deployx-step-${randomUUID().slice(0, 12)}`,
+        user: getHostUser(),
+      })
     : command;
 
   // Use the workspace cwd only for non-Docker commands.
@@ -80,18 +97,58 @@ export async function executeStep(
   };
 }
 
+// Registry/host, path components, tag and digest characters only — no
+// whitespace or shell metacharacters, and no leading "-" (flag injection).
+const IMAGE_REF_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._\-/:@]*$/;
+const IMAGE_REF_MAX_LENGTH = 256;
+
+/**
+ * Returns true if `image` is a plausible Docker image reference that is
+ * safe to interpolate into a shell command.
+ */
+export function isValidImageRef(image: string): boolean {
+  return image.length <= IMAGE_REF_MAX_LENGTH && IMAGE_REF_PATTERN.test(image);
+}
+
+export interface DockerCommandOptions {
+  readonly image: string;
+  readonly cwd: string;
+  readonly command: string;
+  readonly containerName: string;
+  /** "uid:gid" to run as, or null to use the image's default user */
+  readonly user: string | null;
+}
+
 /**
  * Builds a `docker run` command that executes `command` inside `image`,
- * mounting the workspace at /workspace.
+ * mounting the workspace at /workspace. Every interpolated value is
+ * single-quoted. Running as the invoking user keeps files written into the
+ * workspace owned by the runner, so workspace cleanup doesn't hit root-owned files.
  */
-function buildDockerCommand(
-  image: string,
-  cwd: string,
-  command: string,
-): string {
-  // Escape single quotes in the command for safe shell wrapping
-  const escaped = command.replace(/'/g, "'\\''");
-  return `docker run --rm -v "${cwd}:/workspace" -w /workspace ${image} sh -c '${escaped}'`;
+export function buildDockerCommand(options: DockerCommandOptions): string {
+  const { image, cwd, command, containerName, user } = options;
+  // HOME=/tmp: an arbitrary uid has no passwd entry, and tools like npm/pip
+  // fail when HOME resolves to an unwritable "/"
+  const userArgs = user ? `--user ${user} -e HOME=/tmp ` : "";
+  return (
+    `docker run --rm --name ${shellQuote(containerName)} ${userArgs}` +
+    `-v ${shellQuote(`${cwd}:/workspace`)} -w /workspace ` +
+    `${shellQuote(image)} sh -c ${shellQuote(command)}`
+  );
+}
+
+/**
+ * Returns "uid:gid" of the runner process, or null where unsupported (Windows).
+ */
+function getHostUser(): string | null {
+  if (typeof process.getuid !== "function" || typeof process.getgid !== "function") {
+    return null;
+  }
+  return `${process.getuid()}:${process.getgid()}`;
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
 }
 
 /**

