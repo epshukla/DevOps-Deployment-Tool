@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
+import { signInWithGitHub } from "@/lib/auth/github-oauth";
 import { useState } from "react";
 
 export default function LoginPage() {
@@ -11,17 +11,13 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
-    const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "github",
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-        scopes: "repo",
-      },
-    });
+    // `?next=` (set by the auth proxy or an invite link) is sanitized
+    // inside signInWithGitHub before it reaches the OAuth redirect.
+    const next = new URLSearchParams(window.location.search).get("next");
+    const { error } = await signInWithGitHub(next);
 
     if (error) {
-      setError(error.message);
+      setError(error);
       setLoading(false);
     }
   }
