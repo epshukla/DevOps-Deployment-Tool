@@ -10,9 +10,11 @@ import {
   stopContainer,
   removeContainerIfExists,
   isContainerRunning,
+  inspectContainer,
   getContainerLogs,
 } from "./container-manager";
-import { allocatePort } from "./port-allocator";
+import { allocatePort, releasePort } from "./port-allocator";
+import { resolvePreviousImage, withPreviousImageLabel } from "./previous-image";
 import { generateNginxConfig, writeNginxConfig, reloadNginx } from "./nginx-config";
 import { waitForHealthyViaDocker } from "./health-checker";
 
@@ -60,6 +62,11 @@ export class DockerLocalDeployer implements DeployerDriver {
       // 3. Clean up any stale container with the new color name
       await removeContainerIfExists(newContainerName);
 
+      // Record the image being replaced so self-healing can roll back to it
+      const previousImage = oldContainerName
+        ? resolvePreviousImage(await inspectContainer(oldContainerName), ctx.imageTag)
+        : null;
+
       // 4. Start new app container
       logStreamer.push({
         level: "info",
@@ -77,15 +84,18 @@ export class DockerLocalDeployer implements DeployerDriver {
         image: ctx.imageTag,
         network: DEPLOYER_NETWORK_NAME,
         env: deployEnv,
-        labels: {
-          "deployx.project": projectSlug,
-          "deployx.role": "app",
-          "deployx.color": newColor,
-          "deployx.deployment": ctx.deploymentId,
-          "deployx.runId": ctx.job.run_id,
-          "deployx.healthPath": healthPath,
-          "deployx.appPort": String(appPort),
-        },
+        labels: withPreviousImageLabel(
+          {
+            "deployx.project": projectSlug,
+            "deployx.role": "app",
+            "deployx.color": newColor,
+            "deployx.deployment": ctx.deploymentId,
+            "deployx.runId": ctx.job.run_id,
+            "deployx.healthPath": healthPath,
+            "deployx.appPort": String(appPort),
+          },
+          previousImage,
+        ),
         detach: true,
         restart: "unless-stopped",
       });
@@ -162,6 +172,13 @@ export class DockerLocalDeployer implements DeployerDriver {
       await writeNginxConfig(proxyContainerName, nginxConfig);
       await reloadNginx(proxyContainerName);
 
+      await this.recordHealingEvent(ctx, "blue_green_cutover", {
+        from_color: currentColor,
+        to_color: newColor,
+        image_tag: ctx.imageTag,
+        previous_image_tag: previousImage,
+      });
+
       // 7. Drain and stop old container
       if (oldContainerName && (await isContainerRunning(oldContainerName))) {
         logStreamer.push({
@@ -233,9 +250,10 @@ export class DockerLocalDeployer implements DeployerDriver {
       await removeContainerIfExists(name);
     }
 
-    // Stop proxy
+    // Stop proxy, then free its host port for other projects
     const proxyName = this.getProxyContainerName(projectSlug);
     await removeContainerIfExists(proxyName);
+    releasePort(projectSlug);
   }
 
   async getStatus(projectSlug: string): Promise<DeploymentStatus> {
@@ -354,6 +372,23 @@ export class DockerLocalDeployer implements DeployerDriver {
       // Fire-and-forget — don't crash deployment over API error
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`Failed to report health check: ${msg}`);
+    }
+  }
+
+  private async recordHealingEvent(
+    ctx: DeployContext,
+    eventType: string,
+    details: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await ctx.client.recordHealingEvent(ctx.job.run_id, ctx.deploymentId, {
+        event_type: eventType,
+        details,
+      });
+    } catch (err) {
+      // Fire-and-forget — the cutover already happened
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[deploy] Failed to record ${eventType} event: ${msg}`);
     }
   }
 }

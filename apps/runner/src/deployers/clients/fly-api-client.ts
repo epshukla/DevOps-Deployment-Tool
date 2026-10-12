@@ -35,11 +35,6 @@ export interface FlyPort {
   readonly handlers: readonly string[];
 }
 
-export interface FlyLogEntry {
-  readonly timestamp: string;
-  readonly message: string;
-}
-
 export interface FlyApiClientOptions {
   readonly apiToken: string;
   readonly baseUrl?: string;
@@ -69,12 +64,18 @@ export class FlyApiClient {
 
   // ── Machines ────────────────────────────────────────────────
 
+  /**
+   * Creates a machine. `region` is a top-level request field in the
+   * Machines API (not part of config); omitted → Fly picks the nearest region.
+   */
   async createMachine(
     appName: string,
     config: FlyMachineConfig,
+    region?: string,
   ): Promise<FlyMachine> {
     return this.request<FlyMachine>("POST", `/apps/${appName}/machines`, {
       config,
+      ...(region ? { region } : {}),
     });
   }
 
@@ -110,13 +111,19 @@ export class FlyApiClient {
     );
   }
 
+  /**
+   * Deletes a machine. `force` stops a still-running machine before deletion
+   * (`?force=true`), since stop requests complete asynchronously.
+   */
   async destroyMachine(
     appName: string,
     machineId: string,
+    force = false,
   ): Promise<void> {
+    const query = force ? "?force=true" : "";
     await this.request(
       "DELETE",
-      `/apps/${appName}/machines/${machineId}`,
+      `/apps/${appName}/machines/${machineId}${query}`,
     );
   }
 
@@ -155,19 +162,9 @@ export class FlyApiClient {
     );
   }
 
-  // ── Logs ────────────────────────────────────────────────────
-
-  async getMachineLogs(
-    appName: string,
-    machineId: string,
-    limit = 100,
-  ): Promise<readonly FlyLogEntry[]> {
-    const data = await this.request<{ logs: readonly FlyLogEntry[] }>(
-      "GET",
-      `/apps/${appName}/machines/${machineId}/logs?limit=${limit}`,
-    );
-    return data.logs;
-  }
+  // Note: the Machines API has no logs endpoint
+  // (https://docs.fly.io/machines/api/machines-resource), so log retrieval
+  // is intentionally not offered by this client.
 
   // ── HTTP Layer ──────────────────────────────────────────────
 

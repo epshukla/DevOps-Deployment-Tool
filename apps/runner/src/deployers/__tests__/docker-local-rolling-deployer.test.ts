@@ -9,6 +9,7 @@ vi.mock("../container-manager", () => ({
   stopContainer: vi.fn(),
   removeContainerIfExists: vi.fn(),
   isContainerRunning: vi.fn(),
+  inspectContainer: vi.fn(),
   getContainerLogs: vi.fn().mockResolvedValue(["log line 1"]),
 }));
 
@@ -19,6 +20,7 @@ vi.mock("../health-checker", () => ({
 
 vi.mock("../port-allocator", () => ({
   allocatePort: vi.fn().mockReturnValue({ proxyPort: 10002 }),
+  releasePort: vi.fn(),
 }));
 
 vi.mock("../nginx-config", () => ({
@@ -33,10 +35,10 @@ vi.spyOn(globalThis, "setTimeout").mockImplementation((fn: () => void) => {
   return 0 as unknown as ReturnType<typeof setTimeout>;
 });
 
-const { isContainerRunning, runContainer, stopContainer, removeContainerIfExists } =
+const { isContainerRunning, inspectContainer, runContainer, stopContainer, removeContainerIfExists } =
   await import("../container-manager");
 const { waitForHealthyViaDocker, checkHealthViaDocker } = await import("../health-checker");
-const { generateWeightedNginxConfig } = await import("../nginx-config");
+const { generateWeightedNginxConfig, reloadNginx } = await import("../nginx-config");
 
 function createMockClient() {
   return {
@@ -80,6 +82,7 @@ describe("DockerLocalRollingDeployer", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(inspectContainer).mockReset();
     deployer = new DockerLocalRollingDeployer();
   });
 
@@ -153,6 +156,95 @@ describe("DockerLocalRollingDeployer", () => {
         if (name === "deployx-myapp-inst-1") return true;
         return false; // proxy
       });
+      vi.mocked(inspectContainer).mockImplementation(async (name: string) => {
+        if (name === "deployx-myapp-inst-0" || name === "deployx-myapp-inst-1") {
+          return { id: name, name, state: "running", image: "myapp:v1", labels: {} };
+        }
+        return null;
+      });
+    });
+
+    it("rolls failed instances back to the real previous image", async () => {
+      vi.mocked(waitForHealthyViaDocker)
+        .mockResolvedValueOnce(healthyResult())
+        .mockResolvedValueOnce(unhealthyResult());
+
+      await deployer.deploy(createCtx());
+
+      const rollbackRuns = vi.mocked(runContainer).mock.calls.filter(
+        (c) => (c[0] as any).image === "myapp:v1",
+      );
+      expect(rollbackRuns.map((c) => (c[0] as any).name)).toEqual([
+        "deployx-myapp-inst-0",
+        "deployx-myapp-inst-1",
+      ]);
+    });
+
+    it("labels new instances with the image they replace", async () => {
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+
+      await deployer.deploy(createCtx());
+
+      const newRuns = vi.mocked(runContainer).mock.calls.filter(
+        (c) => (c[0] as any).image === "myapp:v2",
+      );
+      expect(newRuns).toHaveLength(2);
+      for (const call of newRuns) {
+        expect((call[0] as any).labels["deployx.previousImage"]).toBe("myapp:v1");
+      }
+    });
+
+    it("reloads nginx after each batch passes health, before the next batch starts", async () => {
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+
+      await deployer.deploy(createCtx());
+
+      const firstHealthy = vi.mocked(waitForHealthyViaDocker).mock.invocationCallOrder[0];
+      const secondBatchStop = vi.mocked(stopContainer).mock.invocationCallOrder[
+        vi.mocked(stopContainer).mock.calls.findIndex((c) => c[0] === "deployx-myapp-inst-1")
+      ];
+      const reloads = vi.mocked(reloadNginx).mock.invocationCallOrder;
+      expect(reloads.some((o) => o > firstHealthy && o < secondBatchStop)).toBe(true);
+    });
+
+    it("drains a batch from nginx before stopping its old instances", async () => {
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+
+      await deployer.deploy(createCtx());
+
+      const firstConfig = vi.mocked(generateWeightedNginxConfig).mock.calls[0][0] as any;
+      expect(firstConfig.upstreams.map((u: any) => u.name)).toEqual(["deployx-myapp-inst-1"]);
+      const firstStop = vi.mocked(stopContainer).mock.invocationCallOrder[0];
+      expect(vi.mocked(reloadNginx).mock.invocationCallOrder[0]).toBeLessThan(firstStop);
+    });
+
+    it("only routes to instances that exist (scale-up)", async () => {
+      vi.mocked(waitForHealthyViaDocker).mockResolvedValue(healthyResult());
+      const running = new Set(["deployx-myapp-inst-0", "deployx-myapp-inst-1"]);
+      vi.mocked(isContainerRunning).mockImplementation(async (name: string) => running.has(name));
+      vi.mocked(runContainer).mockImplementation(async (opts: any) => {
+        running.add(opts.name);
+        return "id";
+      });
+
+      await deployer.deploy(
+        createCtx({
+          config: {
+            driver: "docker_local",
+            strategy: "rolling",
+            port: 3000,
+            rolling: { instances: 3, max_unavailable: 1, observation_seconds: 1 },
+          } as any,
+        }),
+      );
+
+      // After batch 0 (inst-0 replaced), inst-2 doesn't exist yet
+      const afterFirstBatch = vi.mocked(generateWeightedNginxConfig).mock.calls[1][0] as any;
+      expect(afterFirstBatch.upstreams.map((u: any) => u.name)).toEqual([
+        "deployx-myapp-inst-0",
+        "deployx-myapp-inst-1",
+      ]);
+      vi.mocked(runContainer).mockReset();
     });
 
     it("replaces instances one at a time", async () => {
@@ -276,6 +368,29 @@ describe("DockerLocalRollingDeployer", () => {
       expect(vi.mocked(removeContainerIfExists)).toHaveBeenCalledWith("deployx-myapp-inst-0");
       expect(vi.mocked(removeContainerIfExists)).toHaveBeenCalledWith("deployx-myapp-inst-1");
       expect(vi.mocked(removeContainerIfExists)).toHaveBeenCalledWith("deployx-proxy-myapp");
+    });
+
+    it("releases the proxy port after the proxy is removed", async () => {
+      const { releasePort } = await import("../port-allocator");
+
+      await deployer.stop(createCtx());
+
+      expect(vi.mocked(releasePort)).toHaveBeenCalledWith("myapp");
+      const proxyRemovalOrder = vi.mocked(removeContainerIfExists).mock.invocationCallOrder[
+        vi.mocked(removeContainerIfExists).mock.calls.findIndex((c) => c[0] === "deployx-proxy-myapp")
+      ];
+      expect(vi.mocked(releasePort).mock.invocationCallOrder[0]).toBeGreaterThan(proxyRemovalOrder);
+    });
+
+    it("keeps the port allocated if proxy removal fails", async () => {
+      const { releasePort } = await import("../port-allocator");
+      vi.mocked(removeContainerIfExists).mockImplementation(async (name: string) => {
+        if (name === "deployx-proxy-myapp") throw new Error("daemon unavailable");
+      });
+
+      await expect(deployer.stop(createCtx())).rejects.toThrow("daemon unavailable");
+      expect(vi.mocked(releasePort)).not.toHaveBeenCalled();
+      vi.mocked(removeContainerIfExists).mockReset();
     });
   });
 

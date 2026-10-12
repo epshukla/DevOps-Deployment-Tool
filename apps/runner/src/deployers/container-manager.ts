@@ -36,18 +36,20 @@ export interface ContainerInfo {
 // ── Network Management ──────────────────────────────────────────
 
 export async function ensureNetwork(name: string): Promise<void> {
-  try {
-    await execa("docker", ["network", "inspect", name], { reject: false });
-    // Network exists — check exit code
-    const result = await execa("docker", ["network", "inspect", name], {
-      reject: false,
-    });
-    if (result.exitCode === 0) return;
-  } catch {
-    // Ignore — will create below
-  }
+  const inspect = await execa("docker", ["network", "inspect", name], {
+    reject: false,
+  });
+  if (inspect.exitCode === 0) return;
 
-  await execa("docker", ["network", "create", name]);
+  const create = await execa("docker", ["network", "create", name], {
+    reject: false,
+  });
+  if (create.exitCode === 0) return;
+
+  // Another deploy may have created the network between inspect and create
+  if (create.stderr.includes("already exists")) return;
+
+  throw new Error(`Failed to create network ${name}: ${create.stderr}`);
 }
 
 // ── Container Lifecycle ─────────────────────────────────────────

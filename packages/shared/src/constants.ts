@@ -11,6 +11,11 @@ export const HEALTH_THRESHOLD_DEGRADED = 0.5;
 export const HEALTH_MONITOR_INTERVAL_MS = 15_000;
 export const HEALTH_MONITOR_PROBE_TIMEOUT_MS = 5_000;
 
+// ── Run Control (cancellation / approval) ───────────────────────
+export const RUN_CANCEL_POLL_INTERVAL_MS = 3_000;
+export const STEP_CANCEL_GRACE_MS = 5_000;
+export const APPROVAL_POLL_INTERVAL_MS = 5_000;
+
 // ── Pipeline Run State Transitions ──────────────────────────────
 import type { PipelineRunStatus, TaskRunStatus, StepRunStatus } from "./types/enums";
 
@@ -112,6 +117,12 @@ export const CANARY_DRAIN_SECONDS = 5;
 export const ROLLING_DEFAULT_INSTANCES = 2;
 export const ROLLING_MAX_UNAVAILABLE = 1;
 export const ROLLING_OBSERVATION_SECONDS = 15;
+/** Upper bound on rolling instances (matches RollingConfigSchema.instances max) */
+export const ROLLING_MAX_INSTANCES = 10;
+
+// ── Container Labels ───────────────────────────────────────────
+/** Label carrying the image a docker_local deployment replaced (self-healing rollback target) */
+export const DEPLOYX_PREVIOUS_IMAGE_LABEL = "deployx.previousImage";
 
 // ── SLA / Uptime Constants ─────────────────────────────────────
 export const SLA_DEFAULT_WINDOW_HOURS = 24;
@@ -162,3 +173,5 @@ export const ARTIFACT_ALLOWED_EXTENSIONS = [
   ".rpm",
   ".log",
 ] as const;
+/** Upper bound on files a single task uploads (globs can match a lot) */
+export const ARTIFACT_MAX_FILES_PER_TASK = 50;

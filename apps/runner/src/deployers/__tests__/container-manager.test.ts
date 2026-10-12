@@ -24,34 +24,53 @@ describe("ensureNetwork", () => {
     mockExeca = mod.execa as unknown as ReturnType<typeof vi.fn>;
   });
 
-  it("does nothing if network already exists", async () => {
+  it("does nothing if network already exists (single inspect)", async () => {
     mockExeca.mockResolvedValue({ exitCode: 0, stdout: "", stderr: "" });
 
     await ensureNetwork("deployx-net");
 
-    // Called twice for inspect (the source does two inspect calls), never for create
+    expect(mockExeca).toHaveBeenCalledTimes(1);
     expect(mockExeca).toHaveBeenCalledWith(
       "docker",
       ["network", "inspect", "deployx-net"],
       expect.anything(),
     );
-    expect(mockExeca).not.toHaveBeenCalledWith(
-      "docker",
-      ["network", "create", "deployx-net"],
-    );
   });
 
   it("creates network if inspect returns non-zero exit code", async () => {
     mockExeca
-      .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "" }) // first inspect
-      .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "" }) // second inspect
+      .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "" }) // inspect
       .mockResolvedValueOnce({ exitCode: 0, stdout: "", stderr: "" }); // create
 
     await ensureNetwork("deployx-net");
 
+    expect(mockExeca).toHaveBeenCalledTimes(2);
     expect(mockExeca).toHaveBeenCalledWith(
       "docker",
       ["network", "create", "deployx-net"],
+      expect.anything(),
+    );
+  });
+
+  it("tolerates a concurrent create (network already exists)", async () => {
+    mockExeca
+      .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "" })
+      .mockResolvedValueOnce({
+        exitCode: 1,
+        stdout: "",
+        stderr: "Error response from daemon: network with name deployx-net already exists",
+      });
+
+    await expect(ensureNetwork("deployx-net")).resolves.toBeUndefined();
+  });
+
+  it("throws when network create fails for another reason", async () => {
+    mockExeca
+      .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "" })
+      .mockResolvedValueOnce({ exitCode: 1, stdout: "", stderr: "permission denied" });
+
+    await expect(ensureNetwork("deployx-net")).rejects.toThrow(
+      /Failed to create network deployx-net: permission denied/,
     );
   });
 });

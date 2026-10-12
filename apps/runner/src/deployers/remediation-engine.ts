@@ -2,11 +2,13 @@ import {
   MAX_RESTART_ATTEMPTS,
   RESTART_BACKOFF_BASE_MS,
   DEPLOYER_NETWORK_NAME,
+  DEPLOYX_PREVIOUS_IMAGE_LABEL,
 } from "@deployx/shared";
 import type { RunnerApiClient } from "../api-client";
 import {
   restartContainer,
   isContainerRunning,
+  inspectContainer,
   runContainer,
   removeContainerIfExists,
   stopContainer,
@@ -28,6 +30,8 @@ export interface DeploymentRef {
   readonly currentImageTag: string;
   readonly previousImageTag: string | null;
   readonly currentColor: "blue" | "green";
+  /** Deploy strategy from the deployx.strategy label (defaults to blue_green) */
+  readonly strategy?: string;
 }
 
 export interface RemediationState {
@@ -100,7 +104,10 @@ export async function remediate(
 
   // Restarts exhausted → rollback
   if (ref.previousImageTag) {
-    return attemptRollback(ref, state, client);
+    const isBlueGreen = (ref.strategy ?? "blue_green") === "blue_green";
+    return isBlueGreen
+      ? attemptRollback(ref, state, client)
+      : attemptInPlaceRollback(ref, ref.previousImageTag, state, client);
   }
 
   // No previous image to rollback to
@@ -293,6 +300,113 @@ async function attemptRollback(
       newState: { ...state, isRemediating: false },
       error,
     };
+  }
+}
+
+// ── In-Place Rollback (rolling / canary) ────────────────────────
+// Those strategies have fixed container names that their deployers and the
+// nginx config refer to, so a blue/green slot can't be used. The broken
+// container is already unhealthy after exhausted restarts, so recreating it
+// under the same name with the previous image costs no additional capacity.
+
+async function attemptInPlaceRollback(
+  ref: DeploymentRef,
+  previousImage: string,
+  state: RemediationState,
+  client: RunnerApiClient,
+): Promise<RemediationResult> {
+  const failed = (error: string): RemediationResult => ({
+    action: "rollback",
+    success: false,
+    newState: { ...state, isRemediating: false },
+    error,
+  });
+
+  await recordHealingEvent(client, ref, "rollback_started", null, {
+    from_image: ref.currentImageTag,
+    to_image: previousImage,
+    mode: "in_place",
+  });
+
+  try {
+    await recreateWithImage(ref, previousImage);
+
+    const healthResult = await waitForHealthyViaDocker({
+      containerName: ref.containerName,
+      port: ref.appPort,
+      path: ref.healthPath,
+      timeoutMs: 5000,
+      retries: 3,
+      intervalMs: 5000,
+      startPeriodMs: 10000,
+    });
+
+    if (!healthResult.passed) {
+      const error = `Rollback container unhealthy: ${healthResult.error}`;
+      await recordHealingEvent(client, ref, "rollback_failed", null, { error });
+      return failed(error);
+    }
+
+    // nginx resolves upstream names at load time; the recreated container has a new IP
+    await reloadNginx(`deployx-proxy-${ref.projectSlug}`);
+
+    await markRolledBack(client, ref);
+    await recordHealingEvent(client, ref, "rollback_succeeded", null, {
+      target_image: previousImage,
+      mode: "in_place",
+    });
+
+    return { action: "rollback", success: true, newState: { ...state, isRemediating: false } };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    await recordHealingEvent(client, ref, "rollback_failed", null, { error });
+    return failed(error);
+  }
+}
+
+/**
+ * Recreates `ref.containerName` from `image`, keeping its strategy labels
+ * (ordinal, canaryRole, ...) but dropping the previous-image label so the
+ * rolled-back container never targets itself.
+ */
+async function recreateWithImage(ref: DeploymentRef, image: string): Promise<void> {
+  const existing = await inspectContainer(ref.containerName);
+  const keptLabels = Object.fromEntries(
+    Object.entries(existing?.labels ?? {}).filter(
+      ([key]) => key !== DEPLOYX_PREVIOUS_IMAGE_LABEL,
+    ),
+  );
+
+  await removeContainerIfExists(ref.containerName);
+  await runContainer({
+    name: ref.containerName,
+    image,
+    network: DEPLOYER_NETWORK_NAME,
+    env: { PORT: String(ref.appPort) },
+    labels: {
+      ...keptLabels,
+      "deployx.project": ref.projectSlug,
+      "deployx.role": "app",
+      "deployx.deployment": ref.deploymentId,
+      "deployx.runId": ref.runId,
+      "deployx.healthPath": ref.healthPath,
+      "deployx.appPort": String(ref.appPort),
+      ...(ref.strategy ? { "deployx.strategy": ref.strategy } : {}),
+    },
+    detach: true,
+    restart: "unless-stopped",
+  });
+}
+
+async function markRolledBack(client: RunnerApiClient, ref: DeploymentRef): Promise<void> {
+  try {
+    await client.updateDeployment(ref.runId, ref.deploymentId, {
+      status: "rolled_back",
+      health_status: "unknown",
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[remediation] Failed to mark ${ref.deploymentId} rolled back: ${msg}`);
   }
 }
 

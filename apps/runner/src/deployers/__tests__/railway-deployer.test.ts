@@ -56,26 +56,42 @@ function createCtx(overrides?: Partial<DeployContext>): DeployContext {
 
 function createMockRailwayClient() {
   return {
-    listServices: vi.fn().mockResolvedValue([]),
+    getProject: vi.fn().mockResolvedValue({
+      id: "proj-123",
+      name: "proj",
+      services: [],
+      environments: [
+        { id: "env-staging", name: "staging" },
+        { id: "env-prod", name: "production" },
+      ],
+    }),
     createService: vi.fn().mockResolvedValue({
       id: "svc-1",
       projectId: "proj-123",
       name: "deployx-myapp",
     }),
-    createDeployment: vi.fn().mockResolvedValue({
-      id: "deploy-1",
-      status: "BUILDING",
-      serviceId: "svc-1",
-    }),
+    connectServiceImage: vi.fn().mockResolvedValue(undefined),
+    upsertVariables: vi.fn().mockResolvedValue(undefined),
+    updateServiceInstance: vi.fn().mockResolvedValue(undefined),
+    deployServiceInstance: vi.fn().mockResolvedValue("deploy-1"),
     getDeployment: vi.fn().mockResolvedValue({
       id: "deploy-1",
       status: "SUCCESS",
-      serviceId: "svc-1",
       staticUrl: "myapp.up.railway.app",
     }),
     cancelDeployment: vi.fn().mockResolvedValue(undefined),
+    stopDeployment: vi.fn().mockResolvedValue(undefined),
     getDeploymentLogs: vi.fn().mockResolvedValue([]),
   };
+}
+
+function withExistingService(mock: ReturnType<typeof createMockRailwayClient>) {
+  mock.getProject.mockResolvedValue({
+    id: "proj-123",
+    name: "proj",
+    services: [{ id: "svc-1", name: "deployx-myapp", projectId: "proj-123" }],
+    environments: [{ id: "env-prod", name: "production" }],
+  });
 }
 
 function healthyResult() {
@@ -100,34 +116,129 @@ describe("RailwayDeployer", () => {
   });
 
   describe("deploy", () => {
-    it("successful first deploy — creates service, polls, health passes", async () => {
+    it("successful first deploy — creates image service, deploys to production env, health passes", async () => {
       vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
 
       const result = await deployer.deploy(createCtx());
 
       expect(result.success).toBe(true);
       expect(result.publicUrl).toBe("https://myapp.up.railway.app");
-      expect(mockRailway.createService).toHaveBeenCalledWith("proj-123", "deployx-myapp");
-      expect(mockRailway.createDeployment).toHaveBeenCalledWith(
-        "svc-1",
+      expect(mockRailway.createService).toHaveBeenCalledWith(
+        "proj-123",
+        "deployx-myapp",
         "ghcr.io/org/myapp:v2",
-        undefined,
       );
+      expect(mockRailway.connectServiceImage).not.toHaveBeenCalled();
+      expect(mockRailway.deployServiceInstance).toHaveBeenCalledWith("svc-1", "env-prod");
     });
 
-    it("finds existing service and skips creation", async () => {
-      mockRailway.listServices.mockResolvedValue([
-        { id: "svc-1", name: "deployx-myapp", projectId: "proj-123" },
-      ]);
+    it("uses an account token with Bearer auth by default", async () => {
+      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+
+      await deployer.deploy(createCtx());
+
+      expect(MockRailwayApiClient).toHaveBeenCalledWith({
+        apiToken: "test-token",
+        tokenType: "account",
+      });
+    });
+
+    it("falls back to a project token when only RAILWAY_PROJECT_TOKEN is set", async () => {
+      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+
+      const result = await deployer.deploy(createCtx({
+        secrets: { RAILWAY_PROJECT_TOKEN: "proj-token", RAILWAY_PROJECT_ID: "proj-123" },
+      }));
+
+      expect(result.success).toBe(true);
+      expect(MockRailwayApiClient).toHaveBeenCalledWith({
+        apiToken: "proj-token",
+        tokenType: "project",
+      });
+    });
+
+    it("finds existing service, points it at the new image, and skips creation", async () => {
+      withExistingService(mockRailway);
       vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
 
       const result = await deployer.deploy(createCtx());
 
       expect(result.success).toBe(true);
       expect(mockRailway.createService).not.toHaveBeenCalled();
+      expect(mockRailway.connectServiceImage).toHaveBeenCalledWith("svc-1", "ghcr.io/org/myapp:v2");
     });
 
-    it("returns error when RAILWAY_API_TOKEN is missing", async () => {
+    it("uses RAILWAY_ENVIRONMENT_ID secret when provided", async () => {
+      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+
+      await deployer.deploy(createCtx({
+        secrets: {
+          RAILWAY_API_TOKEN: "test-token",
+          RAILWAY_PROJECT_ID: "proj-123",
+          RAILWAY_ENVIRONMENT_ID: "env-custom",
+        },
+      }));
+
+      expect(mockRailway.deployServiceInstance).toHaveBeenCalledWith("svc-1", "env-custom");
+    });
+
+    it("fails when the environment cannot be determined", async () => {
+      mockRailway.getProject.mockResolvedValue({
+        id: "proj-123",
+        name: "proj",
+        services: [],
+        environments: [{ id: "a", name: "dev" }, { id: "b", name: "qa" }],
+      });
+
+      const result = await deployer.deploy(createCtx());
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("RAILWAY_ENVIRONMENT_ID");
+      expect(mockRailway.deployServiceInstance).not.toHaveBeenCalled();
+    });
+
+    it("passes deploy env as service variables", async () => {
+      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      const ctx = createCtx({
+        config: { driver: "railway", strategy: "blue_green", port: 3000, env: { NODE_ENV: "production" } } as any,
+      });
+
+      await deployer.deploy(ctx);
+
+      expect(mockRailway.upsertVariables).toHaveBeenCalledWith(
+        { projectId: "proj-123", environmentId: "env-prod", serviceId: "svc-1" },
+        { NODE_ENV: "production" },
+      );
+    });
+
+    it("passes railway.region through serviceInstanceUpdate before deploying", async () => {
+      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      const ctx = createCtx({
+        config: { driver: "railway", strategy: "blue_green", port: 3000, railway: { region: "us-west1" } } as any,
+      });
+
+      await deployer.deploy(ctx);
+
+      expect(mockRailway.updateServiceInstance).toHaveBeenCalledWith(
+        "svc-1",
+        "env-prod",
+        { region: "us-west1" },
+      );
+      const updateOrder = mockRailway.updateServiceInstance.mock.invocationCallOrder[0];
+      const deployOrder = mockRailway.deployServiceInstance.mock.invocationCallOrder[0];
+      expect(updateOrder).toBeLessThan(deployOrder);
+    });
+
+    it("does not touch region or variables when not configured", async () => {
+      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+
+      await deployer.deploy(createCtx());
+
+      expect(mockRailway.updateServiceInstance).not.toHaveBeenCalled();
+      expect(mockRailway.upsertVariables).not.toHaveBeenCalled();
+    });
+
+    it("returns error when no Railway token is set", async () => {
       const ctx = createCtx({ secrets: { RAILWAY_PROJECT_ID: "proj-123" } });
 
       const result = await deployer.deploy(ctx);
@@ -146,17 +257,36 @@ describe("RailwayDeployer", () => {
     });
 
     it("returns failure when deployment status becomes FAILED", async () => {
-      mockRailway.getDeployment.mockResolvedValue({
-        id: "deploy-1",
-        status: "FAILED",
-        serviceId: "svc-1",
-      });
+      mockRailway.getDeployment.mockResolvedValue({ id: "deploy-1", status: "FAILED" });
       vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
 
       const result = await deployer.deploy(createCtx());
 
       expect(result.success).toBe(false);
       expect(result.error).toContain("FAILED");
+    });
+
+    it("treats CRASHED as a terminal failure", async () => {
+      mockRailway.getDeployment
+        .mockResolvedValueOnce({ id: "deploy-1", status: "DEPLOYING" })
+        .mockResolvedValueOnce({ id: "deploy-1", status: "CRASHED" });
+
+      const result = await deployer.deploy(createCtx());
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("CRASHED");
+      expect(mockRailway.getDeployment).toHaveBeenCalledTimes(2);
+    });
+
+    it("surfaces API errors as a failed result", async () => {
+      mockRailway.deployServiceInstance.mockRejectedValue(
+        new Error("Railway API serviceInstanceDeployV2 returned errors: Not Authorized"),
+      );
+
+      const result = await deployer.deploy(createCtx());
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Not Authorized");
     });
 
     it("returns failure when health check fails", async () => {
@@ -198,45 +328,69 @@ describe("RailwayDeployer", () => {
       const ctx = createCtx();
       await deployer.deploy(ctx);
 
-      // Allow fire-and-forget promise to resolve
-      await vi.waitFor(() => {
-        expect(vi.mocked(ctx.client.recordHealthCheck)).toHaveBeenCalledWith(
-          "run-1",
-          "dep-1",
-          expect.objectContaining({ status: "pass" }),
-        );
-      });
+      expect(vi.mocked(ctx.client.recordHealthCheck)).toHaveBeenCalledWith(
+        "run-1",
+        "dep-1",
+        expect.objectContaining({ status: "pass" }),
+      );
     });
   });
 
   describe("rollback", () => {
     it("deploys with the target image tag", async () => {
+      withExistingService(mockRailway);
       vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
 
-      const ctx = createCtx();
-      const result = await deployer.rollback(ctx, "ghcr.io/org/myapp:v1");
+      const result = await deployer.rollback(createCtx(), "ghcr.io/org/myapp:v1");
 
       expect(result.success).toBe(true);
-      expect(mockRailway.createDeployment).toHaveBeenCalledWith(
-        "svc-1",
-        "ghcr.io/org/myapp:v1",
-        undefined,
-      );
+      expect(mockRailway.connectServiceImage).toHaveBeenCalledWith("svc-1", "ghcr.io/org/myapp:v1");
+      expect(mockRailway.deployServiceInstance).toHaveBeenCalled();
     });
   });
 
   describe("stop", () => {
-    it("cancels the cached deployment", async () => {
+    it("stops the cached deployment when it is live", async () => {
       vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
       const ctx = createCtx();
-
-      // Deploy first to populate cached state
       await deployer.deploy(ctx);
-      vi.clearAllMocks();
+
+      await deployer.stop(ctx);
+
+      expect(mockRailway.stopDeployment).toHaveBeenCalledWith("deploy-1");
+      expect(mockRailway.cancelDeployment).not.toHaveBeenCalled();
+    });
+
+    it("cancels the cached deployment when it is still building", async () => {
+      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      const ctx = createCtx();
+      await deployer.deploy(ctx);
+      mockRailway.getDeployment.mockResolvedValue({ id: "deploy-1", status: "BUILDING" });
 
       await deployer.stop(ctx);
 
       expect(mockRailway.cancelDeployment).toHaveBeenCalledWith("deploy-1");
+      expect(mockRailway.stopDeployment).not.toHaveBeenCalled();
+    });
+
+    it("logs a warning when stopping fails", async () => {
+      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      const ctx = createCtx();
+      await deployer.deploy(ctx);
+      mockRailway.stopDeployment.mockRejectedValue(new Error("boom"));
+
+      await deployer.stop(ctx);
+
+      expect(ctx.logStreamer.push).toHaveBeenCalledWith(
+        expect.objectContaining({ level: "warn", message: expect.stringContaining("boom") }),
+      );
+    });
+
+    it("does nothing without a cached deployment", async () => {
+      await deployer.stop(createCtx());
+
+      expect(mockRailway.stopDeployment).not.toHaveBeenCalled();
+      expect(mockRailway.cancelDeployment).not.toHaveBeenCalled();
     });
   });
 
@@ -244,6 +398,32 @@ describe("RailwayDeployer", () => {
     it("returns empty array when no cached client exists", async () => {
       const logs = await deployer.getLogs("any-container");
       expect(logs).toEqual([]);
+    });
+
+    it("formats deployment logs after a deploy", async () => {
+      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      await deployer.deploy(createCtx());
+      mockRailway.getDeploymentLogs.mockResolvedValue([
+        { timestamp: "2025-01-01T00:00:00Z", message: "Ready" },
+      ]);
+
+      const logs = await deployer.getLogs("any", 10);
+
+      expect(logs).toEqual(["2025-01-01T00:00:00Z Ready"]);
+      expect(mockRailway.getDeploymentLogs).toHaveBeenCalledWith("deploy-1", 10);
+    });
+
+    it("logs and returns empty array when fetching logs fails", async () => {
+      vi.mocked(waitForHealthy).mockResolvedValue(healthyResult());
+      await deployer.deploy(createCtx());
+      mockRailway.getDeploymentLogs.mockRejectedValue(new Error("rate limited"));
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const logs = await deployer.getLogs("any");
+
+      expect(logs).toEqual([]);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("rate limited"));
+      warn.mockRestore();
     });
   });
 });
