@@ -16,6 +16,8 @@ export interface RunContainerOptions {
   readonly labels?: Readonly<Record<string, string>>;
   readonly detach: boolean;
   readonly restart?: "no" | "always" | "unless-stopped";
+  /** Arguments passed to the image's entrypoint (after the image name). */
+  readonly command?: readonly string[];
 }
 
 export interface ContainerInspection {
@@ -87,6 +89,10 @@ export async function runContainer(
   }
 
   args.push(options.image);
+
+  if (options.command) {
+    args.push(...options.command);
+  }
 
   const result = await execa("docker", args);
   return result.stdout.trim();

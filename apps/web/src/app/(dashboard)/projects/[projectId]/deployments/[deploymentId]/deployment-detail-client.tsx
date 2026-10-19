@@ -1,5 +1,6 @@
 "use client";
 
+import { PublicUrlLink } from "@/components/deployment/public-url-link";
 import { useState, useTransition } from "react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useRouter } from "next/navigation";
@@ -31,6 +32,8 @@ interface DeploymentData {
   readonly deploy_target: string;
   readonly current_revision_id: string | null;
   readonly health_status: string;
+  readonly public_url?: string | null;
+  readonly public_url_expires_at?: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -270,6 +273,12 @@ export function DeploymentDetailClient({
               <span className="text-xs font-mono">
                 {formatDate(deployment.created_at)}
               </span>
+            </div>
+            <div className="mt-2">
+              <PublicUrlLink
+                url={deployment.public_url}
+                expiresAt={deployment.public_url_expires_at}
+              />
             </div>
           </div>
           <div className="flex flex-col items-end gap-2">

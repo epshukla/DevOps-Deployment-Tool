@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { HealthMonitor } from "../health-monitor";
 
 // Mock container-manager
+vi.mock("../public-tunnel", () => ({
+  reapExpiredTunnels: vi.fn().mockResolvedValue([]),
+}));
+
 vi.mock("../container-manager", () => ({
   listContainersByLabel: vi.fn(),
   inspectContainer: vi.fn(),

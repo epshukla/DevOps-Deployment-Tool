@@ -1,3 +1,4 @@
+import { removePublicTunnel } from "./public-tunnel";
 import {
   DEPLOYER_NETWORK_NAME,
   CANARY_DEFAULT_STAGES,
@@ -288,6 +289,7 @@ export class DockerLocalCanaryDeployer implements DeployerDriver {
 
   async stop(ctx: DeployContext): Promise<void> {
     const { projectSlug } = ctx;
+    await removePublicTunnel(projectSlug);
     await removeContainerIfExists(this.getStableContainerName(projectSlug));
     await removeContainerIfExists(this.getCanaryContainerName(projectSlug));
     await removeContainerIfExists(this.getProxyContainerName(projectSlug));

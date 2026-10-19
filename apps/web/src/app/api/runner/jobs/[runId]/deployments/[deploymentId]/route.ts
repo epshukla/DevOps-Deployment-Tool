@@ -91,6 +91,17 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     updates.health_status = parsed.data.health_status;
   }
 
+  // Temporary public URL (Cloudflare tunnel) reported with the status
+  if (parsed.data.public_url !== undefined) {
+    updates.public_url = parsed.data.public_url;
+    updates.public_url_expires_at = parsed.data.public_url_expires_at ?? null;
+  }
+  // A deployment that stops serving loses its public URL
+  if (["stopped", "failed", "rolled_back"].includes(parsed.data.status)) {
+    updates.public_url = null;
+    updates.public_url_expires_at = null;
+  }
+
   const { error: updateError } = await supabase
     .from("deployments")
     .update(updates)

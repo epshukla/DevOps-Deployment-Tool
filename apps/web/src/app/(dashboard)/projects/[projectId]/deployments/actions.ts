@@ -45,6 +45,8 @@ export async function stopDeployment(
     .from("deployments")
     .update({
       status: "stopped",
+      public_url: null,
+      public_url_expires_at: null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", deploymentId)

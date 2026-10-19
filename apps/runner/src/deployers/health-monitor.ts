@@ -1,3 +1,4 @@
+import { reapExpiredTunnels } from "./public-tunnel";
 import {
   HEALTH_MONITOR_INTERVAL_MS,
   HEALTH_MONITOR_PROBE_TIMEOUT_MS,
@@ -106,6 +107,11 @@ export class HealthMonitor {
       const reconciled = this.reconcile(discovered);
       const updated = await this.checkAll(reconciled);
       this.deployments = updated;
+
+      const reaped = await reapExpiredTunnels();
+      for (const name of reaped) {
+        console.log(`[health-monitor] Public URL expired — removed ${name}`);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[health-monitor] Tick failed: ${msg}`);

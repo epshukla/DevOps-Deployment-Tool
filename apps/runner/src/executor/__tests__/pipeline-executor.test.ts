@@ -3,6 +3,14 @@ import { executePipeline } from "../pipeline-executor";
 import type { ClaimedJob, JobPayload, RunnerApiClient } from "../../api-client";
 import type { StepExecutorOptions, StepResult } from "../step-executor";
 
+vi.mock("../../deployers/public-tunnel", () => ({
+  ensurePublicTunnel: vi.fn().mockResolvedValue({
+    url: "https://test-tunnel.trycloudflare.com",
+    expiresAt: "2026-10-21T00:00:00.000Z",
+    reused: false,
+  }),
+}));
+
 vi.mock("../workspace", () => ({
   createWorkspace: vi.fn().mockResolvedValue({ path: "/tmp/deployx-ws", cleanup: vi.fn().mockResolvedValue(undefined) }),
   getHeadSha: vi.fn().mockResolvedValue("abcdef1234567890abcdef1234567890abcdef12"),
@@ -419,6 +427,30 @@ describe("executePipeline — image build for deployments", () => {
       expect.objectContaining({ image_tag: "myapp:abcdef1" }),
     );
     expect(statuses(client)).toContain("pipeline:success");
+  });
+
+  it("reports a public tunnel URL for docker_local deployments", async () => {
+    const client = createClient();
+    await run(client, deployTask({ driver: "docker_local" }));
+
+    expect(client.updateDeployment).toHaveBeenCalledWith(
+      "run-1",
+      expect.any(String),
+      expect.objectContaining({
+        status: "active",
+        public_url: "https://test-tunnel.trycloudflare.com",
+        public_url_expires_at: "2026-10-21T00:00:00.000Z",
+      }),
+    );
+  });
+
+  it("skips the public URL when the deploy config opts out", async () => {
+    const client = createClient();
+    await run(client, deployTask({ driver: "docker_local", public_url: false }));
+
+    const payload = vi.mocked(client.updateDeployment).mock.calls[0]?.[2];
+    expect(payload).toMatchObject({ status: "active" });
+    expect(payload).not.toHaveProperty("public_url");
   });
 
   it("tags with and pushes to DEPLOYX_REGISTRY, recording the pushed digest", async () => {

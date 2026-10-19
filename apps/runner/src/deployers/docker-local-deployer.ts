@@ -1,3 +1,4 @@
+import { removePublicTunnel } from "./public-tunnel";
 import {
   DEPLOYER_NETWORK_NAME,
   BLUE_GREEN_DRAIN_SECONDS,
@@ -237,6 +238,7 @@ export class DockerLocalDeployer implements DeployerDriver {
 
   async stop(ctx: DeployContext): Promise<void> {
     const { projectSlug, logStreamer } = ctx;
+    await removePublicTunnel(projectSlug);
 
     logStreamer.push({
       level: "info",

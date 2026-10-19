@@ -4,6 +4,7 @@ import { authorizeCronRequest } from "@/lib/cron/auth";
 import { dispatchDueSchedules } from "@/lib/cron/dispatch-schedules";
 import { reapOrphans } from "@/lib/cron/reap-orphans";
 import { evaluateAlerts } from "@/lib/cron/evaluate-alerts";
+import { expirePublicUrls } from "@/lib/cron/expire-public-urls";
 
 /**
  * GET|POST /api/cron/tick
@@ -15,6 +16,7 @@ import { evaluateAlerts } from "@/lib/cron/evaluate-alerts";
  * 1. Dispatch due pipeline schedules
  * 2. Mark dead runners offline and time out runs they orphaned
  * 3. Evaluate alert rules and notify
+ * 4. Clear expired temporary public URLs
  *
  * Each job is idempotent and isolated: one failing doesn't skip the others.
  */
@@ -25,10 +27,11 @@ async function tick(request: Request) {
   const supabase = createServiceClient();
   const now = new Date();
 
-  const [schedules, reaper, alerts] = await Promise.allSettled([
+  const [schedules, reaper, alerts, publicUrls] = await Promise.allSettled([
     dispatchDueSchedules(supabase, now),
     reapOrphans(supabase, now),
     evaluateAlerts(supabase, now),
+    expirePublicUrls(supabase, now),
   ]);
 
   const summarize = <T,>(result: PromiseSettledResult<T>) =>
@@ -41,9 +44,10 @@ async function tick(request: Request) {
     schedules: summarize(schedules),
     reaper: summarize(reaper),
     alerts: summarize(alerts),
+    public_urls: summarize(publicUrls),
   };
 
-  const failed = [schedules, reaper, alerts].some((r) => r.status === "rejected");
+  const failed = [schedules, reaper, alerts, publicUrls].some((r) => r.status === "rejected");
   if (failed) console.error("[cron/tick] one or more jobs failed", body);
 
   return NextResponse.json(body, { status: failed ? 500 : 200 });
