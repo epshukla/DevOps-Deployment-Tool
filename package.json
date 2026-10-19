@@ -7,10 +7,10 @@
     "lint": "turbo lint",
     "test": "turbo test",
     "clean": "turbo clean",
-    "runner": "node apps/runner/dist/cli.js",
-    "runner:register": "node apps/runner/dist/cli.js register",
-    "runner:start": "node apps/runner/dist/cli.js start",
-    "runner:status": "node apps/runner/dist/cli.js status"
+    "runner": "node scripts/runner.mjs",
+    "runner:register": "node scripts/runner.mjs register",
+    "runner:start": "node scripts/runner.mjs start",
+    "runner:status": "node scripts/runner.mjs status"
   },
   "devDependencies": {
     "turbo": "^2.5.0",

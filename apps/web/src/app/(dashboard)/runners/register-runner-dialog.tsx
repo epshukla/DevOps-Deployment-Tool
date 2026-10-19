@@ -135,9 +135,10 @@ export function RegisterRunnerDialog({ canRegister }: RegisterRunnerDialogProps)
             ) : (
               <>
                 <p className="text-sm text-on-surface-variant mb-4">
-                  Runner registered! Run these commands from the{" "}
-                  <code className="text-primary font-mono text-xs">deployx/</code>{" "}
-                  repo root. The token is shown{" "}
+                  Runner registered! Run these commands from the root of a{" "}
+                  <code className="text-primary font-mono text-xs">DevOps-Deployment-Tool</code>{" "}
+                  clone after <code className="text-primary font-mono text-xs">pnpm install</code>{" "}
+                  (on Windows, inside WSL2). The token is shown{" "}
                   <span className="text-error font-bold">only once</span>.
                 </p>
 

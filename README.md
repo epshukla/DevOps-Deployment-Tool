@@ -118,6 +118,42 @@ For production, add the following to your Supabase project's Auth settings (Auth
 
 > The runner agent connects to whatever URL is provided during registration. The Register Runner dialog uses `window.location.origin`, so it automatically generates the correct `--url` flag for both local and production environments.
 
+## Running a runner
+
+A runner is the agent that executes pipelines and hosts `docker_local`
+deployments on your machine. It polls the control plane, so it needs no open
+ports.
+
+**You need:** Node 20+, pnpm (`corepack enable`), Git, and Docker running.
+
+```bash
+git clone https://github.com/epshukla/DevOps-Deployment-Tool.git
+cd DevOps-Deployment-Tool
+pnpm install
+
+# Runners page → "Register Runner" shows this command with a one-time token
+pnpm runner register --token <token> --url https://deployx-chi.vercel.app
+pnpm runner start
+```
+
+`pnpm runner` builds the runner automatically on first use (and again after a
+`git pull` changes its sources), so there is no separate build step. Other
+commands: `pnpm runner list`, `pnpm runner status`, `pnpm runner unregister`;
+use `--profile <name>` to keep several registrations on one machine.
+
+**Windows:** run the runner inside **WSL2**, not PowerShell or cmd. Pipeline
+steps run through `sh` and mount the workspace into Docker, which needs a Linux
+shell, and paths with spaces (e.g. under OneDrive) break the mounts.
+
+1. Install WSL with Ubuntu: `wsl --install -d Ubuntu` (PowerShell as admin), then reboot.
+2. Docker Desktop → Settings → Resources → WSL integration → enable Ubuntu.
+3. In the Ubuntu terminal, install Node 20+ (e.g. via `nvm`), then follow the
+   steps above. Clone into the Linux home directory (`cd ~`), not `/mnt/c/...`.
+
+**Which runner runs a job?** Runners belong to an organization. Any online
+runner in the project's org can claim its queued runs (first to poll wins),
+so register the runner in the org whose projects you want it to execute.
+
 ## Demo
 
 A working demo app is included at `examples/demo-app/`. It demonstrates all DeployX contracts:
