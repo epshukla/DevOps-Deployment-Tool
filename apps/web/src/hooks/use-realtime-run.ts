@@ -65,6 +65,7 @@ interface UseRealtimeRunResult {
 }
 
 const TERMINAL_STATUSES = new Set(["success", "failed", "cancelled", "timed_out"]);
+const TERMINAL_GRACE_MS = 5_000;
 
 export function useRealtimeRun({
   runId,
@@ -89,6 +90,7 @@ export function useRealtimeRun({
     const supabase = createClient();
     const channels: RealtimeChannel[] = [];
     let cancelled = false;
+    let closeTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Join only once realtime carries the user's JWT; see authorizeRealtime
     const subscribeAll = () => {
@@ -112,13 +114,19 @@ export function useRealtimeRun({
               duration_ms: (updated.duration_ms as number | null) ?? prev.duration_ms,
               started_at: (updated.started_at as string | null) ?? prev.started_at,
               finished_at: (updated.finished_at as string | null) ?? prev.finished_at,
+              // Manual runs get their SHA from the runner at the end
+              git_sha: (updated.git_sha as string | null) ?? prev.git_sha,
             }));
 
-            // Auto-unsubscribe when run reaches terminal status
-            if (TERMINAL_STATUSES.has(updated.status as string)) {
-              for (const ch of channels) {
-                supabase.removeChannel(ch);
-              }
+            // Unsubscribe once the run is over, after a grace period: events
+            // on different channels can arrive out of order, so the last log
+            // lines may land after the final status change
+            if (TERMINAL_STATUSES.has(updated.status as string) && !closeTimer) {
+              closeTimer = setTimeout(() => {
+                for (const ch of channels) {
+                  supabase.removeChannel(ch);
+                }
+              }, TERMINAL_GRACE_MS);
             }
           },
         )
@@ -243,6 +251,7 @@ export function useRealtimeRun({
 
     return () => {
       cancelled = true;
+      if (closeTimer) clearTimeout(closeTimer);
       for (const ch of channels) {
         supabase.removeChannel(ch);
       }
