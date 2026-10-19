@@ -77,6 +77,12 @@ export const DeployConfigSchema = z.object({
   rolling: RollingConfigSchema.optional(),
   railway: RailwayConfigSchema.optional(),
   fly: FlyConfigSchema.optional(),
+  /**
+   * docker_local only: expose the deployment on a temporary public HTTPS URL
+   * through a Cloudflare quick tunnel (removed after PUBLIC_URL_TTL_HOURS).
+   * Defaults to on; set false to keep the app on localhost only.
+   */
+  public_url: z.boolean().default(true),
 });
 
 export type DeployConfig = z.infer<typeof DeployConfigSchema>;
@@ -107,6 +113,15 @@ export const UpdateDeploymentSchema = z.object({
   health_status: z
     .enum(["healthy", "degraded", "unhealthy", "unknown"])
     .optional(),
+  /** Temporary public URL (https only) and when it stops working. */
+  public_url: z
+    .string()
+    .url()
+    .max(512)
+    .refine((u) => u.startsWith("https://"), "Public URL must use https")
+    .nullable()
+    .optional(),
+  public_url_expires_at: z.string().datetime().nullable().optional(),
 });
 
 export type UpdateDeploymentPayload = z.infer<typeof UpdateDeploymentSchema>;

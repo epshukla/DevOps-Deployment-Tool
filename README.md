@@ -155,6 +155,16 @@ tasks:
       # image omitted → the runner builds from the project's Dockerfile
 ```
 
+### Public URLs for local deployments
+
+`docker_local` deployments get a temporary public HTTPS URL through a Cloudflare
+quick tunnel (`https://<words>.trycloudflare.com`): no account or domain needed.
+The runner starts a `cloudflared` container next to the project's nginx proxy, so
+blue-green / canary / rolling switching still works behind the URL. The link is
+shown on the deployment page and dashboard, is reused across redeploys, and is
+removed after **24 hours** (or when the deployment is stopped). It only works while
+the runner's machine and Docker are up. Opt out per deploy with `public_url: false`.
+
 Project secrets read by the runner: `DEPLOYX_REGISTRY` (e.g. `ghcr.io/acme`; when set, built images
 are tagged and pushed there — required for Railway/Fly), `RAILWAY_PROJECT_TOKEN`, `RAILWAY_ENVIRONMENT_ID`.
 

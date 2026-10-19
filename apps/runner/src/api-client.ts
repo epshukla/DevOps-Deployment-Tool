@@ -177,6 +177,8 @@ export class RunnerApiClient {
     payload: {
       readonly status: string;
       readonly health_status?: string;
+      readonly public_url?: string | null;
+      readonly public_url_expires_at?: string | null;
     },
   ): Promise<void> {
     await this.request(

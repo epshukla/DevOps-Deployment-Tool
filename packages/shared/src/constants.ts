@@ -148,6 +148,13 @@ export const ALERT_OPERATORS = ["gt", "lt", "gte", "lte", "eq"] as const;
 // ── Notification Constants ─────────────────────────────────────
 export const NOTIFICATION_PAGE_SIZE = 20;
 
+// ── Public URL (Cloudflare quick tunnel) Constants ────────────
+/** How long a deployment's temporary public URL stays up. */
+export const PUBLIC_URL_TTL_HOURS = 24;
+/** How long the runner waits for cloudflared to print its URL. */
+export const PUBLIC_URL_STARTUP_TIMEOUT_MS = 45_000;
+export const CLOUDFLARED_IMAGE = "cloudflare/cloudflared:latest";
+
 // ── Approval Constants ─────────────────────────────────────────
 export const DEFAULT_REQUIRED_APPROVALS = 1;
 export const MAX_REQUIRED_APPROVALS = 10;

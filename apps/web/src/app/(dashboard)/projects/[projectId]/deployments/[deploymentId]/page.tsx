@@ -22,7 +22,7 @@ export default async function DeploymentDetailPage({ params }: PageProps) {
   // Fetch deployment
   const { data: deployment } = await supabase
     .from("deployments")
-    .select("id, project_id, pipeline_run_id, status, strategy, deploy_target, current_revision_id, health_status, created_by, created_at, updated_at")
+    .select("id, project_id, pipeline_run_id, status, strategy, deploy_target, current_revision_id, health_status, public_url, public_url_expires_at, created_by, created_at, updated_at")
     .eq("id", deploymentId)
     .eq("project_id", projectId)
     .single();

@@ -132,6 +132,8 @@ export interface Deployment {
   readonly deploy_target: DeployTarget;
   readonly current_revision_id: string | null;
   readonly health_status: HealthStatus;
+  readonly public_url: string | null;
+  readonly public_url_expires_at: string | null;
   readonly created_by: string;
   readonly created_at: string;
   readonly updated_at: string;

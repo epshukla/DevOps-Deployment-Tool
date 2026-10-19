@@ -1,3 +1,4 @@
+import { ensurePublicTunnel, type PublicTunnel } from "../deployers/public-tunnel";
 import type { DeployConfig } from "@deployx/shared";
 import { createDeployer } from "../deployers";
 import type { RunContext } from "./task-executor";
@@ -69,13 +70,18 @@ export async function executeDeployment(
       secrets: run.projectSecrets,
     });
 
-    await updateDeploymentStatus(run, deployment_id, result.success);
+    const tunnel =
+      result.success && deployConfig.driver === "docker_local" && deployConfig.public_url !== false
+        ? await openPublicUrl(run, deployment_id, taskName, taskRunId)
+        : null;
+
+    await updateDeploymentStatus(run, deployment_id, result.success, tunnel);
 
     logStreamer.push(
       result.success
         ? {
             level: "info",
-            message: `[deploy:${taskName}] Deployment active at ${result.publicUrl ?? "unknown"}`,
+            message: `[deploy:${taskName}] Deployment active at ${tunnel?.url ?? result.publicUrl ?? "unknown"}`,
             task_run_id: taskRunId,
           }
         : {
@@ -97,15 +103,54 @@ export async function executeDeployment(
   }
 }
 
+/**
+ * Give a docker_local deployment a temporary public URL. Never fails the
+ * deploy: without a tunnel the app is still served on localhost.
+ */
+async function openPublicUrl(
+  run: RunContext,
+  deploymentId: string,
+  taskName: string,
+  taskRunId: string | undefined,
+): Promise<PublicTunnel | null> {
+  const { logStreamer } = run;
+  try {
+    logStreamer.push({
+      level: "info",
+      message: `[deploy:${taskName}] Opening public URL (Cloudflare tunnel)…`,
+      task_run_id: taskRunId,
+    });
+    const tunnel = await ensurePublicTunnel(run.job.project_slug, deploymentId);
+    logStreamer.push({
+      level: "info",
+      message: `[deploy:${taskName}] Public URL ${tunnel.reused ? "(reused) " : ""}${tunnel.url} — expires ${tunnel.expiresAt}`,
+      task_run_id: taskRunId,
+    });
+    return tunnel;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logStreamer.push({
+      level: "warn",
+      message: `[deploy:${taskName}] No public URL: ${msg}. The app is still reachable on this machine.`,
+      task_run_id: taskRunId,
+    });
+    return null;
+  }
+}
+
 async function updateDeploymentStatus(
   run: RunContext,
   deploymentId: string,
   success: boolean,
+  tunnel: PublicTunnel | null = null,
 ): Promise<void> {
   try {
     await run.client.updateDeployment(run.job.run_id, deploymentId, {
       status: success ? "active" : "failed",
       health_status: success ? "healthy" : "unhealthy",
+      ...(tunnel
+        ? { public_url: tunnel.url, public_url_expires_at: tunnel.expiresAt }
+        : {}),
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

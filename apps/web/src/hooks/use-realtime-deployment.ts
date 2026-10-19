@@ -16,6 +16,8 @@ interface DeploymentData {
   readonly deploy_target: string;
   readonly current_revision_id: string | null;
   readonly health_status: string;
+  readonly public_url?: string | null;
+  readonly public_url_expires_at?: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
@@ -119,6 +121,16 @@ export function useRealtimeDeployment({
             current_revision_id:
               (updated.current_revision_id as string | null) ?? prev.current_revision_id,
             updated_at: (updated.updated_at as string) ?? prev.updated_at,
+            // null is meaningful here (URL cleared on stop/expiry), so only
+            // fall back when the column is absent from the payload
+            public_url:
+              "public_url" in updated
+                ? ((updated.public_url as string | null) ?? null)
+                : prev.public_url,
+            public_url_expires_at:
+              "public_url_expires_at" in updated
+                ? ((updated.public_url_expires_at as string | null) ?? null)
+                : prev.public_url_expires_at,
           }));
 
           if (TERMINAL_STATUSES.has(updated.status as string)) {

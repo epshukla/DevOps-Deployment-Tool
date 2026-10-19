@@ -60,7 +60,7 @@ export default async function DashboardOverview() {
   const { data: activeDeploymentsList } = projectIds.length > 0
     ? await supabase
         .from("deployments")
-        .select("id, status, health_status, strategy, current_revision_id, created_at, project_id, projects(name)")
+        .select("id, status, health_status, strategy, current_revision_id, public_url, public_url_expires_at, created_at, project_id, projects(name)")
         .in("project_id", projectIds)
         .order("created_at", { ascending: false })
         .limit(4)
@@ -279,6 +279,8 @@ export default async function DashboardOverview() {
                   health: d.health_status as string,
                   image: revisionId ? imageTagByRevisionId.get(revisionId) ?? "—" : "—",
                   uptime: checks.length > 0 ? `${uptimePercent.toFixed(2)}%` : "—",
+                  publicUrl: (d.public_url as string | null) ?? null,
+                  publicUrlExpiresAt: (d.public_url_expires_at as string | null) ?? null,
                 };
               })}
             />

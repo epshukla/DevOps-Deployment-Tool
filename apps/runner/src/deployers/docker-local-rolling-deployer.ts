@@ -1,3 +1,4 @@
+import { removePublicTunnel } from "./public-tunnel";
 import {
   DEPLOYER_NETWORK_NAME,
   ROLLING_DEFAULT_INSTANCES,
@@ -171,6 +172,7 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
 
   async stop(ctx: DeployContext): Promise<void> {
     const { projectSlug } = ctx;
+    await removePublicTunnel(projectSlug);
     const instanceCount = ctx.config.rolling?.instances ?? ROLLING_DEFAULT_INSTANCES;
 
     for (let i = 0; i < instanceCount; i++) {
