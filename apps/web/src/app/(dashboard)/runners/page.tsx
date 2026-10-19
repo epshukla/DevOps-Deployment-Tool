@@ -91,7 +91,7 @@ export default async function RunnersPage() {
                 </div>
               </div>
               <p className="text-xs text-on-surface-variant/50 mt-2 ml-1">
-                Run from the <code className="font-mono text-primary">deployx/</code> repo root directory.
+                Run from the root of a <code className="font-mono text-primary">DevOps-Deployment-Tool</code> clone after <code className="font-mono text-primary">pnpm install</code> (on Windows, inside WSL2).
               </p>
             </div>
           </div>
