@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDate } from "@/lib/format-date";
 import { useState } from "react";
 
 /** "23h left", "45m left", or null once expired. */
@@ -37,7 +38,7 @@ export function PublicUrlLink({
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => e.stopPropagation()}
-      title={`Public URL — expires ${new Date(expiresAt).toLocaleString()}`}
+      title={`Public URL — expires ${formatDate(expiresAt)}`}
       className={`inline-flex max-w-full items-center gap-1.5 rounded-md border border-tertiary/25 bg-tertiary/10 text-tertiary transition-colors hover:bg-tertiary/15 ${
         compact ? "h-5 px-1.5 text-[11px]" : "h-7 px-2.5 text-xs"
       }`}

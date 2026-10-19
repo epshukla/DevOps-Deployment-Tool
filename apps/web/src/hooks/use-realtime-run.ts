@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { authorizeRealtime } from "@/lib/supabase/realtime-auth";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 interface RunData {
@@ -87,151 +88,161 @@ export function useRealtimeRun({
 
     const supabase = createClient();
     const channels: RealtimeChannel[] = [];
+    let cancelled = false;
 
-    // Channel 1: Pipeline run status updates
-    const runChannel = supabase
-      .channel(`run:${runId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "pipeline_runs",
-          filter: `id=eq.${runId}`,
-        },
-        (payload) => {
-          const updated = payload.new as Record<string, unknown>;
-          setRun((prev) => ({
-            ...prev,
-            status: (updated.status as string) ?? prev.status,
-            duration_ms: (updated.duration_ms as number | null) ?? prev.duration_ms,
-            started_at: (updated.started_at as string | null) ?? prev.started_at,
-            finished_at: (updated.finished_at as string | null) ?? prev.finished_at,
-          }));
+    // Join only once realtime carries the user's JWT; see authorizeRealtime
+    const subscribeAll = () => {
 
-          // Auto-unsubscribe when run reaches terminal status
-          if (TERMINAL_STATUSES.has(updated.status as string)) {
-            for (const ch of channels) {
-              supabase.removeChannel(ch);
+      // Channel 1: Pipeline run status updates
+      const runChannel = supabase
+        .channel(`run:${runId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "pipeline_runs",
+            filter: `id=eq.${runId}`,
+          },
+          (payload) => {
+            const updated = payload.new as Record<string, unknown>;
+            setRun((prev) => ({
+              ...prev,
+              status: (updated.status as string) ?? prev.status,
+              duration_ms: (updated.duration_ms as number | null) ?? prev.duration_ms,
+              started_at: (updated.started_at as string | null) ?? prev.started_at,
+              finished_at: (updated.finished_at as string | null) ?? prev.finished_at,
+            }));
+
+            // Auto-unsubscribe when run reaches terminal status
+            if (TERMINAL_STATUSES.has(updated.status as string)) {
+              for (const ch of channels) {
+                supabase.removeChannel(ch);
+              }
             }
-          }
-        },
-      )
-      .subscribe();
-    channels.push(runChannel);
+          },
+        )
+        .subscribe();
+      channels.push(runChannel);
 
-    // Channel 2: Task run updates (status, timing)
-    const taskChannel = supabase
-      .channel(`tasks:${runId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "task_runs",
-          filter: `pipeline_run_id=eq.${runId}`,
-        },
-        (payload) => {
-          const updated = payload.new as Record<string, unknown>;
-          if (!updated.id) return;
+      // Channel 2: Task run updates (status, timing)
+      const taskChannel = supabase
+        .channel(`tasks:${runId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "task_runs",
+            filter: `pipeline_run_id=eq.${runId}`,
+          },
+          (payload) => {
+            const updated = payload.new as Record<string, unknown>;
+            if (!updated.id) return;
 
-          const taskRunData: TaskRunData = {
-            id: updated.id as string,
-            task_name: updated.task_name as string,
-            status: updated.status as string,
-            started_at: (updated.started_at as string | null) ?? null,
-            finished_at: (updated.finished_at as string | null) ?? null,
-            duration_ms: (updated.duration_ms as number | null) ?? null,
-            depends_on: (updated.depends_on as readonly string[]) ?? [],
-          };
+            const taskRunData: TaskRunData = {
+              id: updated.id as string,
+              task_name: updated.task_name as string,
+              status: updated.status as string,
+              started_at: (updated.started_at as string | null) ?? null,
+              finished_at: (updated.finished_at as string | null) ?? null,
+              duration_ms: (updated.duration_ms as number | null) ?? null,
+              depends_on: (updated.depends_on as readonly string[]) ?? [],
+            };
 
-          knownTaskIdsRef.current.add(taskRunData.id);
+            knownTaskIdsRef.current.add(taskRunData.id);
 
-          setTaskRuns((prev) => {
-            const existingIndex = prev.findIndex((t) => t.id === taskRunData.id);
-            if (existingIndex >= 0) {
-              return prev.map((t, i) => (i === existingIndex ? taskRunData : t));
-            }
-            return [...prev, taskRunData];
-          });
-        },
-      )
-      .subscribe();
-    channels.push(taskChannel);
+            setTaskRuns((prev) => {
+              const existingIndex = prev.findIndex((t) => t.id === taskRunData.id);
+              if (existingIndex >= 0) {
+                return prev.map((t, i) => (i === existingIndex ? taskRunData : t));
+              }
+              return [...prev, taskRunData];
+            });
+          },
+        )
+        .subscribe();
+      channels.push(taskChannel);
 
-    // Channel 3: Step run updates
-    const stepChannel = supabase
-      .channel(`steps:${runId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "step_runs",
-        },
-        (payload) => {
-          const updated = payload.new as Record<string, unknown>;
-          if (!updated.id) return;
+      // Channel 3: Step run updates
+      const stepChannel = supabase
+        .channel(`steps:${runId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "step_runs",
+          },
+          (payload) => {
+            const updated = payload.new as Record<string, unknown>;
+            if (!updated.id) return;
 
-          // Client-side filter: only process steps belonging to our tasks
-          if (!knownTaskIdsRef.current.has(updated.task_run_id as string)) return;
+            // Client-side filter: only process steps belonging to our tasks
+            if (!knownTaskIdsRef.current.has(updated.task_run_id as string)) return;
 
-          const stepRunData: StepRunData = {
-            id: updated.id as string,
-            task_run_id: updated.task_run_id as string,
-            step_name: updated.step_name as string,
-            status: updated.status as string,
-            started_at: (updated.started_at as string | null) ?? null,
-            finished_at: (updated.finished_at as string | null) ?? null,
-            duration_ms: (updated.duration_ms as number | null) ?? null,
-            exit_code: (updated.exit_code as number | null) ?? null,
-          };
+            const stepRunData: StepRunData = {
+              id: updated.id as string,
+              task_run_id: updated.task_run_id as string,
+              step_name: updated.step_name as string,
+              status: updated.status as string,
+              started_at: (updated.started_at as string | null) ?? null,
+              finished_at: (updated.finished_at as string | null) ?? null,
+              duration_ms: (updated.duration_ms as number | null) ?? null,
+              exit_code: (updated.exit_code as number | null) ?? null,
+            };
 
-          setStepRuns((prev) => {
-            const existingIndex = prev.findIndex((s) => s.id === stepRunData.id);
-            if (existingIndex >= 0) {
-              return prev.map((s, i) => (i === existingIndex ? stepRunData : s));
-            }
-            return [...prev, stepRunData];
-          });
-        },
-      )
-      .subscribe();
-    channels.push(stepChannel);
+            setStepRuns((prev) => {
+              const existingIndex = prev.findIndex((s) => s.id === stepRunData.id);
+              if (existingIndex >= 0) {
+                return prev.map((s, i) => (i === existingIndex ? stepRunData : s));
+              }
+              return [...prev, stepRunData];
+            });
+          },
+        )
+        .subscribe();
+      channels.push(stepChannel);
 
-    // Channel 4: Log inserts (live streaming)
-    const logChannel = supabase
-      .channel(`logs:${runId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "run_logs",
-          filter: `pipeline_run_id=eq.${runId}`,
-        },
-        (payload) => {
-          const row = payload.new as Record<string, unknown>;
-          if (!row.id) return;
+      // Channel 4: Log inserts (live streaming)
+      const logChannel = supabase
+        .channel(`logs:${runId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "run_logs",
+            filter: `pipeline_run_id=eq.${runId}`,
+          },
+          (payload) => {
+            const row = payload.new as Record<string, unknown>;
+            if (!row.id) return;
 
-          const logEntry: LogData = {
-            id: row.id as string,
-            task_run_id: (row.task_run_id as string | null) ?? null,
-            step_run_id: (row.step_run_id as string | null) ?? null,
-            level: (row.level as string) ?? "info",
-            message: (row.message as string) ?? "",
-            timestamp: (row.timestamp as string) ?? new Date().toISOString(),
-          };
+            const logEntry: LogData = {
+              id: row.id as string,
+              task_run_id: (row.task_run_id as string | null) ?? null,
+              step_run_id: (row.step_run_id as string | null) ?? null,
+              level: (row.level as string) ?? "info",
+              message: (row.message as string) ?? "",
+              timestamp: (row.timestamp as string) ?? new Date().toISOString(),
+            };
 
-          setLogs((prev) => [...prev, logEntry]);
-        },
-      )
-      .subscribe();
-    channels.push(logChannel);
+            setLogs((prev) => [...prev, logEntry]);
+          },
+        )
+        .subscribe();
+      channels.push(logChannel);
 
-    channelsRef.current = channels;
+      channelsRef.current = channels;
+    };
+
+    void authorizeRealtime(supabase).then(() => {
+      if (!cancelled) subscribeAll();
+    });
 
     return () => {
+      cancelled = true;
       for (const ch of channels) {
         supabase.removeChannel(ch);
       }

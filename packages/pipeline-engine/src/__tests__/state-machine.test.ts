@@ -193,6 +193,10 @@ describe("Deployment transitions", () => {
     expect(validateDeploymentTransition("active", "draining")).toBe(true);
   });
 
+  it("allows draining → active (new deployment failed before cut-over)", () => {
+    expect(validateDeploymentTransition("draining", "active")).toBe(true);
+  });
+
   it("allows active → stopped", () => {
     expect(validateDeploymentTransition("active", "stopped")).toBe(true);
   });

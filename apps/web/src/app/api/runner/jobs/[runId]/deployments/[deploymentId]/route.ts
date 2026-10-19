@@ -1,5 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { notifyDeploymentStatus } from "@/lib/notifications";
+import { settlePreviousDeployments } from "@/lib/settle-previous-deployments";
 import { UpdateDeploymentSchema } from "@deployx/shared";
 import { authenticateRunner, authorizeRunnerForDeployment } from "@/lib/auth/runner";
 import {
@@ -54,7 +55,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   // Fetch current deployment
   const { data: deployment, error: fetchError } = await supabase
     .from("deployments")
-    .select("id, status, current_revision_id")
+    .select("id, project_id, status, current_revision_id")
     .eq("id", deploymentId)
     .single();
 
@@ -123,6 +124,16 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 
   if (deployment.status !== parsed.data.status) {
+    const settled = await settlePreviousDeployments(
+      supabase,
+      deployment.project_id,
+      deploymentId,
+      parsed.data.status,
+    );
+    if (settled.error) {
+      console.error("[deployments] failed to settle previous deployment:", settled.error);
+    }
+
     const newStatus = parsed.data.status;
     after(() => notifyDeploymentStatus(supabase, deploymentId, newStatus));
   }

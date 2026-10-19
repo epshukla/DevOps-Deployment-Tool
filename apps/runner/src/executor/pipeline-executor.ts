@@ -100,6 +100,8 @@ export async function executePipeline(ctx: PipelineContext): Promise<void> {
       scope: "pipeline",
       status: pipelineStatus,
       finished_at: new Date().toISOString(),
+      // Manual and scheduled runs are created without a SHA; record what ran
+      git_sha: run.variableContext.git.sha,
     });
     console.log(`Job ${job.run_id} completed: ${pipelineStatus}`);
   } catch (err) {

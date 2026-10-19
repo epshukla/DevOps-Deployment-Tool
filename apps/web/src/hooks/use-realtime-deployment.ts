@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { authorizeRealtime } from "@/lib/supabase/realtime-auth";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 // ── Types ───────────────────────────────────────────────────────
@@ -100,166 +101,176 @@ export function useRealtimeDeployment({
 
     const supabase = createClient();
     const channels: RealtimeChannel[] = [];
+    let cancelled = false;
 
-    // Channel 1: deployment status/health updates
-    const deploymentChannel = supabase
-      .channel(`deployment:${deploymentId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "UPDATE",
-          schema: "public",
-          table: "deployments",
-          filter: `id=eq.${deploymentId}`,
-        },
-        (payload) => {
-          const updated = payload.new as Record<string, unknown>;
-          setDeployment((prev) => ({
-            ...prev,
-            status: (updated.status as string) ?? prev.status,
-            health_status: (updated.health_status as string) ?? prev.health_status,
-            current_revision_id:
-              (updated.current_revision_id as string | null) ?? prev.current_revision_id,
-            updated_at: (updated.updated_at as string) ?? prev.updated_at,
-            // null is meaningful here (URL cleared on stop/expiry), so only
-            // fall back when the column is absent from the payload
-            public_url:
-              "public_url" in updated
-                ? ((updated.public_url as string | null) ?? null)
-                : prev.public_url,
-            public_url_expires_at:
-              "public_url_expires_at" in updated
-                ? ((updated.public_url_expires_at as string | null) ?? null)
-                : prev.public_url_expires_at,
-          }));
+    // Join only once realtime carries the user's JWT; see authorizeRealtime
+    const subscribeAll = () => {
 
-          if (TERMINAL_STATUSES.has(updated.status as string)) {
-            for (const ch of channels) supabase.removeChannel(ch);
-          }
-        },
-      )
-      .subscribe();
-    channels.push(deploymentChannel);
+      // Channel 1: deployment status/health updates
+      const deploymentChannel = supabase
+        .channel(`deployment:${deploymentId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "UPDATE",
+            schema: "public",
+            table: "deployments",
+            filter: `id=eq.${deploymentId}`,
+          },
+          (payload) => {
+            const updated = payload.new as Record<string, unknown>;
+            setDeployment((prev) => ({
+              ...prev,
+              status: (updated.status as string) ?? prev.status,
+              health_status: (updated.health_status as string) ?? prev.health_status,
+              current_revision_id:
+                (updated.current_revision_id as string | null) ?? prev.current_revision_id,
+              updated_at: (updated.updated_at as string) ?? prev.updated_at,
+              // null is meaningful here (URL cleared on stop/expiry), so only
+              // fall back when the column is absent from the payload
+              public_url:
+                "public_url" in updated
+                  ? ((updated.public_url as string | null) ?? null)
+                  : prev.public_url,
+              public_url_expires_at:
+                "public_url_expires_at" in updated
+                  ? ((updated.public_url_expires_at as string | null) ?? null)
+                  : prev.public_url_expires_at,
+            }));
 
-    // Channel 2: new health check results
-    const healthChannel = supabase
-      .channel(`deployment-health:${deploymentId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "health_check_results",
-          filter: `deployment_id=eq.${deploymentId}`,
-        },
-        (payload) => {
-          const row = payload.new as Record<string, unknown>;
-          if (!row.id) return;
+            if (TERMINAL_STATUSES.has(updated.status as string)) {
+              for (const ch of channels) supabase.removeChannel(ch);
+            }
+          },
+        )
+        .subscribe();
+      channels.push(deploymentChannel);
 
-          const entry: HealthCheckData = {
-            id: row.id as string,
-            status: (row.status as string) ?? "fail",
-            response_time_ms: (row.response_time_ms as number | null) ?? null,
-            status_code: (row.status_code as number | null) ?? null,
-            error_message: (row.error_message as string | null) ?? null,
-            checked_at: (row.checked_at as string) ?? new Date().toISOString(),
-          };
+      // Channel 2: new health check results
+      const healthChannel = supabase
+        .channel(`deployment-health:${deploymentId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "health_check_results",
+            filter: `deployment_id=eq.${deploymentId}`,
+          },
+          (payload) => {
+            const row = payload.new as Record<string, unknown>;
+            if (!row.id) return;
 
-          // Most-recent-first, capped — matches the initial server query.
-          setHealthChecks((prev) => [entry, ...prev].slice(0, MAX_HEALTH_CHECKS));
-        },
-      )
-      .subscribe();
-    channels.push(healthChannel);
+            const entry: HealthCheckData = {
+              id: row.id as string,
+              status: (row.status as string) ?? "fail",
+              response_time_ms: (row.response_time_ms as number | null) ?? null,
+              status_code: (row.status_code as number | null) ?? null,
+              error_message: (row.error_message as string | null) ?? null,
+              checked_at: (row.checked_at as string) ?? new Date().toISOString(),
+            };
 
-    // Channel 3: new healing events
-    const healingChannel = supabase
-      .channel(`deployment-healing:${deploymentId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "healing_events",
-          filter: `deployment_id=eq.${deploymentId}`,
-        },
-        (payload) => {
-          const row = payload.new as Record<string, unknown>;
-          if (!row.id) return;
+            // Most-recent-first, capped — matches the initial server query.
+            setHealthChecks((prev) => [entry, ...prev].slice(0, MAX_HEALTH_CHECKS));
+          },
+        )
+        .subscribe();
+      channels.push(healthChannel);
 
-          const entry: HealingEventData = {
-            id: row.id as string,
-            event_type: (row.event_type as string) ?? "unknown",
-            attempt_number: (row.attempt_number as number | null) ?? null,
-            container_name: (row.container_name as string | null) ?? null,
-            details: (row.details as Record<string, unknown> | null) ?? null,
-            created_at: (row.created_at as string) ?? new Date().toISOString(),
-          };
+      // Channel 3: new healing events
+      const healingChannel = supabase
+        .channel(`deployment-healing:${deploymentId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "healing_events",
+            filter: `deployment_id=eq.${deploymentId}`,
+          },
+          (payload) => {
+            const row = payload.new as Record<string, unknown>;
+            if (!row.id) return;
 
-          setHealingEvents((prev) => [entry, ...prev].slice(0, MAX_HEALING_EVENTS));
-        },
-      )
-      .subscribe();
-    channels.push(healingChannel);
+            const entry: HealingEventData = {
+              id: row.id as string,
+              event_type: (row.event_type as string) ?? "unknown",
+              attempt_number: (row.attempt_number as number | null) ?? null,
+              container_name: (row.container_name as string | null) ?? null,
+              details: (row.details as Record<string, unknown> | null) ?? null,
+              created_at: (row.created_at as string) ?? new Date().toISOString(),
+            };
 
-    // Channel 4: revision inserts/updates (e.g. rollback_reason being set)
-    const revisionChannel = supabase
-      .channel(`deployment-revisions:${deploymentId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "deployment_revisions",
-          filter: `deployment_id=eq.${deploymentId}`,
-        },
-        (payload) => {
-          const row = payload.new as Record<string, unknown>;
-          if (!row.id) return;
+            setHealingEvents((prev) => [entry, ...prev].slice(0, MAX_HEALING_EVENTS));
+          },
+        )
+        .subscribe();
+      channels.push(healingChannel);
 
-          const entry: RevisionData = {
-            id: row.id as string,
-            deployment_id: (row.deployment_id as string) ?? deploymentId,
-            revision_number: (row.revision_number as number) ?? 0,
-            image_tag: (row.image_tag as string) ?? "",
-            image_digest: (row.image_digest as string | null) ?? null,
-            status: (row.status as string) ?? "pending",
-            rollback_reason: (row.rollback_reason as string | null) ?? null,
-            created_at: (row.created_at as string) ?? new Date().toISOString(),
-          };
+      // Channel 4: revision inserts/updates (e.g. rollback_reason being set)
+      const revisionChannel = supabase
+        .channel(`deployment-revisions:${deploymentId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "deployment_revisions",
+            filter: `deployment_id=eq.${deploymentId}`,
+          },
+          (payload) => {
+            const row = payload.new as Record<string, unknown>;
+            if (!row.id) return;
 
-          setRevisions((prev) => {
-            const existingIndex = prev.findIndex((r) => r.id === entry.id);
-            const next =
-              existingIndex >= 0
-                ? prev.map((r, i) => (i === existingIndex ? entry : r))
-                : [entry, ...prev];
-            return [...next].sort((a, b) => b.revision_number - a.revision_number);
-          });
-        },
-      )
-      .subscribe();
-    channels.push(revisionChannel);
+            const entry: RevisionData = {
+              id: row.id as string,
+              deployment_id: (row.deployment_id as string) ?? deploymentId,
+              revision_number: (row.revision_number as number) ?? 0,
+              image_tag: (row.image_tag as string) ?? "",
+              image_digest: (row.image_digest as string | null) ?? null,
+              status: (row.status as string) ?? "pending",
+              rollback_reason: (row.rollback_reason as string | null) ?? null,
+              created_at: (row.created_at as string) ?? new Date().toISOString(),
+            };
 
-    // Channel 5: approval tables aren't keyed by deployment_id, so we can't
-    // filter server-side — a full page refresh on any change is acceptable
-    // and keeps the (server-rendered) approval card consistent.
-    const approvalChannel = supabase
-      .channel(`deployment-approvals:${deploymentId}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "deployment_approvals" },
-        () => router.refresh(),
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "approval_votes" },
-        () => router.refresh(),
-      )
-      .subscribe();
-    channels.push(approvalChannel);
+            setRevisions((prev) => {
+              const existingIndex = prev.findIndex((r) => r.id === entry.id);
+              const next =
+                existingIndex >= 0
+                  ? prev.map((r, i) => (i === existingIndex ? entry : r))
+                  : [entry, ...prev];
+              return [...next].sort((a, b) => b.revision_number - a.revision_number);
+            });
+          },
+        )
+        .subscribe();
+      channels.push(revisionChannel);
+
+      // Channel 5: approval tables aren't keyed by deployment_id, so we can't
+      // filter server-side — a full page refresh on any change is acceptable
+      // and keeps the (server-rendered) approval card consistent.
+      const approvalChannel = supabase
+        .channel(`deployment-approvals:${deploymentId}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "deployment_approvals" },
+          () => router.refresh(),
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "approval_votes" },
+          () => router.refresh(),
+        )
+        .subscribe();
+      channels.push(approvalChannel);
+    };
+
+    void authorizeRealtime(supabase).then(() => {
+      if (!cancelled) subscribeAll();
+    });
 
     return () => {
+      cancelled = true;
       for (const ch of channels) {
         supabase.removeChannel(ch);
       }

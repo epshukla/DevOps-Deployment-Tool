@@ -1,5 +1,7 @@
 /** Shared data shapes and styling for the Settings page client components. */
 
+import { formatDateShort } from "@/lib/format-date";
+
 export interface InviteData {
   readonly id: string;
   readonly email: string;
@@ -40,9 +42,5 @@ export function roleBadgeClass(role: string): string {
 }
 
 export function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatDateShort(dateStr);
 }
