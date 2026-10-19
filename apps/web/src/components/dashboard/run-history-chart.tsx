@@ -1,5 +1,6 @@
 "use client";
 
+import { DISPLAY_TIME_ZONE } from "@/lib/format-date";
 import {
   BarChart,
   Bar,
@@ -37,7 +38,8 @@ export function RunHistoryChart({ runs }: RunHistoryChartProps) {
     .slice(0, 20)
     .reverse()
     .map((r) => ({
-      name: new Date(r.created_at).toLocaleDateString(undefined, {
+      name: new Date(r.created_at).toLocaleDateString("en-US", {
+        timeZone: DISPLAY_TIME_ZONE,
         month: "short",
         day: "numeric",
       }),

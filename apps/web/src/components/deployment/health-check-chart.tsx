@@ -1,5 +1,6 @@
 "use client";
 
+import { DISPLAY_TIME_ZONE } from "@/lib/format-date";
 import {
   AreaChart,
   Area,
@@ -32,7 +33,8 @@ export function HealthCheckChart({ checks }: HealthCheckChartProps) {
   const chartData = [...checks]
     .reverse()
     .map((check) => ({
-      time: new Date(check.checked_at).toLocaleTimeString(undefined, {
+      time: new Date(check.checked_at).toLocaleTimeString("en-US", {
+        timeZone: DISPLAY_TIME_ZONE,
         hour: "2-digit",
         minute: "2-digit",
       }),

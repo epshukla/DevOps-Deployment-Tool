@@ -55,6 +55,8 @@ export const RunStatusUpdateSchema = z.object({
   exit_code: z.number().int().optional(),
   started_at: z.string().datetime().optional(),
   finished_at: z.string().datetime().optional(),
+  /** Commit the runner actually checked out (pipeline scope only) */
+  git_sha: z.string().regex(/^[0-9a-f]{40}$/).optional(),
 });
 
 export type RunStatusUpdateInput = z.infer<typeof RunStatusUpdateSchema>;

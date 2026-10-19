@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { authorizeRealtime } from "@/lib/supabase/realtime-auth";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 interface NotificationData {
@@ -47,24 +48,31 @@ export function useRealtimeNotifications({
       }
     };
 
-    const channel = supabase
-      .channel(`notifications:${userId}:${orgId ?? "all"}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "notifications",
-          filter: `user_id=eq.${userId}`,
-        },
-        onInsert,
-      )
-      .subscribe();
+    let cancelled = false;
+    let channel: RealtimeChannel | null = null;
 
-    channelRef.current = channel;
+    // Join only once realtime carries the user's JWT; see authorizeRealtime
+    void authorizeRealtime(supabase).then(() => {
+      if (cancelled) return;
+      channel = supabase
+        .channel(`notifications:${userId}:${orgId ?? "all"}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${userId}`,
+          },
+          onInsert,
+        )
+        .subscribe();
+      channelRef.current = channel;
+    });
 
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) supabase.removeChannel(channel);
     };
   }, [userId, orgId]);
 

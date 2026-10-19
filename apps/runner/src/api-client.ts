@@ -130,6 +130,7 @@ export class RunnerApiClient {
       readonly exit_code?: number;
       readonly started_at?: string;
       readonly finished_at?: string;
+      readonly git_sha?: string;
     },
   ): Promise<void> {
     await this.request("POST", `/api/runner/jobs/${runId}/status`, payload);

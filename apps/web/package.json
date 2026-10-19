@@ -14,7 +14,7 @@
     "@deployx/pipeline-engine": "workspace:*",
     "@deployx/shared": "workspace:*",
     "@supabase/ssr": "^0.6.1",
-    "@supabase/supabase-js": "^2.49.0",
+    "@supabase/supabase-js": "^2.118.0",
     "@xyflow/react": "^12.10.2",
     "next": "16.2.2",
     "react": "19.2.4",

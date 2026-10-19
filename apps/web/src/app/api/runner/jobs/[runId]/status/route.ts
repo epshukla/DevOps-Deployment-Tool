@@ -71,7 +71,7 @@ export async function POST(request: Request, { params }: RouteParams) {
     );
   }
 
-  const { scope, status, task_name, step_name, error_message, exit_code, started_at, finished_at } = parsed.data;
+  const { scope, status, task_name, step_name, error_message, exit_code, started_at, finished_at, git_sha } = parsed.data;
 
   // The schema has no error column; keep the runner's reason in the run log
   if (error_message) {
@@ -89,7 +89,7 @@ export async function POST(request: Request, { params }: RouteParams) {
 
   try {
     if (scope === "pipeline") {
-      return await updatePipelineStatus(supabase, runner, runId, status, started_at, finished_at);
+      return await updatePipelineStatus(supabase, runner, runId, status, started_at, finished_at, git_sha);
     }
 
     if (scope === "task" && task_name) {
@@ -126,11 +126,12 @@ async function updatePipelineStatus(
   newStatus: string,
   startedAt?: string,
   finishedAt?: string,
+  gitSha?: string,
 ) {
   // Fetch current status
   const { data: run } = await supabase
     .from("pipeline_runs")
-    .select("status")
+    .select("status, git_sha")
     .eq("id", runId)
     .single();
 
@@ -146,6 +147,8 @@ async function updatePipelineStatus(
   };
   if (startedAt) updates.started_at = startedAt;
   if (finishedAt) updates.finished_at = finishedAt;
+  // Fill in the checked-out commit, but never overwrite the webhook's SHA
+  if (gitSha && !run.git_sha) updates.git_sha = gitSha;
 
   const { error } = await supabase
     .from("pipeline_runs")

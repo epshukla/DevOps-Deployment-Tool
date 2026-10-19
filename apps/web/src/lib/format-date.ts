@@ -1,6 +1,16 @@
 const LOCALE = "en-US" as const;
 
+/**
+ * Times are rendered on the server (Vercel runs in UTC) and again in the
+ * browser during hydration. Without a fixed zone the two disagree, React
+ * throws a hydration error (#418) and server pages show UTC. One explicit
+ * display zone keeps both sides identical.
+ */
+export const DISPLAY_TIME_ZONE =
+  process.env.NEXT_PUBLIC_DISPLAY_TIME_ZONE || "Asia/Kolkata";
+
 const dateTimeFmt = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: DISPLAY_TIME_ZONE,
   month: "short",
   day: "numeric",
   year: "numeric",
@@ -9,12 +19,14 @@ const dateTimeFmt = new Intl.DateTimeFormat(LOCALE, {
 });
 
 const dateOnlyFmt = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: DISPLAY_TIME_ZONE,
   month: "short",
   day: "numeric",
   year: "numeric",
 });
 
 const timeOnlyFmt = new Intl.DateTimeFormat(LOCALE, {
+  timeZone: DISPLAY_TIME_ZONE,
   hour: "numeric",
   minute: "2-digit",
   second: "2-digit",

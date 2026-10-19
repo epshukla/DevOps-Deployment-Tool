@@ -89,7 +89,8 @@ export const VALID_DEPLOYMENT_TRANSITIONS: Readonly<
   pending: ["deploying", "failed"],
   deploying: ["active", "failed"],
   active: ["draining", "stopped", "rolled_back"],
-  draining: ["stopped", "rolled_back"],
+  // back to active when the deployment replacing it fails before cut-over
+  draining: ["active", "stopped", "rolled_back"],
   stopped: [],
   rolled_back: [],
   failed: [],
