@@ -9,8 +9,8 @@
 | Requirement | Details |
 |-------------|---------|
 | GitHub account | DeployX uses GitHub OAuth for authentication |
-| Docker | Required for Docker Local deploy target. Must be running on the runner machine |
-| Supabase | Local (`npx supabase start`) or hosted project |
+| A runner machine | Linux, macOS, or Windows via WSL2, with Node 20+, pnpm (`corepack enable`), Git and Docker running. Pipelines execute here |
+| Supabase | Only if you self-host the control plane; the hosted app already has one |
 | Git repository | Public or private repo with a Dockerfile |
 
 ## Step 1: Sign In
@@ -117,11 +117,34 @@ tasks:
 - **`deploy`**: Optional deployment config attached to a task. Triggers after all steps succeed
 - **Variables**: `${{ git.sha }}`, `${{ git.short_sha }}`, `${{ git.branch }}`, `${{ project.name }}`, `${{ env.VAR }}`
 
+## Before Step 4: Start a Runner
+
+Runs execute on a **runner** — a small agent on a machine you control. Without
+an online runner, runs wait in `queued`.
+
+1. **Runners** (sidebar) → **Register Runner** (admins only). Copy the command;
+   the token is shown once.
+2. On the runner machine:
+
+   ```bash
+   git clone https://github.com/epshukla/DevOps-Deployment-Tool.git
+   cd DevOps-Deployment-Tool && pnpm install
+   pnpm runner register --token <token> --url https://deployx-chi.vercel.app
+   pnpm runner start
+   ```
+
+   `pnpm runner` builds itself on first use. On Windows, do this inside WSL2
+   (see the README's "Running a runner").
+3. The runner shows **Online** on the Runners page, with live CPU, memory and
+   disk usage under **Resource usage**.
+
 ## Step 4: Trigger a Pipeline Run
 
 1. On the project page, click **Trigger Pipeline**
-2. Select which pipeline definition and branch
-3. The run enters `queued` → `running` states
+2. Pick the pipeline and, under **Run on**, either "Any available runner" or a
+   specific runner (the run then waits for that runner if it is offline)
+3. The run enters `queued` → `running` states; the **Runner** field on the run
+   page shows which machine is running it
 4. Watch the **DAG visualization** — tasks light up as they execute
 5. Click any task to view **real-time step logs**
 
@@ -143,6 +166,7 @@ After a successful deployment:
 - **Dashboard Overview** — See active deployments, success rates, avg build time
 - **Project Detail → Deployments tab** — List of all deployments with status and health
 - **Deployment Detail** — Click any deployment to see revision history, health timeline, container logs
+- **Public URL** — `docker_local` deployments get a temporary `https://….trycloudflare.com` link for 24 hours (shown on the deployment page); it works while the runner's machine and Docker are up
 - **SLA Tab** — Uptime tracking against 99.9% target with 24-hour rolling window
 
 ### Health Statuses
@@ -195,10 +219,12 @@ Store sensitive values (API keys, tokens) as encrypted project secrets:
 
 | Role | Permissions |
 |------|------------|
-| **Owner** | Full access, manage members, delete org |
-| **Admin** | Manage projects, secrets, pipelines |
-| **Developer** | Create/trigger pipelines, view deployments |
-| **Viewer** | Read-only access to all resources |
+| **Owner** | Everything an admin can do, plus rename the organization |
+| **Admin** | Register/revoke runners, manage alert rules, invite and manage members, delete projects and artifacts |
+| **Developer** | Create projects and pipelines; trigger, re-run and cancel runs; manage secrets, webhooks and schedules; stop and roll back deployments; vote on approvals |
+| **Viewer** | Read-only: sees everything, but every create/run/edit control is greyed out |
+
+Roles are enforced by the server and by database Row Level Security, not just the UI.
 
 ---
 
@@ -210,26 +236,26 @@ By default, each machine can run one runner. With multi-runner profiles, you can
 
 ```bash
 # Your own org
-deployx-runner register --token TOKEN_A --url https://deployx-chi.vercel.app --name my-runner
+pnpm runner register --token TOKEN_A --url https://deployx-chi.vercel.app --name my-runner
 
 # A friend's org
-deployx-runner register --token TOKEN_B --url https://deployx-chi.vercel.app --name friend-runner
+pnpm runner register --token TOKEN_B --url https://deployx-chi.vercel.app --name friend-runner
 ```
 
 ### List All Runners
 
 ```bash
-deployx-runner list
+pnpm runner list
 ```
 
 ### Start a Specific Runner
 
 ```bash
 # Terminal 1
-deployx-runner start --profile my-runner
+pnpm runner start --profile my-runner
 
 # Terminal 2
-deployx-runner start --profile friend-runner
+pnpm runner start --profile friend-runner
 ```
 
 ### Auto-Selection
@@ -255,4 +281,9 @@ If you registered a runner before multi-profile support, it's automatically migr
 | Webhook "An exception occurred" | Likely a `DEPLOYX_SECRET_KEY` rotation. Regenerate webhook secret in DeployX UI, then update the secret in GitHub webhook settings |
 | Test fails after version bump | Tests should assert shape (e.g., version is a semver string), not a hardcoded value like `"1.0.0"`. See `examples/demo-app/test.js` for the pattern |
 | "No org found" error | Clear cookies and re-login — `bootstrap_user_org()` runs on first auth |
-| Dashboard not updating in real-time | Supabase Realtime/WebSocket may not connect. Refresh the page to see current state. Verify Supabase Site URL matches your deployment URL |
+| Dashboard not updating in real-time | Check `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` have no trailing newline (a common result of `echo value \| vercel env add`) — it breaks the Realtime WebSocket while normal page loads still work. Re-add them with `printf '%s'` and redeploy |
+| `Cannot find module …/apps/runner/dist/cli.js` | You're on an old checkout: `git pull`. `pnpm runner` now builds the runner automatically |
+| Runner steps fail on Windows (`sh` not found, mount errors) | Run the runner inside WSL2, cloned into the Linux home directory, not PowerShell or a OneDrive path |
+| Run stays "Waiting for <runner>" | It was pinned to that runner under **Run on**; start that runner or re-run with "Any available runner" |
+| Browser shows `ERR_NETWORK_CHANGED` during a deploy | Chrome on Linux reacts to Docker creating network interfaces; just reload — the run is unaffected |
+| Runner was "stopped", usage shows "No usage reported yet" | Start the runner (`pnpm runner start`); older runners don't report usage — `git pull` and restart |
