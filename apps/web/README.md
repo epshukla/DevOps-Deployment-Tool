@@ -1,38 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DeployX web app (control plane)
 
-## Getting Started
+Next.js 16 (App Router) app that serves the dashboard and the APIs runners,
+GitHub and the scheduler talk to. Data, auth, realtime and file storage are
+Supabase. Production: [deployx-chi.vercel.app](https://deployx-chi.vercel.app).
 
-First, run the development server:
+> This is **Next.js 16**: `src/proxy.ts` replaces `middleware.ts`, route
+> `params` are async, and some APIs differ from older docs. Check
+> `node_modules/next/dist/docs/` before relying on memory (see `AGENTS.md`).
+
+## Run it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# from the repo root
+pnpm install
+cp apps/web/.env.example apps/web/.env.local   # fill in; every variable is explained there
+pnpm --filter web dev                          # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Sign-in is GitHub OAuth through Supabase; for localhost add
+`http://localhost:3000/auth/callback` to the Supabase Redirect URLs. Full setup
+(database, OAuth app, Vercel, platform tick): root
+[README → Self-hosting](../../README.md#self-hosting-the-control-plane).
 
-The production deployment is at [`https://deployx-chi.vercel.app`](https://deployx-chi.vercel.app).
+| Script | |
+|---|---|
+| `pnpm --filter web dev` | Dev server |
+| `pnpm --filter web build` | Production build (don't run it while `dev` is running — it overwrites `.next`) |
+| `pnpm --filter web test` | Vitest unit tests (`src/**/__tests__`) |
+| `pnpm --filter web lint` | ESLint (incl. React Compiler rules) |
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Layout
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+src/
+├── proxy.ts                 # session refresh + redirect to /login (skips /api/runner, /api/cron, /api/webhooks, /api/notifications)
+├── app/
+│   ├── (auth)/login         # GitHub sign-in
+│   ├── auth/callback        # OAuth callback; stores the GitHub token (encrypted) for private repos
+│   ├── invite/[token]       # shareable invite links
+│   ├── (dashboard)/         # all signed-in pages: overview, projects, runs, deployments,
+│   │                        #   pipelines, runners, alerts, settings, profile
+│   │   └── **/actions.ts    # server actions (each checks the caller's role)
+│   └── api/
+│       ├── runner/*         # runner API (token-authenticated, see below)
+│       ├── webhooks/github/[projectId]  # GitHub push → pipeline run (HMAC-verified)
+│       ├── cron/tick        # once-a-minute maintenance, called by Supabase pg_cron
+│       ├── github/*         # repo / branch pickers for "New Project"
+│       └── notifications    # notification feed
+├── components/              # UI by feature (dashboard, deployment, runs, runners, projects, ui, layout)
+├── hooks/                   # Supabase Realtime subscriptions (run, deployment, notifications)
+└── lib/
+    ├── supabase/            # browser, server and service-role clients; realtime auth
+    ├── auth/                # session/org/role resolution, runner authentication
+    ├── cron/                # tick jobs: schedules, orphan reaper, alerts, public-URL expiry, metrics pruning
+    └── …                    # permissions, notifications, audit log, formatting, runner usage
+```
 
-## Learn More
+## How requests are authorized
 
-To learn more about Next.js, take a look at the following resources:
+- **Pages and server actions** use the signed-in user's Supabase session.
+  `requireUserWithOrg()` resolves the active organization (org-switcher cookie)
+  and the caller's role; mutating actions check it with `hasMinRole()`, and
+  Postgres Row Level Security enforces the same rules underneath.
+- **The UI** reads the role with `usePermissions()` and greys out what the user
+  can't do — that is presentation only, never the security boundary.
+- **Runner API** (`/api/runner/*`) authenticates `Authorization: Bearer <runner token>`
+  (stored hashed) and uses the service-role client, so every route also checks
+  that the run/deployment belongs to the runner's organization.
+- **Cron** (`/api/cron/*`) requires `Authorization: Bearer $CRON_SECRET`.
+- **Webhooks** verify GitHub's `X-Hub-Signature-256` against the project's secret.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Runner API
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Endpoint | Used for |
+|---|---|
+| `POST /api/runner/register` | Claim the runner row pre-created by "Register Runner" (the token shown once is the runner's credential; only its hash is stored) and record name/system info |
+| `POST /api/runner/heartbeat` | Liveness every 10s; carries host/Docker metrics every 30s |
+| `GET /api/runner/jobs` | Oldest queued run in the runner's org (unpinned, or pinned to this runner) |
+| `POST /api/runner/jobs/:runId/claim` | Atomically claim a queued run |
+| `POST/GET /api/runner/jobs/:runId/status` | Report run/task/step status; poll for cancellation |
+| `POST /api/runner/jobs/:runId/logs` | Batched log lines |
+| `GET /api/runner/jobs/:runId/secrets` | Decrypted project secrets for the run |
+| `GET /api/runner/jobs/:runId/approvals` | Approval-gate state for a task |
+| `POST /api/runner/jobs/:runId/artifacts` · `/images` | Upload artifacts, record built images |
+| `POST/PATCH /api/runner/jobs/:runId/deployments[/:id]` | Create/update deployments (status, public URL) |
+| `POST …/deployments/:id/health` · `/healing` | Health-check results and self-healing events |
 
-## Deploy on Vercel
+## Deploying
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Vercel project with **Root Directory = `apps/web`**; environment variables as in
+`.env.example`; functions pinned to `sin1` in `vercel.json` (keep them in the
+same region as the Supabase project). From the repo root: `vercel deploy --prod`.

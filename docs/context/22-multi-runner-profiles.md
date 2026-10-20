@@ -38,19 +38,19 @@ All commands now accept an optional `--profile` flag:
 
 ```bash
 # Register
-deployx-runner register --token <T> --url <U> --name <N> [--profile <P>]
+pnpm runner register --token <T> --url <U> --name <N> [--profile <P>]
 
 # Start
-deployx-runner start [--profile <P>]
+pnpm runner start [--profile <P>]
 
 # Status
-deployx-runner status [--profile <P>]
+pnpm runner status [--profile <P>]
 
 # Unregister
-deployx-runner unregister [--profile <P>]
+pnpm runner unregister [--profile <P>]
 
 # List all profiles (new command)
-deployx-runner list
+pnpm runner list
 ```
 
 ### Auto-Selection
@@ -66,13 +66,13 @@ When `--profile` is omitted:
 
 ```bash
 # Register your own org's runner
-deployx-runner register \
+pnpm runner register \
   --token TOKEN_A \
   --url https://deployx-chi.vercel.app \
   --name my-runner
 
 # Register a friend's org runner
-deployx-runner register \
+pnpm runner register \
   --token TOKEN_B \
   --url https://deployx-chi.vercel.app \
   --name friend-runner
@@ -81,7 +81,7 @@ deployx-runner register \
 ### List all runners
 
 ```bash
-deployx-runner list
+pnpm runner list
 # 2 runner(s) registered:
 #
 #   my-runner
@@ -99,16 +99,16 @@ deployx-runner list
 
 ```bash
 # Terminal 1
-deployx-runner start --profile my-runner
+pnpm runner start --profile my-runner
 
 # Terminal 2
-deployx-runner start --profile friend-runner
+pnpm runner start --profile friend-runner
 ```
 
 ### Unregister a specific runner
 
 ```bash
-deployx-runner unregister --profile friend-runner
+pnpm runner unregister --profile friend-runner
 ```
 
 ## Backwards Compatibility
