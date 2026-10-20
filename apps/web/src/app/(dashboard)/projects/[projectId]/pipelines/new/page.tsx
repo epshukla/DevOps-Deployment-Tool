@@ -1,4 +1,5 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { hasMinRole } from "@deployx/shared";
 import { requireUserWithOrg } from "@/lib/auth/session";
 import { NewPipelineForm } from "./new-pipeline-form";
 
@@ -8,7 +9,9 @@ interface NewPipelinePageProps {
 
 export default async function NewPipelinePage({ params }: NewPipelinePageProps) {
   const { projectId } = await params;
-  const { supabase, org } = await requireUserWithOrg();
+  const { supabase, org, role } = await requireUserWithOrg();
+  // Viewers can't create pipelines; send them back to the project
+  if (!hasMinRole(role, "developer")) redirect(`/projects/${projectId}`);
 
   const { data: project } = await supabase
     .from("projects")

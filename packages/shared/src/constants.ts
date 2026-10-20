@@ -2,6 +2,10 @@ export const RUNNER_POLL_INTERVAL_MS = 5_000;
 export const LOG_BATCH_INTERVAL_MS = 500;
 export const LOG_BATCH_MAX_LINES = 50;
 export const HEARTBEAT_INTERVAL_MS = 10_000;
+/** How often a runner samples and reports host/Docker metrics */
+export const RUNNER_METRICS_INTERVAL_MS = 30_000;
+/** How long runner metric history is kept */
+export const RUNNER_METRICS_RETENTION_HOURS = 24;
 export const HEARTBEAT_TIMEOUT_MS = 60_000;
 export const MAX_RESTART_ATTEMPTS = 3;
 export const RESTART_BACKOFF_BASE_MS = 5_000;

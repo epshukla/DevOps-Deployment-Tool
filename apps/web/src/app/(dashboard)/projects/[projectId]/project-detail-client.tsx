@@ -11,7 +11,9 @@ import { SlaUptimeRing } from "@/components/observability/sla-uptime-ring";
 import { FailureRiskBadge } from "@/components/observability/failure-risk-badge";
 import { PredictionStat } from "@/components/observability/prediction-stat";
 import type { SlaStatus, FailureRiskResult } from "@deployx/shared";
-import { triggerPipelineRun } from "./pipelines/actions";
+import { TriggerPipelineButton } from "@/components/projects/trigger-pipeline-button";
+import type { RunnerOption } from "@/lib/runner-options";
+import { describeRunRunner } from "@/lib/run-runner";
 import { createSecret, deleteSecret } from "./secrets/actions";
 import {
   createWebhookConfig,
@@ -21,6 +23,9 @@ import {
   updateWebhookConfig,
 } from "./webhooks/actions";
 import { SchedulesSection } from "@/components/projects/schedules-section";
+import { usePermissions } from "@/components/layout/user-context";
+import { GatedLink } from "@/components/ui/gated-link";
+import { ReadOnlyBanner } from "@/components/ui/read-only-banner";
 import { formatDate, formatDateShort } from "@/lib/format-date";
 
 type Tab = "pipelines" | "deployments" | "sla" | "settings";
@@ -53,6 +58,8 @@ interface PipelineRunData {
   readonly duration_ms: number | null;
   readonly created_at: string;
   readonly pipeline_definition_id: string;
+  readonly runner_id: string | null;
+  readonly target_runner_id: string | null;
 }
 
 interface PipelineDefinitionData {
@@ -129,6 +136,7 @@ interface ProjectDetailClientProps {
   readonly slaData?: SlaData;
   readonly predictedDuration?: number | null;
   readonly failureRisk?: FailureRiskResult;
+  readonly runners: readonly RunnerOption[];
 }
 
 
@@ -145,43 +153,14 @@ export function ProjectDetailClient({
   slaData,
   predictedDuration,
   failureRisk,
+  runners,
 }: ProjectDetailClientProps) {
   const [activeTab, setActiveTab] = useState<Tab>("pipelines");
-  const [triggerError, setTriggerError] = useState<string | null>(null);
-  const [showTriggerMenu, setShowTriggerMenu] = useState(false);
-  const [isPending, startTransition] = useTransition();
-  const router = useRouter();
   const tabContentRef = useRef<HTMLDivElement>(null);
 
   const handleSettingsClick = () => {
     setActiveTab("settings");
     tabContentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  const handleTrigger = (definitionId: string) => {
-    setTriggerError(null);
-    setShowTriggerMenu(false);
-    startTransition(async () => {
-      const result = await triggerPipelineRun(project.id, definitionId);
-      if (result.error) {
-        setTriggerError(result.error);
-      } else {
-        router.refresh();
-      }
-    });
-  };
-
-  const handleTriggerClick = () => {
-    if (pipelineDefinitions.length === 0) {
-      router.push(`/projects/${project.id}/pipelines/new`);
-      return;
-    }
-    const withVersion = pipelineDefinitions.filter((d) => d.current_version_id);
-    if (withVersion.length === 1) {
-      handleTrigger(withVersion[0].id);
-      return;
-    }
-    setShowTriggerMenu((prev) => !prev);
   };
 
   return (
@@ -192,13 +171,7 @@ export function ProjectDetailClient({
           { label: project.name },
         ]}
       />
-      <div className="p-8 pb-0 max-w-[1600px] mx-auto">
-        {triggerError && (
-          <div className="mb-4 bg-error/10 border border-error/30 rounded-md p-3 text-xs text-error">
-            {triggerError}
-          </div>
-        )}
-
+      <div className="relative z-20 p-8 pb-0 max-w-[1600px] mx-auto">
         {/* Project Header */}
         <div className="flex justify-between items-start mb-8">
           <div>
@@ -233,35 +206,11 @@ export function ProjectDetailClient({
             </div>
           </div>
           <div className="flex gap-3">
-            <div className="relative">
-              <button
-                onClick={handleTriggerClick}
-                disabled={isPending}
-                className="bg-primary hover:bg-primary/90 text-on-primary px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 transition-all disabled:opacity-50"
-              >
-                {isPending ? (
-                  <span aria-hidden="true" className="material-symbols-outlined text-lg animate-spin">progress_activity</span>
-                ) : (
-                  <span aria-hidden="true" className="material-symbols-outlined text-lg">bolt</span>
-                )}
-                {isPending ? "Triggering..." : pipelineDefinitions.length === 0 ? "Create Pipeline" : "Trigger Pipeline"}
-              </button>
-              {showTriggerMenu && pipelineDefinitions.filter((d) => d.current_version_id).length > 1 && (
-                <div className="absolute right-0 mt-2 w-64 bg-surface-container rounded-lg shadow-2xl border border-outline-variant/10 z-20 py-1">
-                  {pipelineDefinitions
-                    .filter((d) => d.current_version_id)
-                    .map((d) => (
-                      <button
-                        key={d.id}
-                        onClick={() => handleTrigger(d.id)}
-                        className="w-full text-left px-4 py-2.5 text-sm text-on-surface hover:bg-surface-container-highest transition-colors"
-                      >
-                        {d.name}
-                      </button>
-                    ))}
-                </div>
-              )}
-            </div>
+            <TriggerPipelineButton
+              projectId={project.id}
+              pipelines={pipelineDefinitions}
+              runners={runners}
+            />
             <button
               onClick={handleSettingsClick}
               className="border border-outline-variant/30 hover:bg-surface-container-highest text-on-surface px-4 py-2 rounded-md text-sm font-semibold flex items-center gap-2 transition-all"
@@ -285,6 +234,7 @@ export function ProjectDetailClient({
         {activeTab === "pipelines" && (
           <PipelinesTab
             projectId={project.id}
+            runnerNames={Object.fromEntries(runners.map((r) => [r.id, r.name]))}
             pipelineDefinitions={pipelineDefinitions}
             runs={pipelineRuns}
             metrics={metrics}
@@ -394,7 +344,8 @@ function SlaTab({ slaData }: { readonly slaData: SlaData }) {
   );
 }
 
-function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predictedDuration, failureRisk }: {
+function PipelinesTab({ projectId, runnerNames, pipelineDefinitions, runs, metrics, predictedDuration, failureRisk }: {
+  readonly runnerNames: Readonly<Record<string, string>>;
   readonly projectId: string;
   readonly pipelineDefinitions: readonly PipelineDefinitionData[];
   readonly runs: readonly PipelineRunData[];
@@ -402,6 +353,7 @@ function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predicted
   readonly predictedDuration: number | null;
   readonly failureRisk?: FailureRiskResult;
 }) {
+  const { canEdit, readOnlyReason } = usePermissions();
   const showPipelineColumn = pipelineDefinitions.length > 1;
   const nameMap = new Map(pipelineDefinitions.map((d) => [d.id, d.name]));
 
@@ -422,13 +374,15 @@ function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predicted
             <span aria-hidden="true" className="material-symbols-outlined text-sm">settings</span>
             Manage
           </Link>
-          <Link
+          <GatedLink
             href={`/projects/${projectId}/pipelines/new`}
+            allowed={canEdit}
+            reason={readOnlyReason}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-on-primary text-xs font-bold rounded hover:bg-primary/90 transition-colors"
           >
             <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
             New Pipeline
-          </Link>
+          </GatedLink>
         </div>
       </div>
       {pipelineDefinitions.length === 0 ? (
@@ -497,6 +451,7 @@ function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predicted
               <th className="text-left px-6 py-3">Branch</th>
               <th className="text-left px-6 py-3">Commit</th>
               <th className="text-left px-6 py-3">Trigger</th>
+              <th className="text-left px-6 py-3">Runner</th>
               <th className="text-left px-6 py-3">Duration</th>
               <th className="text-left px-6 py-3">Started</th>
             </tr>
@@ -518,6 +473,9 @@ function PipelinesTab({ projectId, pipelineDefinitions, runs, metrics, predicted
                   <td className="px-6 py-3 text-sm font-mono">{run.git_branch ?? "—"}</td>
                   <td className="px-6 py-3 text-sm font-mono text-on-surface-variant">{run.git_sha?.slice(0, 7) ?? "—"}</td>
                   <td className="px-6 py-3 text-xs text-on-surface-variant">{run.trigger_type}</td>
+                  <td className="px-6 py-3 text-xs font-mono text-on-surface-variant">
+                    {describeRunRunner(run, runnerNames).label}
+                  </td>
                   <td className="px-6 py-3 text-xs font-mono">{run.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : "—"}</td>
                   <td className="px-6 py-3 text-xs text-on-surface-variant">{formatDate(run.created_at)}</td>
                 </tr>
@@ -639,19 +597,29 @@ function SettingsTab({
   readonly pipelineDefinitions: readonly PipelineDefinitionData[];
   readonly schedules: readonly ScheduleData[];
 }) {
+  const { canEdit } = usePermissions();
   const [showAddForm, setShowAddForm] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, startDeleteTransition] = useTransition();
 
   const handleDelete = (secretId: string) => {
+    setDeleteError(null);
     startDeleteTransition(async () => {
-      await deleteSecret(projectId, secretId);
+      const result = await deleteSecret(projectId, secretId);
+      if (result?.error) setDeleteError(result.error);
       setDeletingId(null);
     });
   };
 
   return (
+    // A disabled fieldset disables every control inside it for viewers
+    <fieldset disabled={!canEdit} className="contents">
     <div className="space-y-6">
+      {!canEdit && <ReadOnlyBanner>You have the viewer role — project settings are read-only.</ReadOnlyBanner>}
+      {deleteError && (
+        <div className="bg-error/10 border border-error/30 rounded-md p-3 text-xs text-error">{deleteError}</div>
+      )}
       {/* Environment Variables Section */}
       <div className="bg-surface-container-low rounded-lg border border-outline-variant overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
@@ -754,6 +722,7 @@ function SettingsTab({
         pipelineDefinitions={pipelineDefinitions}
       />
     </div>
+    </fieldset>
   );
 }
 

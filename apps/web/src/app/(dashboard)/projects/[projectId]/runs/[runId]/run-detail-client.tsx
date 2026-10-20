@@ -12,6 +12,7 @@ import { useRealtimeRun } from "@/hooks/use-realtime-run";
 import { cancelPipelineRun, rerunPipelineRun } from "../../runs/actions";
 import { formatTime } from "@/lib/format-date";
 import { hasMinRole } from "@deployx/shared";
+import { describeRunRunner } from "@/lib/run-runner";
 
 interface RunData {
   readonly id: string;
@@ -24,6 +25,8 @@ interface RunData {
   readonly started_at: string | null;
   readonly finished_at: string | null;
   readonly pipeline_definition_id: string;
+  readonly runner_id: string | null;
+  readonly target_runner_id: string | null;
 }
 
 interface TaskRunData {
@@ -93,8 +96,23 @@ interface RunDetailClientProps {
   readonly artifacts: readonly ArtifactData[];
   readonly approvals: readonly ApprovalData[];
   readonly currentRole: string;
+  /** id → name for the org's runners */
+  readonly runnerNames: Readonly<Record<string, string>>;
 }
 
+
+const VIEWER_REASON = "You have the viewer role — read-only access";
+
+function RunnerField({ description }: { readonly description: ReturnType<typeof describeRunRunner> }) {
+  const icon = description.state === "waiting" ? "hourglass_top" : "dns";
+  const tone = description.state === "waiting" ? "text-warning" : "text-on-surface";
+  return (
+    <div className={`flex items-center gap-1.5 text-xs ${tone}`}>
+      <span aria-hidden="true" className="material-symbols-outlined text-[14px] text-on-surface-variant">{icon}</span>
+      <span className="font-semibold font-mono">{description.label}</span>
+    </div>
+  );
+}
 
 const LOG_LEVEL_CLASS: Record<string, string> = {
   error: "text-error",
@@ -157,6 +175,7 @@ export function RunDetailClient({
   artifacts,
   approvals,
   currentRole,
+  runnerNames,
 }: RunDetailClientProps) {
   const router = useRouter();
   const canTriggerRuns = hasMinRole(currentRole, "developer");
@@ -283,6 +302,9 @@ export function RunDetailClient({
               <span>{run.trigger_type}</span>
             </div>
           </SummaryField>
+          <SummaryField label="Runner">
+            <RunnerField description={describeRunRunner(run, runnerNames)} />
+          </SummaryField>
           <SummaryField label="Duration">
             <div className="flex items-center gap-1.5 text-xs">
               <span aria-hidden="true" className="material-symbols-outlined text-[14px] text-on-surface-variant">schedule</span>
@@ -292,9 +314,10 @@ export function RunDetailClient({
         </div>
         <div className="flex items-center gap-3">
           {rerunError && <span className="text-xs text-error">{rerunError}</span>}
-          {isTerminal && canTriggerRuns && (
+          {isTerminal && (
             <button
-              disabled={isRerunning}
+              disabled={isRerunning || !canTriggerRuns}
+              title={canTriggerRuns ? undefined : VIEWER_REASON}
               onClick={handleRerun}
               className="flex items-center gap-2 px-4 py-2 border border-primary/30 text-primary text-xs font-bold rounded hover:bg-primary/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
@@ -306,10 +329,13 @@ export function RunDetailClient({
           )}
           {!isTerminal && (
             <button
-              disabled={isCancelling}
+              disabled={isCancelling || !canTriggerRuns}
+              title={canTriggerRuns ? undefined : VIEWER_REASON}
               onClick={() => {
+                setRerunError(null);
                 startCancelTransition(async () => {
-                  await cancelPipelineRun(project.id, run.id);
+                  const result = await cancelPipelineRun(project.id, run.id);
+                  if (result?.error) setRerunError(result.error);
                 });
               }}
               className="flex items-center gap-2 px-4 py-2 border border-error/30 text-error text-xs font-bold rounded hover:bg-error/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"

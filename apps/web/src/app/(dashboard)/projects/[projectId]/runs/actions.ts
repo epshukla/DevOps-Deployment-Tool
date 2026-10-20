@@ -125,7 +125,7 @@ export async function rerunPipelineRun(
 
   const { data: sourceRun } = await supabase
     .from("pipeline_runs")
-    .select("id, status, pipeline_definition_id, pipeline_version_id, git_branch, git_sha")
+    .select("id, status, pipeline_definition_id, pipeline_version_id, git_branch, git_sha, target_runner_id")
     .eq("id", runId)
     .eq("project_id", projectId)
     .single();
@@ -149,6 +149,8 @@ export async function rerunPipelineRun(
       git_branch: sourceRun.git_branch,
       git_sha: sourceRun.git_sha,
       created_by: user.id,
+      // Re-run on the same runner the original was pinned to (if any)
+      target_runner_id: sourceRun.target_runner_id,
     })
     .select("id")
     .single();

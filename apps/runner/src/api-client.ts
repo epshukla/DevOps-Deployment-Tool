@@ -1,3 +1,4 @@
+import type { RunnerMetrics } from "@deployx/shared";
 import type { RunnerConfig } from "./config";
 
 interface SystemInfo {
@@ -100,8 +101,8 @@ export class RunnerApiClient {
     return data;
   }
 
-  async heartbeat(): Promise<void> {
-    await this.request("POST", "/api/runner/heartbeat", {});
+  async heartbeat(metrics?: RunnerMetrics): Promise<void> {
+    await this.request("POST", "/api/runner/heartbeat", metrics ? { metrics } : {});
   }
 
   async pollJob(): Promise<JobPayload | null> {

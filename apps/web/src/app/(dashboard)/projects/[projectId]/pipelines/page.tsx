@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { GatedLink } from "@/components/ui/gated-link";
+import { hasMinRole } from "@deployx/shared";
 import { notFound } from "next/navigation";
 import { TopBar } from "@/components/layout/top-bar";
 import { requireUserWithOrg } from "@/lib/auth/session";
@@ -10,7 +12,8 @@ interface PageProps {
 
 export default async function PipelinesPage({ params }: PageProps) {
   const { projectId } = await params;
-  const { supabase } = await requireUserWithOrg();
+  const { supabase, role } = await requireUserWithOrg();
+  const canEdit = hasMinRole(role, "developer");
 
   const { data: project } = await supabase
     .from("projects")
@@ -47,13 +50,15 @@ export default async function PipelinesPage({ params }: PageProps) {
               Pipeline definitions for {project.name}
             </p>
           </div>
-          <Link
+          <GatedLink
+            allowed={canEdit}
+            reason={"You have the viewer role — read-only access"}
             href={`/projects/${projectId}/pipelines/new`}
             className="px-5 py-2.5 bg-primary text-on-primary font-bold rounded-md hover:bg-primary-container active:scale-95 transition-all flex items-center gap-2"
           >
             <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
             New Pipeline
-          </Link>
+          </GatedLink>
         </div>
 
         {pipelines.length === 0 ? (

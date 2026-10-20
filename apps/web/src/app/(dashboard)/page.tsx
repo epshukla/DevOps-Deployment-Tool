@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { GatedLink } from "@/components/ui/gated-link";
 import { TopBar } from "@/components/layout/top-bar";
 import { KpiStrip } from "@/components/dashboard/kpi-strip";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -8,12 +8,13 @@ import { DeploymentHealthCards } from "@/components/dashboard/deployment-health-
 import { requireUserWithOrg } from "@/lib/auth/session";
 import { formatDate, formatDurationShort, formatRelative } from "@/lib/format-date";
 import { computeTrend, splitByWindow } from "@/lib/trend";
-import { computeUptimePercent, SLA_DEFAULT_WINDOW_HOURS } from "@deployx/shared";
+import { computeUptimePercent, hasMinRole, SLA_DEFAULT_WINDOW_HOURS } from "@deployx/shared";
 
 const TREND_WINDOW_DAYS = 7;
 
 export default async function DashboardOverview() {
-  const { supabase, user, org } = await requireUserWithOrg();
+  const { supabase, user, org, role } = await requireUserWithOrg();
+  const canEdit = hasMinRole(role, "developer");
 
   const displayName =
     user.user_metadata?.full_name ??
@@ -200,13 +201,15 @@ export default async function DashboardOverview() {
               Fleet
               <StatusBadge status={fleetStatus.status} label={fleetStatus.label} />
             </span>
-            <Link
+            <GatedLink
+            allowed={canEdit}
+            reason={"You have the viewer role — read-only access"}
               href="/projects/new"
               className="flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-[13px] font-medium text-on-primary transition-colors hover:bg-primary-container"
             >
               <span aria-hidden="true" className="material-symbols-outlined text-[18px]">add</span>
               New project
-            </Link>
+            </GatedLink>
           </div>
         </header>
 

@@ -5,7 +5,9 @@ import { HealthMonitor } from "../deployers/health-monitor";
 import {
   RUNNER_POLL_INTERVAL_MS,
   HEARTBEAT_INTERVAL_MS,
+  RUNNER_METRICS_INTERVAL_MS,
 } from "@deployx/shared";
+import { createHeartbeatMetrics, createMetricsSampler } from "../metrics";
 
 interface StartOptions {
   readonly profile?: string;
@@ -52,10 +54,12 @@ export async function startCommand(options: StartOptions): Promise<void> {
   });
   healthMonitor.start();
 
-  // Heartbeat loop
+  // Heartbeat loop; every RUNNER_METRICS_INTERVAL_MS it also carries
+  // host/Docker usage for the Runners page
+  const nextMetrics = createHeartbeatMetrics(createMetricsSampler(), RUNNER_METRICS_INTERVAL_MS);
   const heartbeatInterval = setInterval(async () => {
     try {
-      await client.heartbeat();
+      await client.heartbeat(await nextMetrics());
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unknown error";
       console.error(`Heartbeat failed: ${msg}`);
@@ -64,7 +68,7 @@ export async function startCommand(options: StartOptions): Promise<void> {
 
   // Send initial heartbeat
   try {
-    await client.heartbeat();
+    await client.heartbeat(await nextMetrics());
     console.log("Online — heartbeat sent.");
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Unknown error";

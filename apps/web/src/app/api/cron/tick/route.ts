@@ -5,6 +5,7 @@ import { dispatchDueSchedules } from "@/lib/cron/dispatch-schedules";
 import { reapOrphans } from "@/lib/cron/reap-orphans";
 import { evaluateAlerts } from "@/lib/cron/evaluate-alerts";
 import { expirePublicUrls } from "@/lib/cron/expire-public-urls";
+import { pruneRunnerMetrics } from "@/lib/cron/prune-runner-metrics";
 
 /**
  * GET|POST /api/cron/tick
@@ -27,11 +28,12 @@ async function tick(request: Request) {
   const supabase = createServiceClient();
   const now = new Date();
 
-  const [schedules, reaper, alerts, publicUrls] = await Promise.allSettled([
+  const [schedules, reaper, alerts, publicUrls, runnerMetrics] = await Promise.allSettled([
     dispatchDueSchedules(supabase, now),
     reapOrphans(supabase, now),
     evaluateAlerts(supabase, now),
     expirePublicUrls(supabase, now),
+    pruneRunnerMetrics(supabase, now),
   ]);
 
   const summarize = <T,>(result: PromiseSettledResult<T>) =>
@@ -45,9 +47,10 @@ async function tick(request: Request) {
     reaper: summarize(reaper),
     alerts: summarize(alerts),
     public_urls: summarize(publicUrls),
+    runner_metrics: summarize(runnerMetrics),
   };
 
-  const failed = [schedules, reaper, alerts, publicUrls].some((r) => r.status === "rejected");
+  const failed = [schedules, reaper, alerts, publicUrls, runnerMetrics].some((r) => r.status === "rejected");
   if (failed) console.error("[cron/tick] one or more jobs failed", body);
 
   return NextResponse.json(body, { status: failed ? 500 : 200 });

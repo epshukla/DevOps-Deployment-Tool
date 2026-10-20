@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireUserWithOrg } from "@/lib/auth/session";
 import { ProjectDetailClient } from "./project-detail-client";
+import { loadRunnerOptions } from "@/lib/runner-options";
 import {
   computeUptimePercent,
   computeSlaStatus,
@@ -20,7 +21,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name, slug, git_repo_url, default_branch, dockerfile_path, build_context, deploy_target, created_at")
+    .select("id, org_id, name, slug, git_repo_url, default_branch, dockerfile_path, build_context, deploy_target, created_at")
     .eq("id", projectId)
     .single();
 
@@ -38,7 +39,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
   // Fetch pipeline runs for this project
   const { data: pipelineRuns } = await supabase
     .from("pipeline_runs")
-    .select("id, status, trigger_type, git_branch, git_sha, duration_ms, created_at, created_by, pipeline_definition_id")
+    .select("id, status, trigger_type, git_branch, git_sha, duration_ms, created_at, created_by, pipeline_definition_id, runner_id, target_runner_id")
     .eq("project_id", projectId)
     .order("created_at", { ascending: false })
     .limit(20);
@@ -140,9 +141,12 @@ export default async function ProjectDetailPage({ params }: PageProps) {
     allRuns.map((r) => ({ status: r.status as string })),
   );
 
+  const runners = await loadRunnerOptions(supabase, project.org_id);
+
   return (
     <ProjectDetailClient
       project={project}
+      runners={runners}
       pipelineDefinitions={definitions ?? []}
       pipelineRuns={pipelineRuns ?? []}
       deployments={deployments ?? []}

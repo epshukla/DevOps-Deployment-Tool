@@ -150,9 +150,17 @@ shell, and paths with spaces (e.g. under OneDrive) break the mounts.
 3. In the Ubuntu terminal, install Node 20+ (e.g. via `nvm`), then follow the
    steps above. Clone into the Linux home directory (`cd ~`), not `/mnt/c/...`.
 
-**Which runner runs a job?** Runners belong to an organization. Any online
-runner in the project's org can claim its queued runs (first to poll wins),
-so register the runner in the org whose projects you want it to execute.
+**Which runner runs a job?** Runners belong to an organization. By default any
+online runner in the project's org can claim a queued run (first to poll wins).
+To pin a run to one machine, pick it under **Run on** in the Trigger Pipeline
+menu; only that runner will claim it (it waits in the queue while that runner
+is offline), and re-runs stay on the same runner. The run page and the
+project's run list show which runner ran each run.
+
+**Resource usage.** Every 30 seconds a runner reports host CPU, memory and disk
+plus the CPU/memory of the DeployX containers it hosts. The Runners page shows
+this per runner with a one-hour chart and 24-hour job stats (jobs, busy time,
+success rate). History older than 24 hours is pruned by the platform tick.
 
 ## Demo
 

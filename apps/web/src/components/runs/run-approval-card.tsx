@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { usePermissions } from "@/components/layout/user-context";
 import { useRouter } from "next/navigation";
 import { submitApprovalVote } from "@/app/(dashboard)/projects/[projectId]/deployments/actions";
 import { formatDate } from "@/lib/format-date";
@@ -35,6 +36,7 @@ const STATUS_BADGE: Record<string, { text: string; className: string }> = {
 };
 
 export function RunApprovalCard({ projectId, approval }: RunApprovalCardProps) {
+  const { canEdit, readOnlyReason } = usePermissions();
   const [comment, setComment] = useState("");
   const [voteError, setVoteError] = useState<string | null>(null);
   const [isVoting, startVoteTransition] = useTransition();
@@ -110,7 +112,8 @@ export function RunApprovalCard({ projectId, approval }: RunApprovalCardProps) {
       {voteError && <p className="text-xs text-error mb-3">{voteError}</p>}
 
       {isPending && (
-        <div className="space-y-3">
+        // Viewers can see the request but not vote on it
+        <fieldset disabled={!canEdit} title={readOnlyReason} className="space-y-3">
           <textarea
             value={comment}
             onChange={(e) => setComment(e.target.value)}
@@ -136,7 +139,7 @@ export function RunApprovalCard({ projectId, approval }: RunApprovalCardProps) {
               Reject
             </button>
           </div>
-        </div>
+        </fieldset>
       )}
     </div>
   );

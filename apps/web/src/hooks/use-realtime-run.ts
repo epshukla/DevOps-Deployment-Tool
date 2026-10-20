@@ -16,6 +16,8 @@ interface RunData {
   readonly started_at: string | null;
   readonly finished_at: string | null;
   readonly pipeline_definition_id: string;
+  readonly runner_id: string | null;
+  readonly target_runner_id: string | null;
 }
 
 interface TaskRunData {
@@ -116,6 +118,8 @@ export function useRealtimeRun({
               finished_at: (updated.finished_at as string | null) ?? prev.finished_at,
               // Manual runs get their SHA from the runner at the end
               git_sha: (updated.git_sha as string | null) ?? prev.git_sha,
+              // Set when a runner claims the run
+              runner_id: (updated.runner_id as string | null) ?? prev.runner_id,
             }));
 
             // Unsubscribe once the run is over, after a grace period: events

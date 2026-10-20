@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { requireUserWithOrg } from "@/lib/auth/session";
+import { loadRunnerOptions } from "@/lib/runner-options";
 import { RunDetailClient } from "./run-detail-client";
 
 interface PageProps {
@@ -13,7 +14,7 @@ export default async function PipelineRunDetailPage({ params }: PageProps) {
   // Fetch the pipeline run
   const { data: run } = await supabase
     .from("pipeline_runs")
-    .select("id, status, trigger_type, git_branch, git_sha, duration_ms, created_at, started_at, finished_at, pipeline_definition_id, pipeline_version_id")
+    .select("id, status, trigger_type, git_branch, git_sha, duration_ms, created_at, started_at, finished_at, pipeline_definition_id, pipeline_version_id, runner_id, target_runner_id")
     .eq("id", runId)
     .eq("project_id", projectId)
     .single();
@@ -168,6 +169,9 @@ export default async function PipelineRunDetailPage({ params }: PageProps) {
       artifacts={artifacts}
       approvals={approvals}
       currentRole={role}
+      runnerNames={Object.fromEntries(
+        (await loadRunnerOptions(supabase, org.id)).map((r) => [r.id, r.name]),
+      )}
     />
   );
 }

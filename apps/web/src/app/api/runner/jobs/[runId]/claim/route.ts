@@ -39,6 +39,8 @@ export async function POST(request: Request, { params }: RouteParams) {
     })
     .eq("id", runId)
     .eq("status", "queued")
+    // A run pinned to another runner can't be claimed by this one
+    .or(`target_runner_id.is.null,target_runner_id.eq.${runner.id}`)
     .select(`
       id,
       project_id,

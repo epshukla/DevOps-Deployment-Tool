@@ -50,6 +50,8 @@ export async function GET(request: Request) {
       // Filter by org in the query itself: filtering after limit(1) let one
       // org's oldest queued run starve every other org's runners.
       .eq("projects.org_id", runner.org_id)
+      // Runs pinned to another runner are not ours to take
+      .or(`target_runner_id.is.null,target_runner_id.eq.${runner.id}`)
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();

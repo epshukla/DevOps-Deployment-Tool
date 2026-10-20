@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireUserWithOrg } from "@/lib/auth/session";
 import { PipelineDetailClient } from "./pipeline-detail-client";
+import { loadRunnerOptions } from "@/lib/runner-options";
 
 interface PageProps {
   readonly params: Promise<{ projectId: string; pipelineId: string }>;
@@ -12,7 +13,7 @@ export default async function PipelineDetailPage({ params }: PageProps) {
 
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name")
+    .select("id, name, org_id")
     .eq("id", projectId)
     .single();
 
@@ -70,6 +71,7 @@ export default async function PipelineDetailPage({ params }: PageProps) {
       }))}
       recentRuns={recentRuns ?? []}
       currentRole={role}
+      runners={await loadRunnerOptions(supabase, project.org_id)}
     />
   );
 }
