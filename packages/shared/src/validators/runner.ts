@@ -26,9 +26,31 @@ export type RegisterRunnerInput = z.infer<typeof RegisterRunnerSchema>;
 
 // ── Heartbeat ───────────────────────────────────────────────────
 
+// ── Runner Metrics ──────────────────────────────────────────────
+
+const nonNegative = z.number().finite().nonnegative();
+
+/** Host and Docker usage sampled by the runner and sent with a heartbeat. */
+export const RunnerMetricsSchema = z.object({
+  cpu_percent: nonNegative.max(100),
+  load_1m: nonNegative,
+  cpu_count: z.number().int().positive().max(1024),
+  memory_used_mb: nonNegative,
+  memory_total_mb: nonNegative,
+  disk_used_gb: nonNegative.nullable(),
+  disk_total_gb: nonNegative.nullable(),
+  /** DeployX-managed containers (apps, proxies, tunnels) on this host */
+  containers_running: z.number().int().nonnegative(),
+  docker_cpu_percent: nonNegative.nullable(),
+  docker_memory_mb: nonNegative.nullable(),
+});
+
+export type RunnerMetrics = z.infer<typeof RunnerMetricsSchema>;
+
 export const HeartbeatSchema = z.object({
   system_info: SystemInfoSchema.optional(),
   capabilities: z.array(z.string().min(1).max(64)).max(32).optional(),
+  metrics: RunnerMetricsSchema.optional(),
 });
 
 export type HeartbeatInput = z.infer<typeof HeartbeatSchema>;

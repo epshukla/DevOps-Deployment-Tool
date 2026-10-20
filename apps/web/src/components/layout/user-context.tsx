@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import { activeRole, permissionsFor, type Permissions } from "@/lib/permissions";
 
 export interface NotificationData {
   readonly id: string;
@@ -43,6 +44,12 @@ const UserContext = createContext<UserContextValue>({
 
 export function useUser() {
   return useContext(UserContext);
+}
+
+/** What the current user may do in the active org (drives disabled states). */
+export function usePermissions(): Permissions {
+  const { orgs, activeOrgId } = useContext(UserContext);
+  return permissionsFor(activeRole(orgs, activeOrgId));
 }
 
 export function UserProvider({

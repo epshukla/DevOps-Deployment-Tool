@@ -1,13 +1,15 @@
 import Link from "next/link";
+import { GatedLink } from "@/components/ui/gated-link";
 
 import { TopBar } from "@/components/layout/top-bar";
 import { ProjectCard } from "@/components/projects/project-card";
 import { requireUserWithOrg } from "@/lib/auth/session";
 import { formatDate } from "@/lib/format-date";
-import { formatDurationMs, type PipelineRunStatus } from "@deployx/shared";
+import { formatDurationMs, hasMinRole, type PipelineRunStatus } from "@deployx/shared";
 
 export default async function ProjectsPage() {
-  const { supabase, org } = await requireUserWithOrg();
+  const { supabase, org, role } = await requireUserWithOrg();
+  const canEdit = hasMinRole(role, "developer");
 
   const { data: projects } = await supabase
     .from("projects")
@@ -73,13 +75,15 @@ export default async function ProjectsPage() {
               Manage and monitor your active deployment pipelines.
             </p>
           </div>
-          <Link
+          <GatedLink
+            allowed={canEdit}
+            reason={"You have the viewer role — read-only access"}
             href="/projects/new"
             className="flex items-center gap-2 bg-primary-container text-on-primary-container px-4 py-2.5 rounded-md font-semibold text-sm hover:opacity-90 transition-all"
           >
             <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
             New Project
-          </Link>
+          </GatedLink>
         </div>
 
         {/* Projects Grid */}
@@ -94,13 +98,15 @@ export default async function ProjectsPage() {
             <p className="text-xs text-on-surface-variant/60 mt-1 mb-6">
               Create your first project to start building pipelines
             </p>
-            <Link
+            <GatedLink
+            allowed={canEdit}
+            reason={"You have the viewer role — read-only access"}
               href="/projects/new"
               className="inline-flex items-center gap-2 bg-primary-container text-on-primary-container px-4 py-2 rounded-md font-semibold text-xs hover:opacity-90 transition-all"
             >
               <span aria-hidden="true" className="material-symbols-outlined text-sm">add</span>
               New Project
-            </Link>
+            </GatedLink>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">

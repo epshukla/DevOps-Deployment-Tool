@@ -6,13 +6,19 @@ import { formatDate } from "@/lib/format-date";
 import { RegisterRunnerDialog } from "./register-runner-dialog";
 import { RunnersTable } from "./runners-table";
 import { buildRunnerSystemEvents } from "./system-events";
+import type { RunnerMetrics } from "@deployx/shared";
+import { AutoRefresh } from "@/components/ui/auto-refresh";
+import { RunnerUsageCard, type RunnerUsageSample } from "@/components/runners/runner-usage-card";
+import { isMetricsFresh, percentOf, summarizeRunnerJobs } from "@/lib/runner-usage";
+
+const USAGE_WINDOW_HOURS = 24;
 
 export default async function RunnersPage() {
   const { supabase, org, role } = await requireUserWithOrg();
 
   const { data: runners } = await supabase
     .from("runner_registrations")
-    .select("id, name, status, current_job_id, last_heartbeat_at, system_info, capabilities, created_at")
+    .select("id, name, status, current_job_id, last_heartbeat_at, system_info, capabilities, created_at, metrics, metrics_at")
     .eq("org_id", org.id)
     .order("created_at", { ascending: false });
 
@@ -24,8 +30,41 @@ export default async function RunnersPage() {
     .order("created_at", { ascending: false })
     .limit(15);
 
-  const runnerList = runners ?? [];
   const now = new Date();
+  const hourAgo = new Date(now.getTime() - 3_600_000).toISOString();
+  // Twice the window so jobs that started before it but ran into it count
+  const jobsSince = new Date(now.getTime() - 2 * USAGE_WINDOW_HOURS * 3_600_000).toISOString();
+
+  const [{ data: samples }, { data: recentRuns }] = await Promise.all([
+    supabase
+      .from("runner_metrics")
+      .select("runner_id, recorded_at, cpu_percent, memory_used_mb, memory_total_mb")
+      .eq("org_id", org.id)
+      .gte("recorded_at", hourAgo)
+      .order("recorded_at", { ascending: true }),
+    supabase
+      .from("pipeline_runs")
+      .select("runner_id, status, started_at, finished_at, duration_ms, projects!inner(org_id)")
+      .eq("projects.org_id", org.id)
+      .not("runner_id", "is", null)
+      .gte("started_at", jobsSince)
+      .order("started_at", { ascending: false })
+      .limit(2000),
+  ]);
+
+  const historyByRunner = new Map<string, RunnerUsageSample[]>();
+  for (const sample of samples ?? []) {
+    const list = historyByRunner.get(sample.runner_id) ?? [];
+    list.push({
+      recorded_at: sample.recorded_at,
+      cpu_percent: sample.cpu_percent,
+      memory_percent: percentOf(sample.memory_used_mb, sample.memory_total_mb),
+    });
+    historyByRunner.set(sample.runner_id, list);
+  }
+  const jobsByRunner = summarizeRunnerJobs(recentRuns ?? [], now, USAGE_WINDOW_HOURS);
+
+  const runnerList = runners ?? [];
   const displayStatuses = runnerList.map((r) =>
     getRunnerDisplayStatus(r.status, r.last_heartbeat_at, now),
   );
@@ -124,6 +163,39 @@ export default async function RunnersPage() {
             <p className="text-2xl font-semibold text-on-surface">{offline}</p>
           </div>
         </div>
+
+        {/* Resource usage */}
+        <section className="mb-10" aria-labelledby="runner-usage-heading">
+          <div className="flex items-baseline justify-between mb-4">
+            <h3 id="runner-usage-heading" className="text-sm font-semibold text-on-surface">
+              Resource usage
+            </h3>
+            <p className="text-xs text-on-surface-variant">
+              Host usage is sampled every 30s · jobs over the last {USAGE_WINDOW_HOURS}h · refreshes automatically
+            </p>
+          </div>
+          <AutoRefresh intervalMs={30_000} />
+          {runnerList.length === 0 ? (
+            <p className="text-sm text-on-surface-variant">No runners registered yet.</p>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {runnerList.map((r, i) => {
+                const fresh = isMetricsFresh(r.metrics_at, now);
+                return (
+                  <RunnerUsageCard
+                    key={r.id}
+                    name={r.name}
+                    status={displayStatuses[i]}
+                    metrics={fresh ? (r.metrics as RunnerMetrics | null) : null}
+                    metricsAt={r.metrics_at}
+                    history={fresh ? historyByRunner.get(r.id) ?? [] : []}
+                    jobs={jobsByRunner.get(r.id) ?? null}
+                  />
+                );
+              })}
+            </div>
+          )}
+        </section>
 
         {/* Runners Table */}
         <RunnersTable runners={runnerList} currentRole={role} />

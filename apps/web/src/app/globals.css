@@ -184,6 +184,15 @@ table {
 }
 
 @layer base {
+  /* Disabled controls (incl. everything inside a role-gated <fieldset disabled>)
+     read as unavailable, not just unresponsive */
+  :is(button, input, select, textarea):disabled {
+    cursor: not-allowed;
+  }
+  fieldset:disabled :is(button, input, select, textarea) {
+    opacity: 0.5;
+  }
+
   .material-symbols-outlined {
     font-family: "Material Symbols Outlined";
     font-weight: normal;

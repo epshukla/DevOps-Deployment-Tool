@@ -89,16 +89,24 @@ export async function createPipelineDefinition(
 }
 
 /**
- * Trigger a pipeline run for a given pipeline definition.
+ * Trigger a pipeline run for a given pipeline definition. With a
+ * `targetRunnerId` only that runner may pick the run up; otherwise any online
+ * runner in the org can.
  */
 export async function triggerPipelineRun(
   projectId: string,
   definitionId: string,
+  targetRunnerId: string | null = null,
 ): Promise<{ error?: string; run_id?: string }> {
   const { supabase, user, role } = await requireUserWithOrg();
 
   if (!hasMinRole(role, "developer")) {
     return { error: "You don't have permission to trigger pipelines" };
+  }
+
+  if (targetRunnerId) {
+    const check = await checkRunnerInProjectOrg(supabase, projectId, targetRunnerId);
+    if (check.error) return { error: check.error };
   }
 
   // Get the current version of the pipeline definition
@@ -130,6 +138,7 @@ export async function triggerPipelineRun(
       trigger_type: "manual",
       git_branch: project?.default_branch ?? "main",
       created_by: user.id,
+      target_runner_id: targetRunnerId,
     })
     .select("id")
     .single();
@@ -326,4 +335,20 @@ export async function restorePipelineVersion(
   revalidatePath(`/projects/${projectId}`);
 
   return { success: true };
+}
+
+/** The chosen runner must be registered in the same org as the project. */
+async function checkRunnerInProjectOrg(
+  supabase: Awaited<ReturnType<typeof requireUserWithOrg>>["supabase"],
+  projectId: string,
+  runnerId: string,
+): Promise<{ error?: string }> {
+  const [{ data: project }, { data: runner }] = await Promise.all([
+    supabase.from("projects").select("org_id").eq("id", projectId).maybeSingle(),
+    supabase.from("runner_registrations").select("org_id").eq("id", runnerId).maybeSingle(),
+  ]);
+  if (!project || !runner || runner.org_id !== project.org_id) {
+    return { error: "That runner isn't available for this project" };
+  }
+  return {};
 }

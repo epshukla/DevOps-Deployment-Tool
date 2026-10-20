@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useActionState, useState, useEffect } from "react";
 
 import { TopBar } from "@/components/layout/top-bar";
+import { usePermissions } from "@/components/layout/user-context";
+import { ReadOnlyBanner } from "@/components/ui/read-only-banner";
 import { GitHubRepoPicker } from "@/components/projects/github-repo-picker";
 import { GitHubConnectPrompt } from "@/components/projects/github-connect-prompt";
 import { createProject, type ActionState } from "../actions";
@@ -19,6 +21,7 @@ interface GitHubStatus {
 const initialState: ActionState = {};
 
 export default function NewProjectPage() {
+  const { canEdit } = usePermissions();
   const [state, formAction, pending] = useActionState(createProject, initialState);
   const [tab, setTab] = useState<SourceTab>("github");
   const [ghStatus, setGhStatus] = useState<GitHubStatus | null>(null);
@@ -54,6 +57,18 @@ export default function NewProjectPage() {
     setProjectName("");
   }
 
+
+  if (!canEdit) {
+    return (
+      <>
+        <TopBar breadcrumbs={[{ label: "Projects", href: "/projects" }, { label: "New Project" }]} />
+        <section className="p-8 max-w-xl mx-auto space-y-4">
+          <ReadOnlyBanner>You have the viewer role — you can&apos;t create projects in this organization.</ReadOnlyBanner>
+          <Link href="/projects" className="text-sm text-primary hover:underline">Back to projects</Link>
+        </section>
+      </>
+    );
+  }
   return (
     <>
       <TopBar

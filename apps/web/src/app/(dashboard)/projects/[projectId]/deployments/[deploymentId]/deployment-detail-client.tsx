@@ -1,6 +1,7 @@
 "use client";
 
 import { PublicUrlLink } from "@/components/deployment/public-url-link";
+import { usePermissions } from "@/components/layout/user-context";
 import { useState, useTransition } from "react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useRouter } from "next/navigation";
@@ -211,9 +212,10 @@ export function DeploymentDetailClient({
   // Mirrors rollbackDeployment's own status check so the button isn't shown
   // only to fail server-side (e.g. while still "pending" or "deploying").
   const canRollback =
-    canManageDeployment &&
     ["active", "draining"].includes(deployment.status) &&
     previousRevisions.length > 0;
+  // Viewers see the controls greyed out rather than not at all
+  const viewerReason = canManageDeployment ? undefined : "You have the viewer role — read-only access";
 
   const handleOpenRollback = () => {
     setRollbackError(null);
@@ -286,7 +288,9 @@ export function DeploymentDetailClient({
               {canRollback && (
                 <button
                   onClick={handleOpenRollback}
-                  className="flex items-center gap-2 px-4 py-2 border border-outline-variant/30 text-on-surface hover:bg-surface-container-high transition-colors font-medium text-sm rounded-md"
+                  disabled={!canManageDeployment}
+                  title={viewerReason}
+                  className="flex items-center gap-2 px-4 py-2 border border-outline-variant/30 text-on-surface hover:bg-surface-container-high transition-colors font-medium text-sm rounded-md disabled:opacity-50"
                 >
                   <span aria-hidden="true" className="material-symbols-outlined text-sm">undo</span>
                   Rollback
@@ -295,7 +299,8 @@ export function DeploymentDetailClient({
               {!isTerminal && (
                 <button
                   onClick={handleStop}
-                  disabled={isPending}
+                  disabled={isPending || !canManageDeployment}
+                  title={viewerReason}
                   className="flex items-center gap-2 px-4 py-2 border border-error/30 text-error hover:bg-error/10 transition-colors font-medium text-sm rounded-md disabled:opacity-50"
                 >
                   <span aria-hidden="true" className="material-symbols-outlined text-sm">stop_circle</span>
@@ -576,6 +581,7 @@ function ApprovalCard({
   readonly approval: ApprovalData;
   readonly votes: readonly ApprovalVoteData[];
 }) {
+  const { canEdit, readOnlyReason } = usePermissions();
   const [voteError, setVoteError] = useState<string | null>(null);
   const [isVoting, startVoteTransition] = useTransition();
   const router = useRouter();
@@ -642,9 +648,9 @@ function ApprovalCard({
         <p className="text-xs text-error mb-3">{voteError}</p>
       )}
 
-      {/* Vote buttons */}
+      {/* Vote buttons (viewers can see the request but not vote) */}
       {isPending && (
-        <div className="flex items-center gap-3">
+        <fieldset disabled={!canEdit} title={readOnlyReason} className="flex items-center gap-3">
           <button
             onClick={() => handleVote("approve")}
             disabled={isVoting}
@@ -661,7 +667,7 @@ function ApprovalCard({
             <span aria-hidden="true" className="material-symbols-outlined text-sm">close</span>
             Reject
           </button>
-        </div>
+        </fieldset>
       )}
     </div>
   );

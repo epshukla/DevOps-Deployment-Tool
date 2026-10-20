@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { CreateProjectSchema } from "@deployx/shared";
+import { CreateProjectSchema, hasMinRole } from "@deployx/shared";
 import { requireUserWithOrg } from "@/lib/auth/session";
 import { recordAuditEvent } from "@/lib/audit";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -16,7 +16,11 @@ export async function createProject(
   _prevState: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  const { supabase, user, org } = await requireUserWithOrg();
+  const { supabase, user, org, role } = await requireUserWithOrg();
+
+  if (!hasMinRole(role, "developer")) {
+    return { error: "You have the viewer role — you can't create projects" };
+  }
 
   // Parse and validate form data with Zod
   const raw = {
@@ -94,12 +98,25 @@ export async function createProject(
 }
 
 export async function deleteProject(projectId: string): Promise<ActionState> {
-  const { supabase, user, org } = await requireUserWithOrg();
+  const { supabase, user, org, role } = await requireUserWithOrg();
 
-  const { error } = await supabase.from("projects").delete().eq("id", projectId);
+  if (!hasMinRole(role, "admin")) {
+    return { error: "Only admins can delete projects" };
+  }
+
+  // RLS turns a forbidden delete into "0 rows", not an error, so check it
+  const { data: deleted, error } = await supabase
+    .from("projects")
+    .delete()
+    .eq("id", projectId)
+    .eq("org_id", org.id)
+    .select("id");
 
   if (error) {
     return { error: error.message };
+  }
+  if (!deleted || deleted.length === 0) {
+    return { error: "Project not found or you don't have permission to delete it" };
   }
 
   recordAuditEvent(supabase, {
