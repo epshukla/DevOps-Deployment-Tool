@@ -220,7 +220,19 @@ tasks:
       health_check:
         path: /health
       public_url: true              # default; false = no temporary public URL
+      resources:                    # docker_local: cgroup limits per app container
+        cpus: 0.5                   #   CPU cores (fractions allowed)
+        memory_mb: 512              #   hard memory cap, no extra swap
+        pids: 256                   #   max processes
+      volumes:                      # docker_local: named volumes, kept across deploys
+        - name: data                #   → Docker volume deployx-<slug>-vol-data
+          path: /var/www/html       #   mount path inside the container
 ```
+
+**Volumes and limits.** A named volume outlives redeploys, blue/green switches,
+self-healing restarts and `stop`. Every instance of the project shares it, so
+use it for state an app keeps on disk. Host paths can't be mounted. Remove a
+volume by hand with `docker volume rm deployx-<slug>-vol-<name>`.
 
 **Variables:** `${{ git.sha }}`, `${{ git.short_sha }}`, `${{ git.branch }}`,
 `${{ project.name }}`, `${{ project.slug }}`, `${{ env.NAME }}` (project secrets
@@ -341,6 +353,7 @@ feature was built; the code and this README win where they disagree):
 | [21](docs/context/21-deployment-bugfixes.md) | Deployment bug fixes |
 | [22](docs/context/22-multi-runner-profiles.md) | Multiple runners on one machine |
 | [23](docs/context/23-project-documents.md) | Project documents: object storage, `/files/` on the public URL |
+| [24](docs/context/24-volumes-and-limits.md) | Persistent volumes and CPU/memory limits |
 
 ## License
 

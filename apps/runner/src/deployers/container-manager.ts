@@ -28,6 +28,10 @@ export interface RunContainerOptions {
   /** Arguments passed to the image's entrypoint (after the image name). */
   readonly command?: readonly string[];
   readonly volumes?: readonly VolumeMount[];
+  /** cgroup limits: CPU share (cores), memory cap (MiB, no extra swap), process cap */
+  readonly cpus?: number;
+  readonly memoryMb?: number;
+  readonly pidsLimit?: number;
 }
 
 export interface ExecResult {
@@ -109,6 +113,12 @@ export async function runContainer(
       args.push("-v", `${v.source}:${v.target}${v.readOnly ? ":ro" : ""}`);
     }
   }
+
+  if (options.cpus != null) args.push("--cpus", String(options.cpus));
+  if (options.memoryMb != null) {
+    args.push("--memory", `${options.memoryMb}m`, "--memory-swap", `${options.memoryMb}m`);
+  }
+  if (options.pidsLimit != null) args.push("--pids-limit", String(options.pidsLimit));
 
   args.push(options.image);
 
