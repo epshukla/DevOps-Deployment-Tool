@@ -323,7 +323,6 @@ More in the [getting-started guide](docs/context/19-getting-started.md#troublesh
 ## Documentation
 
 - **[Setup for the new features](docs/SETUP.md)**: migrations, MFA, edge function, runner, Terraform, DR
-- **[Course mapping](docs/course-mapping.md)**: each Cloud Computing unit and lab mapped to the code
 - **[Getting started guide](docs/context/19-getting-started.md)** — from first sign-in to a running deployment
 - [`apps/runner/README.md`](apps/runner/README.md) — runner CLI, config, how jobs execute
 - [`apps/web/README.md`](apps/web/README.md) — control plane structure and APIs
