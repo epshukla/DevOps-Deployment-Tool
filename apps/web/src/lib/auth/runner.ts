@@ -148,6 +148,39 @@ export async function authorizeRunnerForRun(
 }
 
 /**
+ * Load a deployment's project on behalf of a runner, without a run: used by
+ * long-lived background work (document sync) on deployments the runner hosts.
+ * A deployment in another org is reported as 404.
+ */
+export async function authorizeRunnerForDeploymentProject(
+  supabase: SupabaseClient,
+  runner: Pick<RunnerRegistration, "id" | "org_id">,
+  deploymentId: string,
+): Promise<
+  AuthorizeResult<{ readonly projectId: string; readonly orgId: string; readonly projectSlug: string }>
+> {
+  const { data: deployment } = await supabase
+    .from("deployments")
+    .select("id, project_id, projects!inner(org_id, slug)")
+    .eq("id", deploymentId)
+    .maybeSingle();
+
+  const project = deployment?.projects as unknown as { org_id: string; slug: string } | null;
+  if (!deployment || !project || project.org_id !== runner.org_id) {
+    return notFound("Deployment");
+  }
+
+  return {
+    ok: true,
+    value: {
+      projectId: deployment.project_id as string,
+      orgId: project.org_id,
+      projectSlug: project.slug,
+    },
+  };
+}
+
+/**
  * Load a deployment on behalf of a runner: the run must be in the runner's
  * org and the deployment must belong to the same project as the run.
  * Org-level (not claim-level) because the health monitor keeps reporting on

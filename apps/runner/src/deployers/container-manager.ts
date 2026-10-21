@@ -5,6 +5,15 @@ import { execa } from "execa";
 export interface PortMapping {
   readonly host: number;
   readonly container: number;
+  /** Bind on this host address only (e.g. 127.0.0.1); default all interfaces */
+  readonly hostIp?: string;
+}
+
+export interface VolumeMount {
+  /** Named Docker volume (created on first use) or absolute host path */
+  readonly source: string;
+  readonly target: string;
+  readonly readOnly?: boolean;
 }
 
 export interface RunContainerOptions {
@@ -18,6 +27,13 @@ export interface RunContainerOptions {
   readonly restart?: "no" | "always" | "unless-stopped";
   /** Arguments passed to the image's entrypoint (after the image name). */
   readonly command?: readonly string[];
+  readonly volumes?: readonly VolumeMount[];
+}
+
+export interface ExecResult {
+  readonly exitCode: number;
+  readonly stdout: string;
+  readonly stderr: string;
 }
 
 export interface ContainerInspection {
@@ -72,7 +88,7 @@ export async function runContainer(
 
   if (options.ports) {
     for (const pm of options.ports) {
-      args.push("-p", `${pm.host}:${pm.container}`);
+      args.push("-p", `${pm.hostIp ? `${pm.hostIp}:` : ""}${pm.host}:${pm.container}`);
     }
   }
 
@@ -85,6 +101,12 @@ export async function runContainer(
   if (options.labels) {
     for (const [key, value] of Object.entries(options.labels)) {
       args.push("--label", `${key}=${value}`);
+    }
+  }
+
+  if (options.volumes) {
+    for (const v of options.volumes) {
+      args.push("-v", `${v.source}:${v.target}${v.readOnly ? ":ro" : ""}`);
     }
   }
 
@@ -133,6 +155,56 @@ export async function restartContainer(
 
   if (result.exitCode !== 0) {
     throw new Error(`Failed to restart container ${name}: ${result.stderr}`);
+  }
+}
+
+/**
+ * Run a throwaway container to completion (`docker run --rm`), e.g. to
+ * prepare volumes. Throws on a non-zero exit.
+ */
+export async function runOnce(options: {
+  readonly image: string;
+  readonly entrypoint: string;
+  readonly command: readonly string[];
+  readonly user?: string;
+  readonly volumes?: readonly VolumeMount[];
+}): Promise<void> {
+  const args = ["run", "--rm", "--entrypoint", options.entrypoint];
+  if (options.user) args.push("--user", options.user);
+  for (const v of options.volumes ?? []) {
+    args.push("-v", `${v.source}:${v.target}${v.readOnly ? ":ro" : ""}`);
+  }
+  args.push(options.image, ...options.command);
+  const result = await execa("docker", args, { reject: false });
+  if (result.exitCode !== 0) {
+    throw new Error(`docker run ${options.image} failed: ${result.stderr}`);
+  }
+}
+
+/** Run a command inside a running container. Never throws on a non-zero exit. */
+export async function execInContainer(
+  name: string,
+  command: readonly string[],
+): Promise<ExecResult> {
+  const result = await execa("docker", ["exec", name, ...command], { reject: false });
+  return {
+    exitCode: result.exitCode ?? 1,
+    stdout: String(result.stdout ?? ""),
+    stderr: String(result.stderr ?? ""),
+  };
+}
+
+/** Copy a host file into a container (`docker cp`). */
+export async function copyToContainer(
+  name: string,
+  hostPath: string,
+  containerPath: string,
+): Promise<void> {
+  const result = await execa("docker", ["cp", hostPath, `${name}:${containerPath}`], {
+    reject: false,
+  });
+  if (result.exitCode !== 0) {
+    throw new Error(`Failed to copy ${hostPath} into ${name}: ${result.stderr}`);
   }
 }
 

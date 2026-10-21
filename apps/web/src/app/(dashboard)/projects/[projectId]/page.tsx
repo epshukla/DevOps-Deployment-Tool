@@ -143,10 +143,32 @@ export default async function ProjectDetailPage({ params }: PageProps) {
 
   const runners = await loadRunnerOptions(supabase, project.org_id);
 
+  // ── Documents (all finalized versions) + the live public URL ──
+  const { data: documents } = await supabase
+    .from("project_documents")
+    .select("id, path, version, is_current, content_type, size_bytes, sha256, visibility, expires_at, created_at")
+    .eq("project_id", projectId)
+    .eq("status", "ready")
+    .order("path", { ascending: true })
+    .order("version", { ascending: false })
+    .limit(500);
+
+  const { data: liveDeployment } = await supabase
+    .from("deployments")
+    .select("public_url")
+    .eq("project_id", projectId)
+    .eq("status", "active")
+    .not("public_url", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   return (
     <ProjectDetailClient
       project={project}
       runners={runners}
+      documents={documents ?? []}
+      publicUrl={(liveDeployment?.public_url as string | null | undefined) ?? null}
       pipelineDefinitions={definitions ?? []}
       pipelineRuns={pipelineRuns ?? []}
       deployments={deployments ?? []}

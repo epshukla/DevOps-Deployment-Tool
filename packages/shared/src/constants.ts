@@ -187,3 +187,36 @@ export const ARTIFACT_ALLOWED_EXTENSIONS = [
 ] as const;
 /** Upper bound on files a single task uploads (globs can match a lot) */
 export const ARTIFACT_MAX_FILES_PER_TASK = 50;
+
+// ── Project Document Constants ─────────────────────────────────
+/** Supabase Storage bucket holding the original uploads (source of truth). */
+export const DOCUMENTS_BUCKET = "project-documents";
+export const DOCUMENT_MAX_SIZE_BYTES = 25 * 1024 * 1024;
+/** Versions kept per path; older ones are pruned when a new one is uploaded. */
+export const DOCUMENT_MAX_VERSIONS = 5;
+export const DOCUMENT_MAX_EXPIRY_DAYS = 365;
+/** Uploads never finalized after this long are removed by the platform tick. */
+export const DOCUMENT_PENDING_TTL_HOURS = 24;
+/** Public documents are served under this prefix on a deployment's URL. */
+export const DOCUMENTS_URL_PREFIX = "/files/";
+/** How often a runner mirrors public documents into its object store. */
+export const DOCUMENT_SYNC_INTERVAL_MS = 60_000;
+/** Lifetime of the signed URLs the runner downloads documents with. */
+export const DOCUMENT_MANIFEST_URL_TTL_SECONDS = 600;
+
+// ── Runner Object Store Constants ──────────────────────────────
+/**
+ * S3-compatible, open-source object store each runner runs for documents
+ * (RustFS: Apache-2.0, MinIO-compatible, erasure coding across drives).
+ * Any S3-compatible server works; override with DEPLOYX_OBJECT_STORE_IMAGE.
+ */
+export const OBJECT_STORE_IMAGE = "rustfs/rustfs:1.0.3";
+export const OBJECT_STORE_CONTAINER_NAME = "deployx-objectstore";
+/** S3 API port inside the deployx network (what nginx proxies use) */
+export const OBJECT_STORE_PORT = 9000;
+/** The runner reaches the S3 API here; bound to 127.0.0.1 only */
+export const OBJECT_STORE_HOST_PORT = 19000;
+/** The store erasure-codes across this many drives (survives losing some). */
+export const OBJECT_STORE_DRIVES = 4;
+/** Noncurrent object versions in the runner's store expire after this. */
+export const OBJECT_STORE_NONCURRENT_EXPIRY_DAYS = 7;
