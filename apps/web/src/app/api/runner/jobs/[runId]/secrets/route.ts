@@ -29,7 +29,7 @@ export async function GET(request: Request, { params }: RouteParams) {
   // Fetch all secrets for the project
   const { data: secrets, error } = await supabase
     .from("project_secrets")
-    .select("key, encrypted_value")
+    .select("key, encrypted_value, is_secret")
     .eq("project_id", run.project_id);
 
   if (error) {
@@ -43,7 +43,7 @@ export async function GET(request: Request, { params }: RouteParams) {
   if (!encryptionKey) {
     // No encryption key — return empty secrets rather than failing the run
     console.warn("DEPLOYX_SECRET_KEY not set — returning empty secrets");
-    return NextResponse.json({ secrets: {} });
+    return NextResponse.json({ secrets: {}, masked_keys: [] });
   }
 
   // Decrypt all secrets
@@ -60,5 +60,10 @@ export async function GET(request: Request, { params }: RouteParams) {
     }
   }
 
-  return NextResponse.json({ secrets: decryptedSecrets });
+  // Values of secrets (not plain variables) are masked in run logs by the runner
+  const maskedKeys = (secrets ?? [])
+    .filter((s) => s.is_secret !== false && s.key in decryptedSecrets)
+    .map((s) => s.key);
+
+  return NextResponse.json({ secrets: decryptedSecrets, masked_keys: maskedKeys });
 }

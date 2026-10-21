@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import type { OrgRole } from "@deployx/shared";
+import { mfaDecision } from "./mfa";
 
 /** Cookie holding the org the user is currently viewing (multi-org users). */
 export const ACTIVE_ORG_COOKIE = "deployx_active_org";
@@ -11,6 +12,8 @@ export interface MembershipOrg {
   readonly name: string;
   readonly slug: string;
   readonly role: string;
+  /** Owners/Admins must use MFA (organizations.require_mfa) */
+  readonly require_mfa: boolean;
 }
 
 /**
@@ -22,7 +25,7 @@ export async function listUserOrgs(
 ): Promise<readonly MembershipOrg[]> {
   const { data } = await supabase
     .from("org_memberships")
-    .select("org_id, role, created_at, organizations(id, name, slug)")
+    .select("org_id, role, created_at, organizations(id, name, slug, require_mfa)")
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
 
@@ -32,8 +35,9 @@ export async function listUserOrgs(
         id: string;
         name: string;
         slug: string;
+        require_mfa?: boolean | null;
       } | null;
-      return org ? { ...org, role: m.role as string } : null;
+      return org ? { ...org, require_mfa: org.require_mfa === true, role: m.role as string } : null;
     })
     .filter((o): o is MembershipOrg => o !== null);
 }
@@ -70,6 +74,20 @@ export async function requireUser() {
 }
 
 /**
+ * Send the user to /mfa when their session needs a second factor: always
+ * once they've enrolled one, and for Owners/Admins of an org requiring MFA.
+ */
+async function enforceMfa(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orgRequiresMfa: boolean,
+  role: string,
+): Promise<void> {
+  const { data } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  const decision = mfaDecision(data ?? null, { orgRequiresMfa, role });
+  if (decision !== "ok") redirect(`/mfa?reason=${decision}`);
+}
+
+/**
  * Get the user's organization (auto-creates a personal org on first login).
  * Every user must belong to at least one org to use the platform.
  */
@@ -81,6 +99,7 @@ export async function requireUserWithOrg() {
 
   if (active) {
     const { role, ...org } = active;
+    await enforceMfa(supabase, org.require_mfa, role);
     return { supabase, user, org, role: role as OrgRole };
   }
 
@@ -110,7 +129,7 @@ export async function requireUserWithOrg() {
     throw new Error(`Failed to create organization: ${orgError?.message}`);
   }
 
-  const org = newOrg as unknown as { id: string; name: string; slug: string };
+  const org = { ...(newOrg as unknown as { id: string; name: string; slug: string }), require_mfa: false };
 
   return {
     supabase,

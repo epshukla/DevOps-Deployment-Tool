@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { NotificationType } from "@deployx/shared";
+import { fanOutToWebhook } from "./notify-webhook";
 
 /**
  * Notification producers. All writes go through the service-role client
@@ -65,6 +66,14 @@ export async function createNotification(
       `[notifications] Failed to create ${notification.type} notification for org ${notification.org_id}: ${error.message}`,
     );
   }
+
+  const href = notification.metadata?.href;
+  await fanOutToWebhook(supabase, notification.org_id, {
+    type: notification.type,
+    title: notification.title,
+    body: notification.body,
+    href: typeof href === "string" ? href : undefined,
+  });
 }
 
 interface RunContext {

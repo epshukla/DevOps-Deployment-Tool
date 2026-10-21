@@ -99,10 +99,47 @@ export const VolumeConfigSchema = z.object({
 
 export type VolumeConfig = z.infer<typeof VolumeConfigSchema>;
 
+// ── Image security scan (Trivy) ─────────────────────────────────
+
+export const SecurityScanConfigSchema = z.object({
+  enabled: z.boolean().default(true),
+  severity: z
+    .array(z.enum(["UNKNOWN", "LOW", "MEDIUM", "HIGH", "CRITICAL"]))
+    .min(1)
+    .default(["HIGH", "CRITICAL"]),
+  /** Block the deployment when any finding at these severities exists */
+  fail_on_findings: z.boolean().default(true),
+});
+
+export type SecurityScanConfig = z.infer<typeof SecurityScanConfigSchema>;
+
+// ── Rate limiting (nginx limit_req, control layer QoS) ─────────
+
+export const RateLimitConfigSchema = z.object({
+  /** Sustained requests per second allowed per client IP */
+  requests_per_second: z.number().int().min(1).max(10_000),
+  /** Extra requests allowed in a burst before 429s */
+  burst: z.number().int().min(0).max(10_000).default(20),
+});
+
+export type RateLimitConfig = z.infer<typeof RateLimitConfigSchema>;
+
 // ── Deploy Config (task-level in deployx.yaml) ─────────────────
 
+const DeployTargetEnum = z.enum(["docker_local", "railway", "fly_io"]);
+
+/**
+ * Cloud service brokerage: with `driver: auto` the runner picks the first
+ * target in `prefer` it can actually use (Docker present, credentials set).
+ */
+export const BrokerConfigSchema = z.object({
+  prefer: z.array(DeployTargetEnum).min(1).max(3).default(["docker_local", "railway", "fly_io"]),
+});
+
+export type BrokerConfig = z.infer<typeof BrokerConfigSchema>;
+
 export const DeployConfigSchema = z.object({
-  driver: z.enum(["docker_local", "railway", "fly_io"]),
+  driver: z.enum(["docker_local", "railway", "fly_io", "auto"]),
   strategy: z
     .enum(["blue_green", "canary", "rolling"])
     .default("blue_green"),
@@ -129,7 +166,47 @@ export const DeployConfigSchema = z.object({
     .refine((vs) => new Set(vs.map((v) => v.name)).size === vs.length, "Volume names must be unique")
     .refine((vs) => new Set(vs.map((v) => v.path)).size === vs.length, "Mount paths must be unique")
     .optional(),
+  /** docker_local only: scan the image with Trivy before deploying */
+  security_scan: SecurityScanConfigSchema.optional(),
+  /** docker_local only: per-client-IP request rate limit at the project proxy */
+  rate_limit: RateLimitConfigSchema.optional(),
+  /** driver: auto only: target preference order */
+  broker: BrokerConfigSchema.optional(),
 });
+
+export type ConcreteDeployTarget = z.infer<typeof DeployTargetEnum>;
+
+export interface BrokerDecision {
+  readonly target: ConcreteDeployTarget | null;
+  /** Why each skipped target was skipped, for the run log */
+  readonly reasons: readonly string[];
+}
+
+/** Which deploy targets this runner can use right now. */
+export function chooseDeployTarget(
+  prefer: readonly ConcreteDeployTarget[],
+  capabilities: {
+    readonly dockerAvailable: boolean;
+    readonly secrets: Readonly<Record<string, string | undefined>>;
+  },
+): BrokerDecision {
+  const reasons: string[] = [];
+  for (const target of prefer) {
+    if (target === "docker_local") {
+      if (capabilities.dockerAvailable) return { target, reasons };
+      reasons.push("docker_local: Docker not available on this runner");
+    } else if (target === "railway") {
+      if (capabilities.secrets.RAILWAY_PROJECT_TOKEN || capabilities.secrets.RAILWAY_API_TOKEN) {
+        return { target, reasons };
+      }
+      reasons.push("railway: no RAILWAY_PROJECT_TOKEN / RAILWAY_API_TOKEN secret");
+    } else if (target === "fly_io") {
+      if (capabilities.secrets.FLY_API_TOKEN) return { target, reasons };
+      reasons.push("fly_io: no FLY_API_TOKEN secret");
+    }
+  }
+  return { target: null, reasons };
+}
 
 export type DeployConfig = z.infer<typeof DeployConfigSchema>;
 

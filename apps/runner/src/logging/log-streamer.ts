@@ -4,6 +4,17 @@ import {
   LOG_BATCH_MAX_LINES,
 } from "@deployx/shared";
 
+const MIN_MASK_LENGTH = 4;
+
+/** Replace every occurrence of each secret with ***. */
+export function maskSecrets(message: string, secrets: readonly string[]): string {
+  let out = message;
+  for (const secret of secrets) {
+    if (out.includes(secret)) out = out.split(secret).join("***");
+  }
+  return out;
+}
+
 export interface LogStreamerOptions {
   readonly client: RunnerApiClient;
   readonly runId: string;
@@ -26,6 +37,7 @@ export class LogStreamer {
   private readonly runId: string;
   private readonly maxBatchSize: number;
   private buffer: LogEntry[] = [];
+  private masked: readonly string[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
   private isFlushing = false;
 
@@ -41,11 +53,26 @@ export class LogStreamer {
   }
 
   /**
+   * Secret values to replace with *** in every later log line (like CI
+   * secret masking). Values shorter than MIN_MASK_LENGTH are ignored, since
+   * masking "1" or "on" would shred unrelated output.
+   */
+  addMaskedValues(values: readonly (string | undefined)[]): void {
+    const next = new Set(this.masked);
+    for (const v of values) {
+      if (v && v.length >= MIN_MASK_LENGTH) next.add(v);
+    }
+    // Longest first so a secret containing another is masked whole
+    this.masked = [...next].sort((a, b) => b.length - a.length);
+  }
+
+  /**
    * Push a log entry into the buffer. Auto-flushes if batch is full.
    */
   push(entry: Omit<LogEntry, "timestamp"> & { timestamp?: string }): void {
     const fullEntry: LogEntry = {
       ...entry,
+      message: maskSecrets(entry.message, this.masked),
       timestamp: entry.timestamp ?? new Date().toISOString(),
     };
     this.buffer.push(fullEntry);
