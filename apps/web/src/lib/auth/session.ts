@@ -23,11 +23,17 @@ export async function listUserOrgs(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
 ): Promise<readonly MembershipOrg[]> {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("org_memberships")
     .select("org_id, role, created_at, organizations(id, name, slug, require_mfa)")
     .eq("user_id", userId)
     .order("created_at", { ascending: true });
+
+  // Fail loudly: treating a failed lookup as "no orgs" would send every
+  // returning user down the first-login path and create a duplicate org
+  if (error) {
+    throw new Error(`Could not load your organizations: ${error.message}`);
+  }
 
   return (data ?? [])
     .map((m) => {
