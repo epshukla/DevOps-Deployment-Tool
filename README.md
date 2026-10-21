@@ -29,6 +29,9 @@ rolling) with self-healing, and a real-time dashboard.
 - **Secrets** — AES-256-GCM encrypted project secrets, injected only at run time
 - **Alerts & notifications** — threshold alerts (success rate, duration, health), in-app realtime notifications, audit log
 - **Pipeline versioning** — edit, browse history, restore any version, re-run any run
+- **Security** — TOTP MFA (optionally required for Owners/Admins), Trivy image scanning before deploy, secret values masked in run logs
+- **Control** — per-client rate limiting at the proxy, CPU/memory limits, persistent volumes, `driver: auto` cloud broker
+- **Integrations** — notification webhooks (Slack/Discord), document-verification Edge Function, Terraform for the control plane, backup/restore scripts, a Go endpoint prober (`tools/probe`)
 
 ## How it works
 
@@ -319,6 +322,8 @@ More in the [getting-started guide](docs/context/19-getting-started.md#troublesh
 
 ## Documentation
 
+- **[Setup for the new features](docs/SETUP.md)**: migrations, MFA, edge function, runner, Terraform, DR
+- **[Course mapping](docs/course-mapping.md)**: each Cloud Computing unit and lab mapped to the code
 - **[Getting started guide](docs/context/19-getting-started.md)** — from first sign-in to a running deployment
 - [`apps/runner/README.md`](apps/runner/README.md) — runner CLI, config, how jobs execute
 - [`apps/web/README.md`](apps/web/README.md) — control plane structure and APIs

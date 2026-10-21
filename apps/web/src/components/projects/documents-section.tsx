@@ -32,6 +32,8 @@ export interface DocumentData {
   readonly visibility: string;
   readonly expires_at: string | null;
   readonly created_at: string;
+  /** Set by the verify-document edge function after re-hashing the upload */
+  readonly verification?: string | null;
 }
 
 interface DocumentsSectionProps {
@@ -174,6 +176,16 @@ export function DocumentsSection({ projectId, documents, publicUrl }: DocumentsS
                     >
                       {current.visibility}
                     </span>
+                    {current.verification && (
+                      <span
+                        title={current.verification === "ok" ? "Checksum verified server-side" : `Verification: ${current.verification}`}
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          current.verification === "ok" ? "bg-tertiary/10 text-tertiary" : "bg-error/10 text-error"
+                        }`}
+                      >
+                        {current.verification === "ok" ? "verified" : current.verification}
+                      </span>
+                    )}
                     <IconButton icon="download" label="Download" onClick={() => download(current.id)} disabled={isPending} />
                     {link && (
                       <IconButton
