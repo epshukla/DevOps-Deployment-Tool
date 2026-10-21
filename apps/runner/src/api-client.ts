@@ -235,12 +235,13 @@ export class RunnerApiClient {
 
   async getSecrets(
     runId: string,
-  ): Promise<Record<string, string>> {
-    const data = await this.request<{ secrets: Record<string, string> }>(
+  ): Promise<{ readonly secrets: Record<string, string>; readonly maskedKeys: readonly string[] }> {
+    const data = await this.request<{ secrets: Record<string, string>; masked_keys?: string[] }>(
       "GET",
       `/api/runner/jobs/${runId}/secrets`,
     );
-    return data.secrets;
+    // Older control planes don't send masked_keys: mask every value then
+    return { secrets: data.secrets, maskedKeys: data.masked_keys ?? Object.keys(data.secrets) };
   }
 
   async getRunStatus(runId: string): Promise<{ status: string }> {

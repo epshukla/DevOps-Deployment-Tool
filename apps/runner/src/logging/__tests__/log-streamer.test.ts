@@ -145,3 +145,22 @@ describe("LogStreamer", () => {
     expect(client.sendLogs).not.toHaveBeenCalled();
   });
 });
+
+describe("secret masking", () => {
+  it("masks registered secret values, longest first, ignoring very short ones", async () => {
+    const { maskSecrets } = await import("../log-streamer");
+    expect(maskSecrets("token=abcd1234 and abcd", ["abcd1234", "abcd"])).toBe("token=*** and ***");
+    expect(maskSecrets("nothing here", ["secret"])).toBe("nothing here");
+  });
+
+  it("masks lines pushed after addMaskedValues", async () => {
+    const { LogStreamer } = await import("../log-streamer");
+    const sendLogs = vi.fn().mockResolvedValue(undefined);
+    const streamer = new LogStreamer({ client: { sendLogs } as never, runId: "r", flushIntervalMs: 60_000 });
+    streamer.addMaskedValues(["s3cr3t-value", "on", undefined]);
+    streamer.push({ level: "info", message: "echo s3cr3t-value; flag on" });
+    await streamer.flush();
+    expect(sendLogs.mock.calls[0][1][0].message).toBe("echo ***; flag on");
+    await streamer.shutdown?.();
+  });
+});

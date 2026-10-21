@@ -180,7 +180,8 @@ async function loadProjectSecrets(
   logStreamer: LogStreamer,
 ): Promise<Record<string, string>> {
   try {
-    const secrets = await client.getSecrets(runId);
+    const { secrets, maskedKeys } = await client.getSecrets(runId);
+    logStreamer.addMaskedValues(maskedKeys.map((key) => secrets[key]));
     logStreamer.push({
       level: "info",
       message: `Loaded ${Object.keys(secrets).length} project secret(s)`,
