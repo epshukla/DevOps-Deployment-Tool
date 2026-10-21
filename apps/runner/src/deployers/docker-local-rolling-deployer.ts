@@ -1,4 +1,5 @@
 import { removePublicTunnel } from "./public-tunnel";
+import { appRuntimeFromConfig, withRuntimeLabel } from "./app-runtime";
 import {
   DEPLOYER_NETWORK_NAME,
   ROLLING_DEFAULT_INSTANCES,
@@ -287,6 +288,7 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
       image: ctx.imageTag,
       network: DEPLOYER_NETWORK_NAME,
       env: plan.deployEnv,
+      ...appRuntimeFromConfig(ctx.config, ctx.projectSlug),
       labels: withPreviousImageLabel(
         this.buildLabels(ctx, ordinal, plan.appPort, plan.healthPath),
         plan.previousImage,
@@ -368,6 +370,7 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
         image: ctx.imageTag,
         network: DEPLOYER_NETWORK_NAME,
         env: deployEnv,
+        ...appRuntimeFromConfig(ctx.config, ctx.projectSlug),
         labels: this.buildLabels(ctx, i, appPort, healthPath),
         detach: true,
         restart: "unless-stopped",
@@ -461,6 +464,7 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
         image: plan.previousImage,
         network: DEPLOYER_NETWORK_NAME,
         env: plan.deployEnv,
+        ...appRuntimeFromConfig(ctx.config, ctx.projectSlug),
         labels: withPreviousImageLabel(
           this.buildLabels(ctx, ordinal, plan.appPort, plan.healthPath),
           plan.outgoingPreviousImageLabel,
@@ -516,7 +520,7 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
     appPort: number,
     healthPath: string,
   ): Record<string, string> {
-    return {
+    return withRuntimeLabel({
       "deployx.project": ctx.projectSlug,
       "deployx.role": "app",
       "deployx.strategy": "rolling",
@@ -525,7 +529,7 @@ export class DockerLocalRollingDeployer implements DeployerDriver {
       "deployx.runId": ctx.job.run_id,
       "deployx.healthPath": healthPath,
       "deployx.appPort": String(appPort),
-    };
+    }, appRuntimeFromConfig(ctx.config, ctx.projectSlug));
   }
 
   private getInstanceContainerName(projectSlug: string, ordinal: number): string {

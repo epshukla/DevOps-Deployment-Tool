@@ -62,6 +62,43 @@ export const FlyConfigSchema = z.object({
 
 export type FlyConfig = z.infer<typeof FlyConfigSchema>;
 
+// ── Resources & Volumes (docker_local) ──────────────────────────
+
+/** Per-container limits (cgroups): CPU share, memory cap, process cap. */
+export const ResourceLimitsSchema = z.object({
+  /** CPUs the container may use, e.g. 0.5 = half a core */
+  cpus: z.number().min(0.05).max(64).optional(),
+  memory_mb: z.number().int().min(32).max(262_144).optional(),
+  pids: z.number().int().min(16).max(65_536).optional(),
+});
+
+export type ResourceLimits = z.infer<typeof ResourceLimitsSchema>;
+
+/**
+ * A persistent named volume (block storage for the app): it outlives
+ * redeploys, colour switches and restarts, and is shared by every instance
+ * of the project. Host paths are deliberately not allowed.
+ */
+export const VolumeConfigSchema = z.object({
+  name: z
+    .string()
+    .regex(/^[a-z0-9][a-z0-9-]{0,31}$/, "Volume name: lowercase letters, digits and hyphens (max 32)"),
+  path: z
+    .string()
+    .max(256)
+    .regex(/^\/[A-Za-z0-9._/-]*$/, "Mount path must be an absolute path")
+    .refine((p) => p !== "/" && !p.split("/").includes(".."), "Mount path must not be / or contain ..")
+    .refine(
+      (p) => !["/proc", "/sys", "/dev", "/etc", "/bin", "/sbin", "/usr", "/lib"].some(
+        (bad) => p === bad || p.startsWith(`${bad}/`),
+      ),
+      "Mount path must not be a system directory",
+    ),
+  read_only: z.boolean().default(false),
+});
+
+export type VolumeConfig = z.infer<typeof VolumeConfigSchema>;
+
 // ── Deploy Config (task-level in deployx.yaml) ─────────────────
 
 export const DeployConfigSchema = z.object({
@@ -83,6 +120,15 @@ export const DeployConfigSchema = z.object({
    * Defaults to on; set false to keep the app on localhost only.
    */
   public_url: z.boolean().default(true),
+  /** docker_local only: cgroup limits for each app container */
+  resources: ResourceLimitsSchema.optional(),
+  /** docker_local only: named volumes that persist across deploys */
+  volumes: z
+    .array(VolumeConfigSchema)
+    .max(5)
+    .refine((vs) => new Set(vs.map((v) => v.name)).size === vs.length, "Volume names must be unique")
+    .refine((vs) => new Set(vs.map((v) => v.path)).size === vs.length, "Mount paths must be unique")
+    .optional(),
 });
 
 export type DeployConfig = z.infer<typeof DeployConfigSchema>;

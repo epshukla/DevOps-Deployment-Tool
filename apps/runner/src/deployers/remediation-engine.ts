@@ -1,3 +1,4 @@
+import { runtimeFromLabels, withRuntimeLabel } from "./app-runtime";
 import {
   MAX_RESTART_ATTEMPTS,
   RESTART_BACKOFF_BASE_MS,
@@ -205,6 +206,9 @@ async function attemptRollback(
     const rollbackColor = ref.currentColor === "blue" ? "green" : "blue";
     const rollbackContainerName = `deployx-${ref.projectSlug}-${rollbackColor}`;
 
+    // Same volumes and limits as the failing container
+    const runtime = runtimeFromLabels((await inspectContainer(ref.containerName))?.labels);
+
     // Clean up any existing container at the rollback slot
     await removeContainerIfExists(rollbackContainerName);
 
@@ -214,7 +218,8 @@ async function attemptRollback(
       image: ref.previousImageTag!,
       network: DEPLOYER_NETWORK_NAME,
       env: { PORT: String(ref.appPort) },
-      labels: {
+      ...runtime,
+      labels: withRuntimeLabel({
         "deployx.project": ref.projectSlug,
         "deployx.role": "app",
         "deployx.color": rollbackColor,
@@ -222,7 +227,7 @@ async function attemptRollback(
         "deployx.runId": ref.runId,
         "deployx.healthPath": ref.healthPath,
         "deployx.appPort": String(ref.appPort),
-      },
+      }, runtime),
       detach: true,
       restart: "unless-stopped",
     });
@@ -383,6 +388,7 @@ async function recreateWithImage(ref: DeploymentRef, image: string): Promise<voi
     image,
     network: DEPLOYER_NETWORK_NAME,
     env: { PORT: String(ref.appPort) },
+    ...runtimeFromLabels(existing?.labels),
     labels: {
       ...keptLabels,
       "deployx.project": ref.projectSlug,
