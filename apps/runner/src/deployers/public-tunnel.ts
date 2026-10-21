@@ -155,6 +155,11 @@ export async function ensurePublicTunnel(
     command: [
       "tunnel",
       "--no-autoupdate",
+      // QUIC (UDP 7844) is blocked on many campus/office networks and the
+      // tunnel then never connects (Cloudflare error 1033); HTTP/2 rides on
+      // TCP 443, which works wherever HTTPS does
+      "--protocol",
+      "http2",
       "--url",
       `http://${proxyContainerName(projectSlug)}:80`,
     ],

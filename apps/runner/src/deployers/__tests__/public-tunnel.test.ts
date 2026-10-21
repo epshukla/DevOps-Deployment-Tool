@@ -65,7 +65,7 @@ describe("ensurePublicTunnel", () => {
       reused: false,
     });
     expect(calls).toContain(
-      "run deployx-tunnel-shop tunnel --no-autoupdate --url http://deployx-proxy-shop:80",
+      "run deployx-tunnel-shop tunnel --no-autoupdate --protocol http2 --url http://deployx-proxy-shop:80",
     );
   });
 
