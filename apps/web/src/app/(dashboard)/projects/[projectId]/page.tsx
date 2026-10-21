@@ -146,7 +146,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
   // ── Documents (all finalized versions) + the live public URL ──
   const { data: documents } = await supabase
     .from("project_documents")
-    .select("id, path, version, is_current, content_type, size_bytes, sha256, visibility, expires_at, created_at")
+    .select("id, path, version, is_current, content_type, size_bytes, sha256, visibility, expires_at, created_at, verification")
     .eq("project_id", projectId)
     .eq("status", "ready")
     .order("path", { ascending: true })
