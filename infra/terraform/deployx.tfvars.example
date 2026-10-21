@@ -1,0 +1,10 @@
+# Copy to deployx.tfvars (gitignored) and fill in.
+app_url                    = "https://deployx-chi.vercel.app"
+supabase_access_token      = ""
+supabase_org_id            = ""
+supabase_db_password       = ""
+github_oauth_client_id     = ""
+github_oauth_client_secret = ""
+vercel_api_token           = ""
+deployx_secret_key         = ""
+cron_secret                = ""

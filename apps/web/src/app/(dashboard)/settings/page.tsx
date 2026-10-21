@@ -3,6 +3,7 @@ import { SettingsClient } from "./settings-client";
 import { loadProfiles } from "@/lib/profiles";
 import { isInviteExpired } from "@/lib/invite-links";
 import { hasMinRole } from "@deployx/shared";
+import { SecurityCard } from "./security-card";
 
 export default async function SettingsPage() {
   const { supabase, org, role, user } = await requireUserWithOrg();
@@ -79,7 +80,15 @@ export default async function SettingsPage() {
     };
   });
 
+  const { data: orgSettings } = await supabase
+    .from("organizations")
+    .select("require_mfa, notify_webhook_url")
+    .eq("id", org.id)
+    .maybeSingle();
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
   return (
+    <>
     <SettingsClient
       org={org}
       currentUserId={user.id}
@@ -88,5 +97,12 @@ export default async function SettingsPage() {
       pendingInvites={invites}
       myInvites={myInvites}
     />
+    <SecurityCard
+      isOwner={role === "owner"}
+      requireMfa={orgSettings?.require_mfa === true}
+      notifyWebhookUrl={(orgSettings?.notify_webhook_url as string | null | undefined) ?? null}
+      myMfaEnabled={aal?.nextLevel === "aal2"}
+    />
+    </>
   );
 }

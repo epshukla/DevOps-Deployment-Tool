@@ -51,7 +51,7 @@ function createClient(overrides: MockClient = {}): MockClient {
   return {
     reportStatus: vi.fn().mockResolvedValue(undefined),
     sendLogs: vi.fn().mockResolvedValue(undefined),
-    getSecrets: vi.fn().mockResolvedValue({}),
+    getSecrets: vi.fn().mockResolvedValue({ secrets: {}, maskedKeys: [] }),
     getRunStatus: vi.fn().mockResolvedValue({ status: "running" }),
     getApprovalStatus: vi.fn().mockResolvedValue({ status: "approved" }),
     createDeployment: vi.fn().mockResolvedValue({ deployment_id: "dep-1", revision_id: "rev-1" }),
@@ -455,7 +455,7 @@ describe("executePipeline — image build for deployments", () => {
 
   it("tags with and pushes to DEPLOYX_REGISTRY, recording the pushed digest", async () => {
     const client = createClient({
-      getSecrets: vi.fn().mockResolvedValue({ DEPLOYX_REGISTRY: "ghcr.io/acme/" }),
+      getSecrets: vi.fn().mockResolvedValue({ secrets: { DEPLOYX_REGISTRY: "ghcr.io/acme/" }, maskedKeys: [] }),
     });
     await run(client, deployTask({ driver: "docker_local" }));
 

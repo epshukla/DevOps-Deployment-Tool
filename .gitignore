@@ -10,3 +10,13 @@ dist/
 
 # Supabase CLI local state (linked project ref, versions)
 supabase/.temp/
+
+# Terraform state and variable files hold secrets
+infra/terraform/.terraform/
+infra/terraform/*.tfstate*
+infra/terraform/*.tfvars
+!infra/terraform/*.tfvars.example
+infra/terraform/.terraform.lock.hcl
+
+# Disaster-recovery backups
+backups/

@@ -604,3 +604,44 @@ describe("FlyConfigSchema", () => {
     }
   });
 });
+
+describe("DeployConfigSchema resources and volumes", () => {
+  const base = { driver: "docker_local" as const };
+
+  it("accepts limits and named volumes", () => {
+    const parsed = DeployConfigSchema.parse({
+      ...base,
+      resources: { cpus: 0.5, memory_mb: 512 },
+      volumes: [{ name: "data", path: "/var/www/html" }],
+    });
+    expect(parsed.volumes?.[0]).toEqual({ name: "data", path: "/var/www/html", read_only: false });
+  });
+
+  it("rejects host-ish or system mount paths and bad names", () => {
+    for (const path of ["/", "relative", "/etc/passwd", "/proc", "/a/../etc"]) {
+      expect(
+        DeployConfigSchema.safeParse({ ...base, volumes: [{ name: "x", path }] }).success,
+      ).toBe(false);
+    }
+    expect(
+      DeployConfigSchema.safeParse({ ...base, volumes: [{ name: "Bad Name", path: "/data" }] }).success,
+    ).toBe(false);
+  });
+
+  it("rejects duplicate names or paths and absurd limits", () => {
+    expect(
+      DeployConfigSchema.safeParse({
+        ...base,
+        volumes: [{ name: "a", path: "/d" }, { name: "a", path: "/e" }],
+      }).success,
+    ).toBe(false);
+    expect(
+      DeployConfigSchema.safeParse({
+        ...base,
+        volumes: [{ name: "a", path: "/d" }, { name: "b", path: "/d" }],
+      }).success,
+    ).toBe(false);
+    expect(DeployConfigSchema.safeParse({ ...base, resources: { memory_mb: 1 } }).success).toBe(false);
+    expect(DeployConfigSchema.safeParse({ ...base, resources: { cpus: 0 } }).success).toBe(false);
+  });
+});

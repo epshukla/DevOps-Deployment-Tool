@@ -13,6 +13,7 @@ export * from "./validators/notification";
 export * from "./validators/audit";
 export * from "./validators/profile";
 export * from "./validators/artifact";
+export * from "./validators/document";
 export * from "./observability";
 export * from "./crypto";
 export * from "./constants";
