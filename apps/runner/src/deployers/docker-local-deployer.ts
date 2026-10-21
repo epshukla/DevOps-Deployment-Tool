@@ -18,6 +18,7 @@ import { allocatePort, releasePort } from "./port-allocator";
 import { resolvePreviousImage, withPreviousImageLabel } from "./previous-image";
 import { generateNginxConfig, writeNginxConfig, reloadNginx } from "./nginx-config";
 import { waitForHealthyViaDocker } from "./health-checker";
+import { appRuntimeFromConfig, withRuntimeLabel } from "./app-runtime";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -80,22 +81,27 @@ export class DockerLocalDeployer implements DeployerDriver {
         PORT: String(appPort),
       };
 
+      const runtime = appRuntimeFromConfig(config, projectSlug);
       await runContainer({
         name: newContainerName,
         image: ctx.imageTag,
         network: DEPLOYER_NETWORK_NAME,
         env: deployEnv,
-        labels: withPreviousImageLabel(
-          {
-            "deployx.project": projectSlug,
-            "deployx.role": "app",
-            "deployx.color": newColor,
-            "deployx.deployment": ctx.deploymentId,
-            "deployx.runId": ctx.job.run_id,
-            "deployx.healthPath": healthPath,
-            "deployx.appPort": String(appPort),
-          },
-          previousImage,
+        ...runtime,
+        labels: withRuntimeLabel(
+          withPreviousImageLabel(
+            {
+              "deployx.project": projectSlug,
+              "deployx.role": "app",
+              "deployx.color": newColor,
+              "deployx.deployment": ctx.deploymentId,
+              "deployx.runId": ctx.job.run_id,
+              "deployx.healthPath": healthPath,
+              "deployx.appPort": String(appPort),
+            },
+            previousImage,
+          ),
+          runtime,
         ),
         detach: true,
         restart: "unless-stopped",

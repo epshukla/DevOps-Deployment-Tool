@@ -1,4 +1,4 @@
-import type { RunnerMetrics } from "@deployx/shared";
+import type { DocumentManifest, RunnerMetrics } from "@deployx/shared";
 import type { RunnerConfig } from "./config";
 
 interface SystemInfo {
@@ -155,6 +155,13 @@ export class RunnerApiClient {
     await this.request("POST", `/api/runner/jobs/${runId}/images`, image);
   }
 
+  // ── Documents ───────────────────────────────────────────────
+
+  /** Public documents to serve on a deployment, with signed download URLs. */
+  async getDocumentManifest(deploymentId: string): Promise<DocumentManifest> {
+    return this.request("GET", `/api/runner/deployments/${deploymentId}/documents`);
+  }
+
   // ── Deployment Methods ──────────────────────────────────────
 
   async createDeployment(
@@ -228,12 +235,13 @@ export class RunnerApiClient {
 
   async getSecrets(
     runId: string,
-  ): Promise<Record<string, string>> {
-    const data = await this.request<{ secrets: Record<string, string> }>(
+  ): Promise<{ readonly secrets: Record<string, string>; readonly maskedKeys: readonly string[] }> {
+    const data = await this.request<{ secrets: Record<string, string>; masked_keys?: string[] }>(
       "GET",
       `/api/runner/jobs/${runId}/secrets`,
     );
-    return data.secrets;
+    // Older control planes don't send masked_keys: mask every value then
+    return { secrets: data.secrets, maskedKeys: data.masked_keys ?? Object.keys(data.secrets) };
   }
 
   async getRunStatus(runId: string): Promise<{ status: string }> {

@@ -20,6 +20,7 @@ rolling) with self-healing, and a real-time dashboard.
 - **Your machines run the work** — runners poll the control plane (no open ports); pick **any available runner** or pin a run to a specific one
 - **Deployment strategies** — blue-green (instant cutover), canary (staged traffic), rolling; behind an nginx proxy per project
 - **Temporary public URLs** — every local deployment gets a `https://….trycloudflare.com` link for 24 hours
+- **Project documents** — upload files to a project; public ones are served on the deployment URL under `/files/` from an S3-compatible object store on the runner (versioned, erasure-coded), private ones through short-lived signed links
 - **Self-healing** — health checks every 15s, restarts with backoff, automatic rollback
 - **Real-time dashboard** — live logs and DAG, deployment health, SLA uptime, build-time prediction, failure risk
 - **Runner resource usage** — CPU, memory, disk and container load per runner, plus 24h job stats
@@ -28,6 +29,9 @@ rolling) with self-healing, and a real-time dashboard.
 - **Secrets** — AES-256-GCM encrypted project secrets, injected only at run time
 - **Alerts & notifications** — threshold alerts (success rate, duration, health), in-app realtime notifications, audit log
 - **Pipeline versioning** — edit, browse history, restore any version, re-run any run
+- **Security** — TOTP MFA (optionally required for Owners/Admins), Trivy image scanning before deploy, secret values masked in run logs
+- **Control** — per-client rate limiting at the proxy, CPU/memory limits, persistent volumes, `driver: auto` cloud broker
+- **Integrations** — notification webhooks (Slack/Discord), document-verification Edge Function, Terraform for the control plane, backup/restore scripts, a Go endpoint prober (`tools/probe`)
 
 ## How it works
 
@@ -219,7 +223,19 @@ tasks:
       health_check:
         path: /health
       public_url: true              # default; false = no temporary public URL
+      resources:                    # docker_local: cgroup limits per app container
+        cpus: 0.5                   #   CPU cores (fractions allowed)
+        memory_mb: 512              #   hard memory cap, no extra swap
+        pids: 256                   #   max processes
+      volumes:                      # docker_local: named volumes, kept across deploys
+        - name: data                #   → Docker volume deployx-<slug>-vol-data
+          path: /var/www/html       #   mount path inside the container
 ```
+
+**Volumes and limits.** A named volume outlives redeploys, blue/green switches,
+self-healing restarts and `stop`. Every instance of the project shares it, so
+use it for state an app keeps on disk. Host paths can't be mounted. Remove a
+volume by hand with `docker volume rm deployx-<slug>-vol-<name>`.
 
 **Variables:** `${{ git.sha }}`, `${{ git.short_sha }}`, `${{ git.branch }}`,
 `${{ project.name }}`, `${{ project.slug }}`, `${{ env.NAME }}` (project secrets
@@ -233,6 +249,11 @@ works behind the URL. The link is shown on the deployment page and dashboard,
 is reused across redeploys, and is removed after **24 hours** (or when the
 deployment is stopped). It only works while the runner's machine and Docker are up.
 
+**Documents.** Files uploaded on a project's **Documents** tab are served on
+the same URL under `/files/<path>` (public ones only). The runner mirrors them
+into a local S3-compatible object store (`rustfs/rustfs`, started the first
+time a project has documents) within a minute of each change.
+
 **Project secrets read by the runner:** `DEPLOYX_REGISTRY` (e.g.
 `ghcr.io/acme`; when set, built images are tagged and pushed there — required
 for Railway/Fly), `RAILWAY_PROJECT_TOKEN`, `RAILWAY_ENVIRONMENT_ID`.
@@ -245,6 +266,7 @@ for Railway/Fly), `RAILWAY_PROJECT_TOKEN`, `RAILWAY_ENVIRONMENT_ID`.
 | Create projects and pipelines, edit/restore pipeline versions | | ✓ | ✓ | ✓ |
 | Trigger, re-run, cancel runs; vote on approvals | | ✓ | ✓ | ✓ |
 | Manage secrets, webhooks, schedules; stop / roll back deployments | | ✓ | ✓ | ✓ |
+| Upload, delete, restore and publish documents | | ✓ | ✓ | ✓ |
 | Register / revoke runners; manage alert rules | | | ✓ | ✓ |
 | Invite members, change roles, delete projects and artifacts | | | ✓ | ✓ |
 | Rename the organization | | | | ✓ |
@@ -300,6 +322,7 @@ More in the [getting-started guide](docs/context/19-getting-started.md#troublesh
 
 ## Documentation
 
+- **[Setup for the new features](docs/SETUP.md)**: migrations, MFA, edge function, runner, Terraform, DR
 - **[Getting started guide](docs/context/19-getting-started.md)** — from first sign-in to a running deployment
 - [`apps/runner/README.md`](apps/runner/README.md) — runner CLI, config, how jobs execute
 - [`apps/web/README.md`](apps/web/README.md) — control plane structure and APIs
@@ -333,6 +356,8 @@ feature was built; the code and this README win where they disagree):
 | [20](docs/context/20-ui-security-fixes.md) | UI & security patches |
 | [21](docs/context/21-deployment-bugfixes.md) | Deployment bug fixes |
 | [22](docs/context/22-multi-runner-profiles.md) | Multiple runners on one machine |
+| [23](docs/context/23-project-documents.md) | Project documents: object storage, `/files/` on the public URL |
+| [24](docs/context/24-volumes-and-limits.md) | Persistent volumes and CPU/memory limits |
 
 ## License
 
