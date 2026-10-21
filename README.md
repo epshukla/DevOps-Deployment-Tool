@@ -20,6 +20,7 @@ rolling) with self-healing, and a real-time dashboard.
 - **Your machines run the work** — runners poll the control plane (no open ports); pick **any available runner** or pin a run to a specific one
 - **Deployment strategies** — blue-green (instant cutover), canary (staged traffic), rolling; behind an nginx proxy per project
 - **Temporary public URLs** — every local deployment gets a `https://….trycloudflare.com` link for 24 hours
+- **Project documents** — upload files to a project; public ones are served on the deployment URL under `/files/` from an S3-compatible object store on the runner (versioned, erasure-coded), private ones through short-lived signed links
 - **Self-healing** — health checks every 15s, restarts with backoff, automatic rollback
 - **Real-time dashboard** — live logs and DAG, deployment health, SLA uptime, build-time prediction, failure risk
 - **Runner resource usage** — CPU, memory, disk and container load per runner, plus 24h job stats
@@ -233,6 +234,11 @@ works behind the URL. The link is shown on the deployment page and dashboard,
 is reused across redeploys, and is removed after **24 hours** (or when the
 deployment is stopped). It only works while the runner's machine and Docker are up.
 
+**Documents.** Files uploaded on a project's **Documents** tab are served on
+the same URL under `/files/<path>` (public ones only). The runner mirrors them
+into a local S3-compatible object store (`rustfs/rustfs`, started the first
+time a project has documents) within a minute of each change.
+
 **Project secrets read by the runner:** `DEPLOYX_REGISTRY` (e.g.
 `ghcr.io/acme`; when set, built images are tagged and pushed there — required
 for Railway/Fly), `RAILWAY_PROJECT_TOKEN`, `RAILWAY_ENVIRONMENT_ID`.
@@ -245,6 +251,7 @@ for Railway/Fly), `RAILWAY_PROJECT_TOKEN`, `RAILWAY_ENVIRONMENT_ID`.
 | Create projects and pipelines, edit/restore pipeline versions | | ✓ | ✓ | ✓ |
 | Trigger, re-run, cancel runs; vote on approvals | | ✓ | ✓ | ✓ |
 | Manage secrets, webhooks, schedules; stop / roll back deployments | | ✓ | ✓ | ✓ |
+| Upload, delete, restore and publish documents | | ✓ | ✓ | ✓ |
 | Register / revoke runners; manage alert rules | | | ✓ | ✓ |
 | Invite members, change roles, delete projects and artifacts | | | ✓ | ✓ |
 | Rename the organization | | | | ✓ |
@@ -333,6 +340,7 @@ feature was built; the code and this README win where they disagree):
 | [20](docs/context/20-ui-security-fixes.md) | UI & security patches |
 | [21](docs/context/21-deployment-bugfixes.md) | Deployment bug fixes |
 | [22](docs/context/22-multi-runner-profiles.md) | Multiple runners on one machine |
+| [23](docs/context/23-project-documents.md) | Project documents: object storage, `/files/` on the public URL |
 
 ## License
 

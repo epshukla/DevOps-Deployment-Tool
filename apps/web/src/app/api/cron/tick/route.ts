@@ -6,6 +6,7 @@ import { reapOrphans } from "@/lib/cron/reap-orphans";
 import { evaluateAlerts } from "@/lib/cron/evaluate-alerts";
 import { expirePublicUrls } from "@/lib/cron/expire-public-urls";
 import { pruneRunnerMetrics } from "@/lib/cron/prune-runner-metrics";
+import { expireDocuments } from "@/lib/cron/expire-documents";
 
 /**
  * GET|POST /api/cron/tick
@@ -18,6 +19,7 @@ import { pruneRunnerMetrics } from "@/lib/cron/prune-runner-metrics";
  * 2. Mark dead runners offline and time out runs they orphaned
  * 3. Evaluate alert rules and notify
  * 4. Clear expired temporary public URLs
+ * 5. Prune runner metrics; apply document lifecycle (expiry, abandoned uploads)
  *
  * Each job is idempotent and isolated: one failing doesn't skip the others.
  */
@@ -28,12 +30,13 @@ async function tick(request: Request) {
   const supabase = createServiceClient();
   const now = new Date();
 
-  const [schedules, reaper, alerts, publicUrls, runnerMetrics] = await Promise.allSettled([
+  const [schedules, reaper, alerts, publicUrls, runnerMetrics, documents] = await Promise.allSettled([
     dispatchDueSchedules(supabase, now),
     reapOrphans(supabase, now),
     evaluateAlerts(supabase, now),
     expirePublicUrls(supabase, now),
     pruneRunnerMetrics(supabase, now),
+    expireDocuments(supabase, now),
   ]);
 
   const summarize = <T,>(result: PromiseSettledResult<T>) =>
@@ -48,9 +51,10 @@ async function tick(request: Request) {
     alerts: summarize(alerts),
     public_urls: summarize(publicUrls),
     runner_metrics: summarize(runnerMetrics),
+    documents: summarize(documents),
   };
 
-  const failed = [schedules, reaper, alerts, publicUrls, runnerMetrics].some((r) => r.status === "rejected");
+  const failed = [schedules, reaper, alerts, publicUrls, runnerMetrics, documents].some((r) => r.status === "rejected");
   if (failed) console.error("[cron/tick] one or more jobs failed", body);
 
   return NextResponse.json(body, { status: failed ? 500 : 200 });

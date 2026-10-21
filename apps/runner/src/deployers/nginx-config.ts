@@ -2,6 +2,13 @@ import { execa } from "execa";
 
 // ── Types ───────────────────────────────────────────────────────
 
+/**
+ * Extra `server`-level snippets (documents, caching…) live here, one file per
+ * feature, so they survive the deployers rewriting default.conf on every
+ * cutover. A wildcard include that matches nothing is not an error.
+ */
+export const NGINX_SNIPPETS_DIR = "/etc/nginx/deployx.d";
+
 export interface NginxUpstream {
   readonly name: string;
   readonly port: number;
@@ -46,6 +53,8 @@ server {
         proxy_connect_timeout 3s;
         proxy_read_timeout 5s;
     }
+
+    include ${NGINX_SNIPPETS_DIR}/*.conf;
 }
 `.trimStart();
 }
@@ -89,6 +98,8 @@ server {
         proxy_connect_timeout 3s;
         proxy_read_timeout 5s;
     }
+
+    include ${NGINX_SNIPPETS_DIR}/*.conf;
 }
 `;
 }
@@ -168,5 +179,54 @@ export async function reloadNginx(
     throw new Error(
       `Nginx reload failed in ${proxyContainerName}: ${reloadResult.stderr}`,
     );
+  }
+}
+
+// ── Snippets ────────────────────────────────────────────────────
+
+/** Read a snippet from the proxy; null when it doesn't exist. */
+export async function readNginxSnippet(
+  proxyContainerName: string,
+  name: string,
+): Promise<string | null> {
+  const result = await execa(
+    "docker",
+    ["exec", proxyContainerName, "cat", `${NGINX_SNIPPETS_DIR}/${name}.conf`],
+    // Keep the file byte-for-byte so callers can compare it to what they'd write
+    { reject: false, stripFinalNewline: false },
+  );
+  return result.exitCode === 0 ? String(result.stdout) : null;
+}
+
+/**
+ * Install (or replace) a snippet and reload nginx. If the new config fails
+ * `nginx -t`, the snippet is removed again so the proxy keeps serving.
+ */
+export async function writeNginxSnippet(
+  proxyContainerName: string,
+  name: string,
+  content: string,
+): Promise<void> {
+  const file = `${NGINX_SNIPPETS_DIR}/${name}.conf`;
+  const write = await execa(
+    "docker",
+    [
+      "exec",
+      proxyContainerName,
+      "sh",
+      "-c",
+      `mkdir -p ${NGINX_SNIPPETS_DIR} && cat > ${file} << 'NGINX_EOF'\n${content}NGINX_EOF`,
+    ],
+    { reject: false },
+  );
+  if (write.exitCode !== 0) {
+    throw new Error(`Failed to write nginx snippet ${name}: ${write.stderr}`);
+  }
+
+  try {
+    await reloadNginx(proxyContainerName);
+  } catch (err) {
+    await execa("docker", ["exec", proxyContainerName, "rm", "-f", file], { reject: false });
+    throw err;
   }
 }

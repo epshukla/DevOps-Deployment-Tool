@@ -3,6 +3,7 @@ import {
   generateNginxConfig,
   generateWeightedNginxConfig,
   calculateCanaryWeights,
+  NGINX_SNIPPETS_DIR,
 } from "../nginx-config";
 
 describe("generateNginxConfig", () => {
@@ -203,5 +204,24 @@ describe("calculateCanaryWeights", () => {
     // 20% -> 80:20 -> GCD(80,20)=20 -> 4:1
     const result = calculateCanaryWeights(20);
     expect(result).toEqual({ stableWeight: 4, canaryWeight: 1 });
+  });
+});
+
+describe("feature snippets", () => {
+  it("both config generators include the snippets directory inside the server block", () => {
+    const single = generateNginxConfig({
+      listenPort: 80,
+      upstream: { name: "a", port: 3000 },
+      healthCheckPath: "/health",
+    });
+    const weighted = generateWeightedNginxConfig({
+      listenPort: 80,
+      upstreams: [{ name: "a", port: 3000 }],
+      healthCheckPath: "/health",
+    });
+    for (const config of [single, weighted]) {
+      expect(config).toContain(`include ${NGINX_SNIPPETS_DIR}/*.conf;`);
+      expect(config.indexOf("include")).toBeGreaterThan(config.indexOf("server {"));
+    }
   });
 });

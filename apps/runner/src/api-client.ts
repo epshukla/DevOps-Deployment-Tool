@@ -1,4 +1,4 @@
-import type { RunnerMetrics } from "@deployx/shared";
+import type { DocumentManifest, RunnerMetrics } from "@deployx/shared";
 import type { RunnerConfig } from "./config";
 
 interface SystemInfo {
@@ -153,6 +153,13 @@ export class RunnerApiClient {
     },
   ): Promise<void> {
     await this.request("POST", `/api/runner/jobs/${runId}/images`, image);
+  }
+
+  // ── Documents ───────────────────────────────────────────────
+
+  /** Public documents to serve on a deployment, with signed download URLs. */
+  async getDocumentManifest(deploymentId: string): Promise<DocumentManifest> {
+    return this.request("GET", `/api/runner/deployments/${deploymentId}/documents`);
   }
 
   // ── Deployment Methods ──────────────────────────────────────

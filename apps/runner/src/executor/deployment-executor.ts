@@ -3,6 +3,7 @@ import type { DeployConfig } from "@deployx/shared";
 import { createDeployer } from "../deployers";
 import type { RunContext } from "./task-executor";
 import { resolveDeployImage } from "./image-builder";
+import { syncDocumentsForDeployment } from "../documents/document-syncer";
 
 export interface DeploymentRequest {
   readonly taskName: string;
@@ -70,6 +71,10 @@ export async function executeDeployment(
       secrets: run.projectSecrets,
     });
 
+    if (result.success && deployConfig.driver === "docker_local") {
+      await publishDocuments(run, deployment_id, taskName, taskRunId);
+    }
+
     const tunnel =
       result.success && deployConfig.driver === "docker_local" && deployConfig.public_url !== false
         ? await openPublicUrl(run, deployment_id, taskName, taskRunId)
@@ -100,6 +105,36 @@ export async function executeDeployment(
       task_run_id: taskRunId,
     });
     return false;
+  }
+}
+
+/**
+ * Serve the project's public documents under /files/ on this deployment.
+ * Never fails the deploy; the background syncer retries every minute.
+ */
+async function publishDocuments(
+  run: RunContext,
+  deploymentId: string,
+  taskName: string,
+  taskRunId: string | undefined,
+): Promise<void> {
+  const { logStreamer } = run;
+  try {
+    const result = await syncDocumentsForDeployment(run.client, deploymentId, run.job.project_slug);
+    if (result.total > 0 || result.removed > 0) {
+      logStreamer.push({
+        level: result.failed > 0 ? "warn" : "info",
+        message: `[deploy:${taskName}] Documents: ${result.total} served under /files/ (${result.uploaded} uploaded, ${result.removed} removed${result.failed > 0 ? `, ${result.failed} failed: ${result.errors.join("; ")}` : ""})`,
+        task_run_id: taskRunId,
+      });
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    logStreamer.push({
+      level: "warn",
+      message: `[deploy:${taskName}] Documents not published yet: ${msg}`,
+      task_run_id: taskRunId,
+    });
   }
 }
 

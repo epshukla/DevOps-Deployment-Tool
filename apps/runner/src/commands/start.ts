@@ -2,6 +2,7 @@ import { loadConfig, listProfiles, resolveProfile } from "../config";
 import { RunnerApiClient } from "../api-client";
 import { executePipeline } from "../executor/pipeline-executor";
 import { HealthMonitor } from "../deployers/health-monitor";
+import { DocumentSyncer } from "../documents/document-syncer";
 import {
   RUNNER_POLL_INTERVAL_MS,
   HEARTBEAT_INTERVAL_MS,
@@ -53,6 +54,10 @@ export async function startCommand(options: StartOptions): Promise<void> {
     signal: monitorController.signal,
   });
   healthMonitor.start();
+
+  // Mirror public project documents into the local object store
+  const documentSyncer = new DocumentSyncer({ client });
+  documentSyncer.start();
 
   // Heartbeat loop; every RUNNER_METRICS_INTERVAL_MS it also carries
   // host/Docker usage for the Runners page
@@ -123,6 +128,7 @@ export async function startCommand(options: StartOptions): Promise<void> {
     clearInterval(pollInterval);
     clearInterval(heartbeatInterval);
     monitorController.abort();
+    documentSyncer.stop();
 
     if (isExecutingJob) {
       console.log("Waiting for current job to finish...");

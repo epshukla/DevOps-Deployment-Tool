@@ -23,12 +23,13 @@ import {
   updateWebhookConfig,
 } from "./webhooks/actions";
 import { SchedulesSection } from "@/components/projects/schedules-section";
+import { DocumentsSection, type DocumentData } from "@/components/projects/documents-section";
 import { usePermissions } from "@/components/layout/user-context";
 import { GatedLink } from "@/components/ui/gated-link";
 import { ReadOnlyBanner } from "@/components/ui/read-only-banner";
 import { formatDate, formatDateShort } from "@/lib/format-date";
 
-type Tab = "pipelines" | "deployments" | "sla" | "settings";
+type Tab = "pipelines" | "deployments" | "documents" | "sla" | "settings";
 
 interface SlaData {
   readonly uptimePercent: number;
@@ -137,6 +138,8 @@ interface ProjectDetailClientProps {
   readonly predictedDuration?: number | null;
   readonly failureRisk?: FailureRiskResult;
   readonly runners: readonly RunnerOption[];
+  readonly documents: readonly DocumentData[];
+  readonly publicUrl: string | null;
 }
 
 
@@ -154,6 +157,8 @@ export function ProjectDetailClient({
   predictedDuration,
   failureRisk,
   runners,
+  documents,
+  publicUrl,
 }: ProjectDetailClientProps) {
   const [activeTab, setActiveTab] = useState<Tab>("pipelines");
   const tabContentRef = useRef<HTMLDivElement>(null);
@@ -225,6 +230,7 @@ export function ProjectDetailClient({
         <div className="flex border-b border-outline-variant/10 gap-8">
           <TabButton active={activeTab === "pipelines"} icon="list_alt" label="Pipelines" onClick={() => setActiveTab("pipelines")} />
           <TabButton active={activeTab === "deployments"} icon="rocket_launch" label="Deployments" onClick={() => setActiveTab("deployments")} />
+          <TabButton active={activeTab === "documents"} icon="folder_open" label="Documents" onClick={() => setActiveTab("documents")} />
           <TabButton active={activeTab === "sla"} icon="monitoring" label="SLA" onClick={() => setActiveTab("sla")} />
           <TabButton active={activeTab === "settings"} icon="tune" label="Project Settings" onClick={() => setActiveTab("settings")} />
         </div>
@@ -243,6 +249,9 @@ export function ProjectDetailClient({
           />
         )}
         {activeTab === "deployments" && <DeploymentsTab projectId={project.id} deployments={deployments} />}
+        {activeTab === "documents" && (
+          <DocumentsSection projectId={project.id} documents={documents} publicUrl={publicUrl} />
+        )}
         {activeTab === "sla" && slaData && (
           <SlaTab slaData={slaData} />
         )}
